@@ -1,0 +1,17 @@
+sub_problems = {
+    'Load Stereo Image Pairs': 'In this step, we will read the left and right images from the two sets of stereo images using an image processing library to prepare them for disparity calculation.',
+
+    'Convert Images to Grayscale': 'In this step, we will convert both the left and right images from each pair to grayscale to simplify the feature detection process.',
+
+    'Compute Disparity Map': 'In this step, we will use a disparity estimation algorithm (e.g., StereoBM or StereoSGBM) to compute the disparity map from the left and right grayscale images, which will provide depth information.',
+
+    'Calculate Depth from Disparity': 'In this step, we will convert the disparity map into depth information using the camera parameters (focal length and baseline) to understand the 3D structure of the scene.',
+
+    'Feature Detection and Matching': 'In this step, we will detect keypoints in both left images using a feature detection algorithm (e.g., ORB, SIFT) and match the features between the two left images to track motion.',
+
+    'Estimate Essential Matrix': 'In this step, we will compute the essential matrix from the matched feature points using the intrinsic parameters of the camera, which will help in estimating camera motion.',
+
+    'Recover Camera Motion': 'In this step, we will decompose the essential matrix to recover the rotation and translation (motion) of the camera between the first and second image pairs.',
+
+    'Track Frame Displacement': 'In this step, we will calculate the displacement of the camera based on the recovered translation vector, which indicates the motion between the two frames.'
+}
