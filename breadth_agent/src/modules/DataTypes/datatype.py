@@ -76,7 +76,7 @@ class CameraPose:
     rotations: list[np.ndarray]     # Rotation matrices for each corresponding frame (Derived from camera_pose)
     translations: list[np.ndarray]  # Translation matrices for each corresponding frame (Derived from camera_pose)
 
-    def __init__(self, cam_poses: list[np.ndarray] | None = None, 
+    def __init__(self, cam_poses: list[np.ndarray] | None = [], 
                  rot: list[np.ndarray] | None = [], trans: list[np.ndarray] | None = []):
         self.camera_pose = cam_poses
         self.rotations = rot
