@@ -4,8 +4,8 @@ from dataclasses import dataclass
 
 @dataclass
 class Points2D:
-    points2D: np.ndarray
-    descriptors: np.ndarray
+    points2D: np.ndarray # 2xN
+    descriptors: np.ndarray # MxN
 
     def update_2D_points_index(self, indices: list[int]) -> None:
         self.points2D = self.points2D[indices]
@@ -20,6 +20,33 @@ class Points2D:
         descriptors = self.descriptors[indices]
 
         return {"points2D" : points2D, "descriptors": descriptors}
+
+    def set_inliers(self, mask: np.ndarray) -> dict[str: np.ndarray]:
+        points2D = self.points2D[mask.ravel() == 1]
+        descriptors = self.descriptors[mask.ravel() == 1]
+
+        return {"points2D" : points2D, "descriptors": descriptors}
+
+@dataclass
+class PointsMatched:
+    data_matrix: np.ndarray # Data Structure to store corresponding points. In the form of Nx4 -> [track_id, frame_num, x, y]
+    track_map: dict         # Used to aid in the feature matching process.
+    point_count: int        # Based on track_id max count -> tells us how many 3D points exist
+    
+    def __init__(self,  data_matrix: np.ndarray | None = None, 
+                        track_map: dict = {},
+                        point_count: int = 0):
+        self.data_matrix = data_matrix
+        self.track_map = track_map
+        self.point_count = point_count
+
+    def set_matched_matrix(self, data: list[list]) -> None:
+        self.data_matrix = np.array(data)
+
+    def access_point3D(self, track_id: int) -> np.ndarray: # 3D point returns a Nx3 Matrix of (Cam, x, y)
+        indicies = np.where(self.data_matrix[:, 0] == track_id)[0]
+        return self.data_matrix[indicies, 1:] 
+
 
 @dataclass
 class Points3D:
@@ -41,7 +68,6 @@ class Points3D:
             self.points3D = np.vstack((self.points3D, new_points))
             if color is not None:
                 self.color = np.vstack((self.color,np.array(color)))
-
 
 
 @dataclass

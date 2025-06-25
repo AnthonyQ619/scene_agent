@@ -40,11 +40,11 @@ class GeometryProcessing:
                 for i in tqdm(range(len(pts))):
                     scene = pts[i]
                     pts1, pts2 = scene[0], scene[1]
-                    M = self.find_projective(pts1, pts2)
+                    M = self.find_projective(pts2, pts1)
                     matrices.append(M)
             
             return matrices
-        elif format.lower() in self.FOMRATS[1:]:
+        elif format.lower() in self.FORMATS[1:]:
             pts1, pts2 = pts[0][0], pts[0][1]
             if option.lower() == self.OPTIONS[0]:
                 M = self.find_essential(pts1, pts2)
@@ -78,7 +78,6 @@ class GeometryProcessing:
         else:
             message = "Error: Not enough points for computation. Requires: " + str(MIN_MATCH_COUNT)
             raise Exception(message)
-
 
 
 class CameraPoseEstimator:
@@ -134,12 +133,7 @@ class CameraPoseEstimator:
         pts1 = pts[0].points2D
         pts2 = pts[1].points2D
 
-        print(pts1.shape, pts1.dtype)
-        print(pts2.shape, pts2.dtype)
-        print(E.shape, E.dtype)
-        print(self.K.shape, self.K.dtype)
-
-        _, R, T, _ = cv2.recoverPose(points1 = pts1, points2=pts2, cameraMatrix=self.K, E = E)
+        _, R, T, _ = cv2.recoverPose(points1 = pts2, points2=pts1, cameraMatrix=self.K, E = E)
         return R, T
     
     def find_pose_3D(self, points3D: Points3D, points2D: Points2D):
@@ -225,7 +219,12 @@ class HomographyApplication:
             
         
     def define_new_image(self, h_matrices:list[np.ndarray], image:np.ndarray):
-        h, w, _ = image.shape()
+        x_min = float('inf')
+        x_max = 0
+        y_min = float('inf')
+        y_max = 0
+
+        h, w, _ = image.shape
 
         cornerPointsofFrame = np.array([[0,w,w,0],
                                         [0,0,h,h]],dtype=np.float32).T.reshape(-1,1,2)
@@ -251,13 +250,18 @@ class HomographyApplication:
 
         image = cv2.imread(self.images[0])
         H = h_matrices[0]
-        prev_img = cv2.warpPerspective(image, H, output_image.shape[:2], flags=cv2.INTER_LINEAR, borderValue = 0)
-        for i in range(1, len(self.images)):
+        prev_img = cv2.warpPerspective(image, H, (output_image.shape[1], output_image.shape[0]), flags=cv2.INTER_LINEAR, borderValue = 0)
+        print(len(self.images))
+        print(len(h_matrices))
+        for i in range(1, len(self.images)): #len(self.images)):
             image = cv2.imread(self.images[i])
             H = h_matrices[i]
-            curr_img = cv2.warpPerspective(image, H, output_image.shape[:2], flags=cv2.INTER_LINEAR, borderValue = 0)
-
-            prev_img = self.blend_image(prev_img, curr_img)
+            curr_img = cv2.warpPerspective(image, H, (output_image.shape[1], output_image.shape[0]), flags=cv2.INTER_LINEAR, borderValue = 0)
+            
+            view_img = cv2.resize(curr_img, (0, 0), fx = 0.1, fy = 0.1)
+            cv2.imshow("Current Image" + str(i), view_img )
+            cv2.waitKey(0)
+            prev_img = self.blend_image(curr_img, prev_img)
         
         return prev_img
 
@@ -272,11 +276,12 @@ class HomographyApplication:
         return output
 
     def blend_image(self, foreground: np.ndarray, background: np.ndarray) -> np.ndarray:
-        # Set alpha (transparency) value (0.0 = fully transparent, 1.0 = fully opaque)
-        alpha = 0.0
+        _, mask = cv2.threshold(cv2.cvtColor(foreground, cv2.COLOR_BGR2GRAY), 1, 255, cv2.THRESH_BINARY)
+        # Apply mask
+        masked_overlay = cv2.bitwise_and(foreground, foreground, mask=mask)
 
-        # Blend images
-        blended_image = cv2.addWeighted(background, 1 - alpha, foreground, alpha, 0)
+        # Overlay
+        blended_image = np.where(mask[..., None]==255, masked_overlay, background)
 
         return blended_image
     
@@ -318,16 +323,40 @@ class GeometryComposition:
         r_mat = (mat1 @ mat2)[:3, :]
 
         return r_mat
+        # New Method
+        # R1 = mat1[:, :3]
+        # T1 = mat1[:, 3:]
+
+        # R2 = mat2[:, :3]
+        # T2 = mat2[:, 3:]
+
+        # print(R2.shape)
+        # R12 = R1 @ R2
+        # T12 = T1 + (R1@T2)
+        # return np.hstack((R12, T12))
     
     def compose_homog_matrices(self, h_matrices: list[np.ndarray]) -> list[np.ndarray]:
+        # First Compose all current H_matrices -> Then, compose to a new image
+        new_H_matrices = [np.eye(3)]
+        for i in range(len(h_matrices)):
+            newH = new_H_matrices[i] @ h_matrices[i]
+            newH = newH/np.linalg.norm(newH)
+            new_H_matrices.append(newH)
+        
+        # Construct new image size based on compose h_matrices
+        x_min = float('inf')
+        x_max = 0
+        y_min = float('inf')
+        y_max = 0
+
         img = cv2.imread(self.images[0])
         h, w, _ = img.shape
 
         cornerPointsofFrame = np.array([[0,w,w,0],
                                         [0,0,h,h]],dtype=np.float32).T.reshape(-1,1,2)
 
-        for i in range(len(h_matrices)):
-            som = cv2.perspectiveTransform(cornerPointsofFrame, h_matrices[i])
+        for i in range(len(new_H_matrices)):
+            som = cv2.perspectiveTransform(cornerPointsofFrame, new_H_matrices[i])
             som1 = som[:,0,:].T
             for i in range(som1.shape[1]):
                 x, y, = som1[:, i]
@@ -347,8 +376,8 @@ class GeometryComposition:
         H_mosaic = cv2.getPerspectiveTransform(cornerPointsofFrame,cornerPointsofMosiac1)
 
         mosaic_H_mats = []
-        for i in range(len(h_matrices)):
-            newHM = H_mosaic @ h_matrices[i]
+        for i in range(len(new_H_matrices)):
+            newHM = H_mosaic @ new_H_matrices[i]
             mosaic_H_mats.append(newHM)
 
         return mosaic_H_mats
@@ -443,10 +472,12 @@ class GeometrySceneEstimate:
         xU1 = cv2.undistortPoints(pts1.points2D, self.K, self.cam_distortion)
         xU2 = cv2.undistortPoints(pts2.points2D, self.K, self.cam_distortion)
         
-        P1mtx = np.eye(3) @ camera_pose[0]
-        P2mtx = np.eye(3) @ camera_pose[1]
+        P1mtx = self.K @ camera_pose[0]
+        P2mtx = self.K @ camera_pose[1]
+        print(pts1.points2D.shape)
+        print(xU1.shape)
 
-        X = cv2.triangulatePoints(P1mtx, P2mtx, xU1, xU2)
+        X = cv2.triangulatePoints(P1mtx, P2mtx, pts1.points2D.T, pts2.points2D.T)
         X = (X[:-1]/X[-1]).T 
 
         pts3D = Points3D(points = X)

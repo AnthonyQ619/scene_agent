@@ -3,147 +3,107 @@ import numpy as np
 import glob
 from tqdm import tqdm
 from .DataTypes.datatype import Points2D, Calibration
+from baseclass import FeatureClass
 
-LISTED_TYPES = ['corner', 'sift', 'orb']
-MATCHERS = ['flann', 'bruteforce', 'bf']
+# LISTED_TYPES = ['corner', 'sift', 'orb']
+# MATCHERS = ['flann', 'bruteforce', 'bf']
 
 
-class FeatureDetection():
-    def __init__(self, image_path:str | None, type = 'sift'):
-        self.image_path = sorted(glob.glob(image_path + "\\*"))
-        self.listed_types = ['corner', 'sift', 'orb']
-        self.type = type
+class FeatureDetectionSIFT(FeatureClass):
+    def __init__(self, image_path:str | None):
+        self.module_name = "FeatureDetection"
+        self.description = f"""
+Detects existing keypoints(features) and descriptors in images using the feature detector 
+SIFT. 
+Default detector is SIFT. Unless specified, assume the feature detector that will be used is SIFT.        
+""" 
+        # Provide examples of how to invoke the function calls -> Not Prompts to invoke it..
+        self.example = f"""
+1. In this step, we will detect keypoints in sequential images using a feature detection algorithm (e.g., ORB, SIFT).
+2. In this step, use the SIFT feature detector to detect features in sequential images
+3. In this step, detect features in the left images of a stereo camera using the SIFT feature detector
+"""
+        super().__init__(image_path)
+        print(self.image_path)
 
-    def __call__(self):
-        return self.detect_features()
+        self.detector = cv2.SIFT_create()
 
-    def detect_features(self, model_name = None):
-        detected_features = []
-
-        if self.type not in LISTED_TYPES:
-            print("Error in Feature Selection. Use one of: corner, sift, or orb")
-            
-            return 
-        
-        if self.type.lower() == LISTED_TYPES[0]:
-            for img in self.image_path:
-                im_gray = cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2GRAY)
-                corners = cv2.cornerHarris(im_gray, 2,3,0.04)
-                detected_features.append(Points2D(corners))
-            return detected_features
-        elif self.type.lower() == LISTED_TYPES[1]:
-            detector = cv2.SIFT_create()
-        elif self.type.lower() == LISTED_TYPES[2]:
-            detector = cv2.ORB_create()
-        
-        for i in tqdm(range(10)): # len(self.image_path)
+    def __call__(self) -> list[Points2D]:
+        for i in tqdm(range(12)): # len(self.image_path)
         # img in self.image_path:
             img = self.image_path[i]
             im_gray = cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2GRAY)
 
-            kp, des = detector.detectAndCompute(im_gray, None)
+            kp, des = self.detector.detectAndCompute(im_gray, None)
             pts = np.array([kp[i].pt for i in range(len(kp))])
 
-            detected_features.append(Points2D(points2D = pts, descriptors=des))
+            self.features.append(Points2D(points2D = pts, descriptors=des))
         
-        return detected_features
+        return self.features
     
 
-class FeatureMatching():
-    def __init__(self, matcher = None, type = 'partial', detector = 'sift'):
-        if matcher is None:
-            self.matcher_type = "FLANN"
-        elif matcher not in MATCHERS:
-            print("Error in Matcher Selection. Use one of: BruteForce(BF) or FLANN")
-            return
+class FeatureDetectionORB(FeatureClass):
+    def __init__(self, image_path:str | None):
+        self.module_name = "FeatureDetection"
+        self.description = f"""
+Detects existing keypoints(features) and descriptors in images using the feature detector 
+ORB. 
+When specified directly or efficient feature detection, utilize the ORB feature detector.        
+"""
+        self.example = f"""
+1. In this step, we will detect keypoints in sequential images using a feature detection algorithm ORB.
+2. In this step, use the ORB feature detector to detect features in sequential images
+3. In this step, we will detect keypoints in sequential images using a feature detection, but ensure this process is fast.
+4. In this step, detect features in the left images of a stereo camera using the ORB feature detector
+"""
+        super().__init__(image_path)
+        print(self.image_path)
+
+        self.detector = cv2.ORB_create()
+
+    def __call__(self) -> list[Points2D]:
+        for i in tqdm(range(12)): # len(self.image_path)
+        # img in self.image_path:
+            img = self.image_path[i]
+            im_gray = cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2GRAY)
+
+            kp, des = self.detector.detectAndCompute(im_gray, None)
+            pts = np.array([kp[i].pt for i in range(len(kp))])
+
+            self.features.append(Points2D(points2D = pts, descriptors=des))
         
-        self.detector = detector.lower()
-        self.matcher_type = matcher
-
-        if self.matcher_type.lower() == MATCHERS[0]:
-            if self.detector == LISTED_TYPES[1]:
-                FLANN_INDEX_KDTREE = 1
-                index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
-            else:
-                FLANN_INDEX_LSH = 6
-                index_params = dict(algorithm = FLANN_INDEX_LSH,
-                                    table_number = 6, # 12
-                                    key_size = 12,     # 20
-                                    multi_probe_level = 1) #2
-            
-            search_params = dict(checks=50)   # or pass empty dictionary
- 
-            self.matcher = cv2.FlannBasedMatcher(index_params,search_params)
-
-        elif self.matcher_type.lower() in MATCHERS[1:]: 
-            if self.detector == LISTED_TYPES[1]:
-                self.matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
-            else:
-                self.matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-        
-    def __call__(self, features: list[Points2D], type = 'full') -> list:
-        
-        if type.lower() == 'full':
-            matched_points = self.match_full(features)
-        elif type.lower() in ['pair', 'pairwise', 'partial']:
-            matched_points = self.match_pair(features[0], features[1])
-
-        return matched_points
-    
-    def match_full(self, features: list[Points2D]) -> list[list[Points2D, Points2D]]:
-        matched_points = []
-
-        for scene in tqdm(range(0, len(features) - 1)):
-            pt1 = features[scene]
-            pt2 = features[scene + 1]
-
-            idx1, idx2 = self.matcher_parser(pt1.descriptors, pt2.descriptors)
-
-            new_pt1 = Points2D(**pt1.splice_2D_points(idx1))
-            new_pt2 = Points2D(**pt2.splice_2D_points(idx2))
-
-            matched_points.append([new_pt1, new_pt2])
-
-        return matched_points
-
-
-    def match_pair(self, pts1: Points2D, pts2: Points2D) -> list[Points2D, Points2D]:
-        idx1, idx2 = self.matcher_parser(pts1.descriptors, pts2.descriptors)
-
-        pts1.update_2D_points_index(idx1)
-        pts2.update_2D_points_index(idx2)
-
-        return [pts1, pts2]
-
-    def matcher_parser(self, desc1: np.ndarray, desc2: np.ndarray) -> tuple[list, list]:
-        knn = False
-        if self.matcher_type.lower() == "flann":
-            matches = self.matcher.knnMatch(desc1, desc2, k=2)
-            knn = True
-        elif self.matcher_type.lower() in MATCHERS[1:]:
-            if self.detector == LISTED_TYPES[1]:
-                matches = self.matcher.knnMatch(desc1, desc2, k=2)
-                knn = True
-            else:
-                matches = self.matcher.match(desc1,desc2)
-                
-        if self.detector == LISTED_TYPES[1]:
-            # Conduct Lowe's Test Here
-            good = []
-            for m,n in matches:
-                if m.distance < 0.75*n.distance:
-                    good.append(m)
-
-        
-        if knn:
-            pts1_idx = [good[i].queryIdx for i in range(len(good))]
-            pts2_idx = [good[i].trainIdx for i in range(len(good))]
-        else:
-            pts1_idx = [matches[i].queryIdx for i in range(len(matches))]
-            pts2_idx = [matches[i].trainIdx for i in range(len(matches))]
-
-        return pts1_idx, pts2_idx
-
-        
+        return self.features
 
             
+class FeatureDetectionFAST(FeatureClass):
+    def __init__(self, image_path:str | None):
+        self.module_name = "FeatureDetection"
+        self.description = f"""
+Detects existing keypoints(features) and descriptors in images using the FAST feature detector. 
+When specified directly or mentioning fast feature detection, utilize the FAST feature detector.        
+"""
+        self.example = f"""
+1. In this step, we will detect keypoints in sequential images using the FAST Feature Detector for corner points.
+2. In this step, use the FAST feature detector to detect features in sequential images.
+3. In this step, we will detect keypoints in sequential images using a feature detection, but ensure to use a very fast feature detector.
+4. In this step, detect features in the left images of a stereo camera using the FAST feature detector.
+5. In this step, we will use a feature detector to detect features for a process in a real-time setting. 
+"""
+        super().__init__(image_path)
+        print(self.image_path)
+
+        self.detector = cv2.FastFeatureDetector_create()
+
+    def __call__(self) -> list[Points2D]:
+        for i in tqdm(range(12)): # len(self.image_path)
+        # img in self.image_path:
+            img = self.image_path[i]
+            im_gray = cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2GRAY)
+
+            kp, des = self.detector.detectAndCompute(im_gray, None)
+            pts = np.array([kp[i].pt for i in range(len(kp))])
+
+            self.features.append(Points2D(points2D = pts, descriptors=des))
+        
+        return self.features
+
