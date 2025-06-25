@@ -6,22 +6,82 @@ from .DataTypes.datatype import Points2D, Calibration, Points3D, CameraPose
 
 
 class CamPoseEstimatorEssentialToPnP(CameraPoseEstimatorClass):
-    def __init__(self, calibration: Calibration, image_path: str):
+    def __init__(self, calibration: Calibration, image_path: str, detector: str):
         super().__init__(calibration, image_path)
 
         self.module_name = "CamPoseEstimatorEssentialToPnP"
         self.description = ""
         self.example = ""
 
-        # Assume Basic Flann Matcher
+        # Assume Basic Flann Matcher -TODO: REMOVE THIS PORTION OF THE CODE - TAKE IN PAIRED FEATURE MATCHING DATA
+        self.detector = detector.lower()
+        if self.detector ==  "sift":
+            FLANN_INDEX_KDTREE = 1
+            index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
+        else: # Fast and Orb
+            FLANN_INDEX_LSH = 6
+            index_params = dict(algorithm = FLANN_INDEX_LSH,
+                                table_number = 6, # 12
+                                key_size = 12,     # 20
+                                multi_probe_level = 1) #2
+        
+        search_params = dict(checks=50)   # or pass empty dictionary
+
+        self.matcher = cv2.FlannBasedMatcher(index_params,search_params)
+
         
 
     def __call__(self, features: list[Points2D] | None = None):
          
-        pass
-    
-    
+        # Get First set of camera poses (Initial and 2nd Camera)
+        pts1, pts2 = self.match_pairs(features)
 
+        cam_poses = self.estimate_first_pair(pts1, pts2) # First two poses defined here
+
+        cloud = self.two_view_triangulation(cam_poses.camera_pose[0], cam_poses.camera_pose[1], pts1, pts2)
+
+
+    
+    def match_pairs(self, pts1: Points2D, pts2: Points2D) -> tuple[Points2D, Points2D]:  
+        idx1, idx2 = self.matcher_parser(pts1.descriptors, pts2.descriptors)
+
+        new_pt1 = Points2D(**pts1.splice_2D_points(idx1))
+        new_pt2 = Points2D(**pts2.splice_2D_points(idx2))
+
+        _, mask = cv2.findFundamentalMat(new_pt1.points2D, new_pt2.points2D, cv2.FM_LMEDS)
+
+        # Could update points2D to inlier points with Mask
+        inlier_pts1 = Points2D(**new_pt1.set_inliers(mask))
+        inlier_pts2 = Points2D(**new_pt2.set_inliers(mask))
+
+
+        return inlier_pts1, inlier_pts2
+
+    def matcher_parser(self, desc1: np.ndarray, desc2: np.ndarray) -> tuple[list, list]:
+        knn = False
+      
+        if self.detector == "sift":
+            matches = self.matcher.knnMatch(desc1, desc2, k=2)
+            knn = True
+        else:
+            matches = self.matcher.match(desc1,desc2)
+                
+        if self.detector == "sift":
+            # Conduct Lowe's Test Here
+            good = []
+            for m,n in matches:
+                if m.distance < 0.75*n.distance:
+                    good.append(m)
+        
+        if knn:
+            pts1_idx = [good[i].queryIdx for i in range(len(good))]
+            pts2_idx = [good[i].trainIdx for i in range(len(good))]
+        else:
+            pts1_idx = [matches[i].queryIdx for i in range(len(matches))]
+            pts2_idx = [matches[i].trainIdx for i in range(len(matches))]
+
+        return pts1_idx, pts2_idx
+    
     def three_view_tracking(self, pts2: np.ndarray, pts2_3: np.ndarray, pts3: np.ndarray):
         #pts2 is the set of keypoints obtained from image(n-1) and image(n)
         #pts2_3 and pts3 are the set of keypoints obtained from image(n) and image(n+1)
@@ -70,11 +130,18 @@ class CamPoseEstimatorEssentialToPnP(CameraPoseEstimatorClass):
 
         return cam_poses
 
+    def estimate_pose_pnp(self, point_cloud: np.ndarray, pts1: Points2D, pts2: Points2D):
+        _,rot,trans,_=cv2.solvePnPRansac(point_cloud,kp1,K,diss_coeff,cv2.SOLVEPNP_ITERATIVE)
+        
+        rot,_=cv2.Rodrigues(rot)
+
     def two_view_triangulation(self, pose_1: np.ndarray, pose_2: np.ndarray, pts1: Points2D, pts2: Points2D) -> np.ndarray:
         proj_1 = self.K1 @ pose_1
         proj_2 = self.K1 @ pose_2
 
         cloud = cv2.triangulatePoints(proj_1,proj_2, pts1.points2D, pts2.points2D)
         cloud/=cloud[3]
+
+        cloud=cv2.convertPointsFromHomogeneous(cloud.T)
         
         return cloud
