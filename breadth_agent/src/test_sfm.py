@@ -4,24 +4,6 @@ from modules.utilities.utilities import CalibrationReader
 from modules.optimization import OutlierRejection
 from modules.visualize import VisualizeScene
 # Visualizer
-# import open3d as o3d
-# import open3d.visualization.gui as gui
-# import open3d.visualization.rendering as rendering
-# import numpy as np
-# import matplotlib.pyplot as plt
-
-# def temp_function_outlier_removal(points):
-#     center_points = np.zeros((points.shape[0], 3))
-
-#     diff = np.linalg.norm(center_points - points, axis=1)
-#     diff[diff <= 50.0] = 1
-#     diff[diff > 50.0] = 0
-
-#     new_points = points[diff == 1]
-
-#     return new_points
-
-
 
 # Construct Modules with Initialized Arguments
 image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"

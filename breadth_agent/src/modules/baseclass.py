@@ -21,6 +21,29 @@ class GeometryClass():
     def __call__(self):
         pass
 
+class SceneEstimation():
+    def __init__(self, calibration: Calibration, image_path: str):
+        self.module_name = "..."
+        self.description = "..."
+        self.example = "..."
+
+        self.stereo = calibration.stereo
+        self.K1 = calibration.K1
+        self.dist1 = calibration.distort
+        if self.stereo:
+            self.K2 = calibration.K2
+            self.dist2 = calibration.distort2
+            self.R12 = calibration.R12
+            self.T12 = calibration.T12
+        
+        self.image_path = sorted(glob.glob(image_path + "\\*"))
+
+    def __call__(self, tracked_features: PointsMatched, cam_poses: CameraPose) -> Scene:
+        scene = Scene()
+
+        return scene
+
+
 class CameraPoseEstimatorClass():
     def __init__(self, calibration: Calibration, image_path:str):
         self.module_name = "..."
@@ -64,7 +87,9 @@ class FeatureMatching():
         self.DETECTORS = ["sift", "orb", "fast"]
 
     def __call__(self) -> PointsMatched:
-        matched_points = PointsMatched()
+        # Points Matched for Tracking -> data = N x [track_id, frame_num, x, y]
+        # Points Matched for Pairwise Matching -> 
+        matched_points = PointsMatched() 
 
 
         return matched_points

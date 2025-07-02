@@ -29,24 +29,48 @@ class Points2D:
 
 @dataclass
 class PointsMatched:
-    data_matrix: np.ndarray # Data Structure to store corresponding points. In the form of Nx4 -> [track_id, frame_num, x, y]
-    track_map: dict         # Used to aid in the feature matching process.
-    point_count: int        # Based on track_id max count -> tells us how many 3D points exist
-    
+    data_matrix: np.ndarray             # Data Structure to store corresponding points. In the form of Nx4 -> [track_id, frame_num, x, y]
+    pairwise_matches: list[np.ndarray]  # Data Structure to store Pairwise feature matchest. Form of Nx4 -> [x1, y1, x2, y2]
+    track_map: dict                     # Used to aid in the feature matching process.
+    point_count: int                    # Based on track_id max count -> tells us how many 3D points exist
+    multi_view: bool
+
     def __init__(self,  data_matrix: np.ndarray | None = None, 
+                        pairwise_matches: np.ndarray | None = None,
                         track_map: dict = {},
                         point_count: int = 0):
         self.data_matrix = data_matrix
+        self.pairwise_matches = pairwise_matches
         self.track_map = track_map
         self.point_count = point_count
 
+        if data_matrix is not None:
+            self.multi_view = True
+        elif pairwise_matches is not None:
+            self.multi_view = False
+
+    # Feature Tracking Functions (Multi-View)
     def set_matched_matrix(self, data: list[list]) -> None:
         self.data_matrix = np.array(data)
+        self.multi_view = True
 
     def access_point3D(self, track_id: int) -> np.ndarray: # 3D point returns a Nx3 Matrix of (Cam, x, y)
         indicies = np.where(self.data_matrix[:, 0] == track_id)[0]
         return self.data_matrix[indicies, 1:] 
 
+    # Feature Matching (Two-View)
+    def set_matching_pair(self, data:np.ndarray) -> None:
+        assert (data.shape[1] == 4), "Not enough data stored in column. Each row must contain: [x1, y1, x2, y2] of matching feature pair."
+        self.pairwise_matches.append(data)
+        self.multi_view = False
+
+    def access_matching_pair(self, pair_index: int) -> tuple[np.ndarray, np.ndarray]:
+        data = self.pairwise_matches[pair_index]
+
+        pts1 = data[:, :2]
+        pts2 = data[:, 2:]
+
+        return pts1, pts2
 
 @dataclass
 class Points3D:
@@ -168,8 +192,10 @@ class Scene:
     point_to_pose: np.ndarray   # List of corresponding camera poses to 3D points
     representation: str         # Represnetation of the scene (Future use cases here)
 
-    def __init__(self, points3D: Points3D | None = Points3D(), cam_poses: list[np.ndarray] = [], 
-                 point_to_pose: np.ndarray | None = None, representation: str = "point cloud"):
+    def __init__(self, points3D: Points3D | None = Points3D(), 
+                 cam_poses: list[np.ndarray] = [], 
+                 point_to_pose: np.ndarray | None = None, 
+                 representation: str = "point cloud"):
         self.SceneRepresentation = ["point cloud", "mesh", 'NeRF']
 
         
@@ -197,8 +223,8 @@ class Calibration:
     stereo: bool
 
     def __init__(self, K1 = np.eye(3),  R: np.ndarray | None = None, T: np.ndarray | None = None, 
-                 stereo: bool = False, K2: np.ndarray | None = None, dist: np.ndarray = np.zeros((1, 5)),
-                 dist2: np.ndarray = np.zeros((1, 5))):
+                 stereo: bool = False, K2: np.ndarray | None = None, dist: np.ndarray | None = None,
+                 dist2: np.ndarray | None = None):
         self.K1 = K1 # If Stereo, this will be a lsit of calibration vals
         self.distort = dist
         self.stereo = stereo

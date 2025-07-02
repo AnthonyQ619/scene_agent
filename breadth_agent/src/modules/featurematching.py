@@ -10,9 +10,31 @@ class FeatureMatchFlannTracking(FeatureMatching):
     def __init__(self, detector:str = 'sift'):
         self.module_name = "FeatureMatchFlannTracking"
 
-        self.description = ""
+        self.description = f"""
+Detects point correspondance across multiple frames to track features. The feature matching
+algorithm used is the Flann feature detector. Unless specified directly, assume the features
+are detected using the SIFT algorithm and initialize through the detector parameter. 
+Other supported detectors are: SIFT, ORB, and FAST.
+"""
 
-        self.example = ""
+        self.example = f"""
+Initialization: 
+# Determine the detector that was used previously and initialize module with said detector
+
+# Feature Tracker Module initialized with the SIFT detector
+feature_tracker = FeatureMatchFlannTracking(detector='sift') # Initialized with detector 'sift' for proper matching
+
+# Feature Tracker Module initialized with the ORB detector 
+feature = FeatureMatchFlannTracking(detector='orb') # Initialized with detector 'orb' for proper matching
+
+# Feature Tracker Module intialized with the FAST detector
+feature = FeatureMatchFlannTracking(detector='fast') # Initialized with detector 'orb' for proper matching
+
+Example Usage in Script:  
+features = feature_detector() # Call Feature Detector Module on image frames
+
+tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
+"""
 
 
         super().__init__(detector.lower())
@@ -77,9 +99,9 @@ class FeatureMatchFlannTracking(FeatureMatching):
 
         matches_np = np.array(matches)
 
-        print(inlier_pts1.points2D.shape)
+        # print(inlier_pts1.points2D.shape)
         matches_inlier = matches_np[mask.ravel()==1].tolist()
-        print(len(matches_inlier))
+        # print(len(matches_inlier))
         return matches_inlier, inlier_pts1, inlier_pts2
 
     def matcher_parser(self, desc1: np.ndarray, desc2: np.ndarray) -> tuple[list, list]:        
@@ -131,10 +153,31 @@ class FeatureMatchFlannTracking(FeatureMatching):
 class FeatureMatchFlannPair(FeatureMatching):
     def __init__(self, detector:str = 'sift'):
         self.module_name = "FeatureMatchFlannPair"
+        self.description = f"""
+Detects point correspondance between two sequential frames at once to detect matching 
+features across a set of images. The feature matching algorithm used is the Flann feature 
+detector. Unless specified directly, assume the features are detected using the SIFT 
+algorithm and initialize through the detector parameter. 
+Other supported detectors are: SIFT, ORB, and FAST.
+"""
+        self.example = f"""
+Initialization: 
+# Determine the detector that was used previously and initialize module with said detector
 
-        self.description = ""
+# Feature Matcher Module initialized with the SIFT detector
+feature_matcher = FeatureMatchFlannPair(detector='sift') # Initialized with detector 'sift' for proper matching
 
-        self.example = ""
+# Feature Matcher Module initialized with the ORB detector 
+feature = FeatureMatchFlannPair(detector='orb') # Initialized with detector 'orb' for proper matching
+
+# Feature Matcher Module intialized with the FAST detector
+feature = FeatureMatchFlannPair(detector='fast') # Initialized with detector 'orb' for proper matching
+
+Example Usage in Script:  
+features = feature_detector() # Call Feature Detector Module on image frames
+
+tracked_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
+"""
 
 
         super().__init__(detector.lower())
@@ -157,12 +200,12 @@ class FeatureMatchFlannPair(FeatureMatching):
         
     def __call__(self, features: list[Points2D]) -> PointsMatched:
         
-        matched_points = self.match_full(features) # TODO: Edit how PointsMatched is Filled
+        matched_points = self.match_full(features) 
 
         return matched_points
     
-    def match_full(self, features: list[Points2D]) -> list[list[Points2D, Points2D]]:
-        matched_points = []
+    def match_full(self, features: list[Points2D]) -> PointsMatched:
+        matched_points = PointsMatched()
 
         for scene in tqdm(range(0, len(features) - 1)):
             pt1 = features[scene]
@@ -173,10 +216,20 @@ class FeatureMatchFlannPair(FeatureMatching):
             new_pt1 = Points2D(**pt1.splice_2D_points(idx1))
             new_pt2 = Points2D(**pt2.splice_2D_points(idx2))
 
-            matched_points.append([new_pt1, new_pt2])
+            inlier_pts1, inlier_pts2 = self.outlier_reject(new_pt1, new_pt2)
+
+            matched_points.set_matching_pair(np.hstack((inlier_pts1.points2D, inlier_pts2.points2D)))
 
         return matched_points
 
+    def outlier_reject(self, pts1: Points2D, pts2: Points2D) -> tuple[Points2D, Points2D]:
+        _, mask = cv2.findFundamentalMat(pts1.points2D, pts2.points2D, cv2.FM_LMEDS)
+
+        # Could update points2D to inlier points with Mask
+        inlier_pts1 = Points2D(**pts1.set_inliers(mask))
+        inlier_pts2 = Points2D(**pts2.set_inliers(mask))
+
+        return inlier_pts1, inlier_pts2
 
     def matcher_parser(self, desc1: np.ndarray, desc2: np.ndarray) -> tuple[list, list]:        
         matches = self.matcher.knnMatch(desc1, desc2, k=2)
@@ -193,13 +246,36 @@ class FeatureMatchFlannPair(FeatureMatching):
 
         return pts1_idx, pts2_idx
     
+
+
 class FeatureMatchBFPair(FeatureMatching):
     def __init__(self, detector:str = 'sift'):
         self.module_name = "FeatureMatchBFPair"
+        self.description = f"""
+Detects point correspondance between two sequential frames at once to detect matching 
+features across a set of images. The feature matching algorithm used is the Brute-Force 
+feature detector. Unless specified directly, assume the features are detected using the SIFT 
+algorithm and initialize through the detector parameter. 
+Other supported detectors are: SIFT, ORB, and FAST.
+"""
+        self.example = f"""
+Initialization: 
+# Determine the detector that was used previously and initialize module with said detector
 
-        self.description = ""
+# Feature Matcher Module initialized with the SIFT detector
+feature_matcher = FeatureMatchBFPair(detector='sift') # Initialized with detector 'sift' for proper matching
 
-        self.example = ""
+# Feature Matcher Module initialized with the ORB detector 
+feature = FeatureMatchBFPair(detector='orb') # Initialized with detector 'orb' for proper matching
+
+# Feature Matcher Module intialized with the FAST detector
+feature = FeatureMatchBFPair(detector='fast') # Initialized with detector 'orb' for proper matching
+
+Example Usage in Script:  
+features = feature_detector() # Call Feature Detector Module on image frames
+
+tracked_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
+"""
 
 
         super().__init__(detector.lower())
@@ -211,12 +287,12 @@ class FeatureMatchBFPair(FeatureMatching):
         
     def __call__(self, features: list[Points2D]) -> PointsMatched:
         
-        matched_points = self.match_full(features) # Convert to PointsMatched Properly
+        matched_points = self.match_full(features) 
    
         return matched_points
     
-    def match_full(self, features: list[Points2D]) -> list[list[Points2D, Points2D]]:
-        matched_points = []
+    def match_full(self, features: list[Points2D]) -> PointsMatched:
+        matched_points = PointsMatched()
 
         for scene in tqdm(range(0, len(features) - 1)):
             pt1 = features[scene]
@@ -227,10 +303,20 @@ class FeatureMatchBFPair(FeatureMatching):
             new_pt1 = Points2D(**pt1.splice_2D_points(idx1))
             new_pt2 = Points2D(**pt2.splice_2D_points(idx2))
 
-            matched_points.append([new_pt1, new_pt2]) # TODO: Edit how PointsMatched is Filled
+            inlier_pts1, inlier_pts2 = self.outlier_reject(new_pt1, new_pt2)
+
+            matched_points.set_matching_pair(np.hstack((inlier_pts1.points2D, inlier_pts2.points2D)))
 
         return matched_points
 
+    def outlier_reject(self, pts1: Points2D, pts2: Points2D) -> tuple[Points2D, Points2D]:
+        _, mask = cv2.findFundamentalMat(pts1.points2D, pts2.points2D, cv2.FM_LMEDS)
+
+        # Could update points2D to inlier points with Mask
+        inlier_pts1 = Points2D(**pts1.set_inliers(mask))
+        inlier_pts2 = Points2D(**pts2.set_inliers(mask))
+
+        return inlier_pts1, inlier_pts2
 
     def matcher_parser(self, desc1: np.ndarray, desc2: np.ndarray) -> tuple[list, list]:
         knn = False
