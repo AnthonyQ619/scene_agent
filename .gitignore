@@ -1,1 +1,6 @@
-breadth_agent/scene_agent/
+breadth_agent/scene_agent/*
+breadth_agent/src/modules/__pycache__/
+breadth_agent/src/modules.egg-info
+breadth_agent/src/tests/code_generation/
+breadth_agent/results/
+breadth_agent/src/modules/models/sfm_models/vggt/weights/

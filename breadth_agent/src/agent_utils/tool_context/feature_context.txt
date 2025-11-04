@@ -1,0 +1,112 @@
+This is a file containing the Features modules.
+===+&+===
+
+Tool Name: FeatureDetectionSIFT
+
+Tool Description: 
+Detects existing keypoints(features) and descriptors in images using the feature detector 
+SIFT. This Feature Detector is used when accurate and robust feature detection with
+detailed description generation based algorithms are the priority. When specified directly 
+for SIFT or when classical based feature detection is called for with robust detection required
+utilize the SIFT feature detector module. 
+
+Initialization Parameters: 
+- image_path (str): the image path in which the images are stored and to utilize for scene building
+- max_keypoints: Maximum number of Keypoints to detect per image from the feature detector
+    - Default (int): 1024
+- image_reshape: shape of image in the format of (int, int) = (Height, Width) to reshape current image to.
+    - Default (int, int): None (No Reshape takes place by default)
+
+Module Output: 
+    list[Points2D]:
+        Points2D (Detected Features per Scene):
+            points2D:       [N x 2] np.float32
+            descriptors:    [N x 128] np.float32
+            scores:         [N x 1] np.float32
+            image_size:     [1 x 2] np.int64
+
+
+Tool Example: 
+Initialization of Module: 
+feature_detector = FeatureDetectionSIFT(image_path=image_path, max_keypoints = 2000) 
+
+Function call of Module:  
+features = feature_detector()
+
+
+===+&+===
+
+Tool Name: FeatureDetectionORB
+
+Tool Description: 
+Detects existing keypoints(features) and descriptors in images using the feature detector 
+ORB. This Feature Detector is used when efficiency is the priority as ORB utilizes faster feature detection
+and description generation based algorithms. When specified directly for ORB or when quick/efficient 
+feature detection is necessary, and called for, utilize the ORB feature detector module. 
+
+Initialization Parameters: 
+- image_path (str): the image path in which the images are stored and to utilize for scene building
+- max_keypoints: Maximum number of Keypoints to detect per image from the feature detector
+    - Default (int): 1024
+- image_reshape: shape of image in the format of (int, int) = (Height, Width) to reshape current image to.
+    - Default (int, int): None (No Reshape takes place by default)
+
+Module Output: 
+    list[Points2D]:
+        Points2D (Detected Features per Scene):
+            points2D: [N x 2] np.float32
+            descriptors: [N x 32] np.uint8
+            scores:         [N x 1] np.float32
+            image_size: [1 x 2] np.int64
+
+
+Tool Example: 
+Initialization of Module: 
+feature_detector = FeatureDetectionORB(image_path=image_path, max_keypoints = 2000) 
+
+Function call of Module:  
+features = feature_detector()
+
+
+===+&+===
+
+Tool Name: FeatureDetectionSP
+
+Tool Description: 
+Detects existing keypoints(features) and descriptors in images using a Deep Learning Model Feature
+Detector denoted as SuperPoint.
+This Feature Detector is utilized in cases where diffuse lighting materials exist in scenes, images of 
+environments that lack texture, or extreme view changes exist in scene video or images.
+When specified directly to use the SuperPoint algorithm, mentioning to use a feature detector 
+to handle view changes or material that lack texture in a given scene, or accurate dense features 
+are necessary, use the SuperPoint detection Module.
+
+Initialization Parameters: 
+- image_path (str): the image path in which the images are stored and to utilize for scene building
+- max_keypoints: Maximum number of Keypoints to detect per image from the feature detector
+    - Default (int): 1024
+- image_reshape: shape of image in the format of (int, int) = (Height, Width) to reshape current image to.
+    - Default (int, int): None (No Reshape takes place by default)
+
+Module Output: 
+    list[Points2D]:
+        Points2D (Detected Features per Scene):
+            points2D: [N x 2] np.float32
+            descriptors: [N x 256] np.float32
+            scores:         [N x 1] np.float32
+            image_size: [1 x 2] np.int64
+
+
+Tool Example: 
+Initialization: 
+# Reshape Image
+feature_detector = FeatureDetectionSP(image_path=image_path, max_keypoints=2000, image_reshape=(480, 640)) 
+
+# Keep image size
+feature_detector = FeatureDetectionSP(image_path=image_path, max_keypoints=2000) 
+
+Function call:  
+features = feature_detector()
+
+
+===+&+===

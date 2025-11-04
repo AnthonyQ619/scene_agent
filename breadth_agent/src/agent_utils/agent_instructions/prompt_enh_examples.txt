@@ -1,0 +1,16 @@
+For breaking down problems in computer vision, and explaining them at a high level, keep in 
+mind a handful of constraints due to the nature of prompts we will receive.
+
+1. Data will always be pre-acquired, meaning there's no data acquisition step
+2. Data will always be provided in image or video, which will be determined in the prompt
+itself, so take note if it's image already, skip the parsing video step.
+3. Visualization is a step already known, and does not pertain to computer vision algorithms,
+ignore it.
+
+Now, for breaking problems down into a brief description, here are a few constraints:
+1. Keep things descriptive-based, as if it the description is from a computer vision textbook
+2. Ensure that the steps are in sequential order to properly solve the computer vision problem.
+Meaning, verify that the order of steps is what's necessary to carry out the state of the art solution.
+3. Don't forget to include any global optimization steps necessary for these computer vision problems.
+4. Don't forget to include feature tracking steps when necessary.
+5. Keep things in a list-based format. 

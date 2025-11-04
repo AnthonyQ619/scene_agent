@@ -1,0 +1,80 @@
+This is a file containing the Pose Estimation modules.
+===+&+===
+
+Tool Name: CamPoseEstimatorEssentialToPnP
+
+Tool Description: 
+Estimates the camera pose for each frame in a set of images for a monocular camera. The
+process of this module is to estimate the essential matrix for the first pair of images 
+of the image set, recover the camera pose that's up-to-scale, then use the PnP algorithm
+to estimate the rest of the camera's pose for each following images so each trajectory is 
+in scale to the first pose estimation. Use this module for Monocular cameras that are 
+calibrated for a given image set.
+
+Initialization Parameters:
+- calibration (Calibration): Data type that stores the camera's calibration data initialized from the 
+calibration reader module
+- image_path (str): The image path in which the images are stored and to utilize for scene building
+
+Function Call Parameters:
+- features_pairs (PointsMatched): Data Type containing the detected feature correspondences of image pairs
+estimated from the feature matcher modules.
+
+
+Tool Example: 
+Initialization: 
+image_path = ... # Path to set of images
+calibration_data = CalibrationReader(calibration_path).get_calibration() # Used to get Calibration Data
+
+CamPoseEstimatorEssentialToPnP(image_path=image_path, calibration=calibration_data) 
+
+Function call:  
+features = feature_detector() # Call Feature Detector Module on image frames
+
+feature_pairs = feature_matcher(features) # Call Feature Matcher Module on detected features
+
+pose_estimator(feature_pairs=feature_pairs) # Features used from Feature Detector Module
+
+
+===+&+===
+
+Tool Name: CamPoseEstimatorVGGTModel
+
+Tool Description: 
+Estimates the camera pose for each frame in a set of images for a monocular camera. The 
+process of this module is to estimate the camera pose utilizing the Visual Geometry 
+Grounded Transformer (VGGT) Model, a feed-forward neural network that directly infers 
+all key 3D attributes of a scene, including camera parameters, point maps, depth maps, 
+and 3D point tracks, from one, a few, or hundreds of its views. However, this module
+only utilizes the pose estimation feature with intrinsic estimation. This module can estimate
+the camera poses from just images alone, without features needing to be detected prior.
+
+Utilize this module in cases where images do not have extreme overlap, scale is needed for a 
+monocular camera setup, or runtime is not extremely necessary for computation.
+
+Initialization Parameters:
+- image_path (str): the image path in which the images are stored and to utilize for scene building
+- calibration: Data type that stores the camera's calibration data initialized from the calibration 
+reader module
+    - Default (Calibration): None (assume's no calibration data, and will estimate in model instead)
+
+Function Call Parameters:
+- None
+
+
+Tool Example: 
+Initialization: 
+image_path = ... # Path to set of images
+calibration_data = CalibrationReader(calibration_path).get_calibration() # Used to get Calibration Data
+
+# With calibration provided
+pose_estimator = CamPoseEstimatorVGGTModel(image_path = image_path, calibration = calibration_data)
+
+# Without calibration provided
+pose_estimator = CamPoseEstimatorVGGTModel(image_path = image_path)
+
+Function call:  
+pose_estimator() # No Features used with this module
+
+
+===+&+===

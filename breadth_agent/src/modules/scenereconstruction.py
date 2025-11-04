@@ -2,28 +2,117 @@ import cv2
 import numpy as np
 from baseclass import SceneEstimation
 from tqdm import tqdm
-from .DataTypes.datatype import Points2D, Calibration, Points3D, CameraPose, Scene, PointsMatched
+import torch
+import os
+from models.sfm_models.vggt.utils.pose_enc import pose_encoding_to_extri_intri
+from models.sfm_models.vggt.utils.geometry import unproject_depth_map_to_point_map
+from models.sfm_models.vggt.models.vggt import VGGT
+from models.sfm_models.vggt.utils.load_fn import load_and_preprocess_images
+
+from .DataTypes.datatype import (Points2D, 
+                                 Calibration, 
+                                 Points3D, 
+                                 CameraPose, 
+                                 Scene, 
+                                 PointsMatched,
+                                 BundleAdjustmentData)
+
+############################################## HELPER CLASS ##############################################
+
+class TriangulationCheck:
+    def __init__(self, calibration: Calibration, min_angle: float = 1.0):
+        # Calibration Set up
+        self.K1 = calibration.K1
+        self.dist1 = calibration.distort
+
+        # Minimum Angle Necessary 
+        self.min_angle = min_angle
+
+    # views = [cam, x, y]:Nx3, camera_poses = [R, t]:4x4
+    def __call__(self, views: np.ndarray, cam_poses: list[np.ndarray]) -> tuple[bool, float]:
+        track_len = views.shape[0]
+        max_angle = 0.0
+        min_angle = 180.0
+
+        for i in range(track_len):
+            for j in range(i + 1, track_len):
+                cam1, pt1 = views[i, 0], views[i, 1:]
+                cam2, pt2 = views[j, 0], views[j, 1:]
+                cam1 = int(cam1)
+                cam2 = int(cam2)
+
+                pt_vec1 = self.copmute_bearing_vec(pt1)
+                pt_vec2 = self.copmute_bearing_vec(pt2)
+
+                R1 = cam_poses[cam1][:, :3]
+                R2 = cam_poses[cam2][:, :3]
+
+                pt_vec1_R = R1 @ pt_vec1
+                pt_vec2_R = R2 @ pt_vec2
+
+                angle = self.angle_from_pts(pt1_vec=pt_vec1_R, pt2_vec=pt_vec2_R)
+
+                # if angle > max_angle:
+                #     max_angle = angle
+                if angle <= min_angle:
+                    min_angle = angle
+
+
+        # return max_angle >= self.min_angle, max_angle
+        return min_angle >= self.min_angle, min_angle
 
 
 
-class Sparse3DReconstruction(SceneEstimation):
-    def __init__(self, calibration: Calibration, image_path: str):
+    def copmute_bearing_vec(self, pt: np.ndarray):
+        pt_norm = cv2.undistortPoints(pt, cameraMatrix=self.K1, distCoeffs=self.dist1)[:,0,:]
+
+        x = np.array([[pt_norm[0,0]], [pt_norm[0,1]], [1.0]])
+
+        x_cam = np.linalg.inv(self.K1)@(x)
+        x_cam = x_cam / np.linalg.norm(x_cam)
+        return x_cam
+    
+    def angle_from_pts(self, pt1_vec: np.ndarray, pt2_vec: np.ndarray):
+        angle = np.dot(pt1_vec[:, 0], pt2_vec[:, 0])
+        angle = np.clip(angle, -1.0, 1.0)
+
+        return np.degrees(np.arccos(angle))
+
+
+##########################################################################################################
+
+##########################################################################################################
+############################################### ML MODULES ###############################################
+
+class Sparse3DReconstructionVGGT(SceneEstimation):
+    def __init__(self,
+                 calibration: Calibration, 
+                 image_path: str):
         super().__init__(calibration=calibration, image_path=image_path)
 
-        self.module_name = "Sparse3DReconstruction"
+        self.module_name = "Sparse3DReconstructionVGGT"
         self.description = f"""
-Sparsely reconstructs a 3D scene utilizing pre-processed information of camera poses and
-detected features tracked across the scene. Camera Poses are estimated prior to thie module
-through camera pose estimation algorithms. Features tracked are estimated prior to this module
-through feature tracking algorothms. 
-This module can reconstruct sparse 3D scenes using a monocular or stereo camera. This is 
-determined by the data used and the parameter 'camera_type' on the function call. 
-This module can reconstruct sparse 3D scenes either through multi-view or two-view triangulation.
-This is determined by the method used to find matching features. If features are detected from 
-pairwise matching, use the "two-view" method for the 'view' parameter. If features are tracked
-across multiple frames, use the "multi-view" method for the 'view' parameter.
-Use this module when specified for sparse reconstruction and calibration data is provided. This 
-module is for reconstructing the scene using the direct mathematical approach.
+Sparsely, and densely, reconstructs a 3D scene utilizing pre-processed information of camera poses and
+images of the scene. Camera Poses are estimated prior to thie module through the camera pose estimation 
+module, specifically from VGGT pose estimation. Features do NOT need to be tracked or matched between frames.
+This module can reconstruct sparse 3D scenes specifically using a monocular camera. 
+This module can reconstruct sparse 3D scenes either through single view or multi-view scenes.
+This is determined by the how many images exist in the scene and how many poses were estimated from the previous
+module using the VGGT pose estimation tool specifically.
+Use this module when specified for sparse/dense reconstruction and the scene doesn't allow for many features to be detected
+from given feature detectors. Utilize this module in conjuction with the VGGT pose estimation module in these cases
+where feature detection is low. This  module is for reconstructing the scene using the deep learning approach. 
+Computation time should not matter when invoking this tool.
+
+Initialization Parameters:
+- image_path (str): the image path where the images are stored to utilize for scene building.
+- calibration (Calibration): Data type that stores the camera's calibration data initialized from the calibration 
+reader module
+
+Function Call Parameters:
+- camera_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
+specifically from the CameraPoseEstimation modules. This scene reconstruction is called in conjuction with the VGGT 
+pose estimation module.
 """
         self.example = f"""
 Initialization:
@@ -31,32 +120,127 @@ image_path = ...
 calibration_path = ...
 calibration_data = CalibrationReader(calibration_path).get_calibration()
 
-sparse_reconstruction = Sparse3DReconstruction(calibration=calibration_data, image_path=image_path)
+# Camera Pose Module Initialization
+pose_estimator = CamPoseEstimatorVGGTModel(image_path=image_path, 
+                                            calibration=calibration_data)
 
+# Scene Reconstruction Module Initialization
+sparse_reconstruction = Sparse3DReconstructionVGGT(calibration=calibration_data, 
+                                                   image_path=image_path)
 
 Function Use:
+# From estimated features, estimate the camera poses for all image frames
+cam_poses = pose_estimator()
+
+# Estimate sparse 3D scene from tracked features and camera poses
+sparse_scene = sparse_reconstruction(camera_poses=cam_poses)
+"""
+
+        # Initialize Model
+        WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        # bfloat16 is supported on Ampere GPUs (Compute Capability 8.0+) 
+        self.dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
+
+        self.model = VGGT().to(self.device)
+        self.model.load_state_dict(torch.load(WEIGHT_MODULE, weights_only=True))
+
+        self.images = load_and_preprocess_images(self.image_path).to(self.device) # Likely to be removed to Image Rader
+
+    def __call__(self, tracked_features: PointsMatched, cam_poses: CameraPose) -> Scene:
+        ext_torch = torch.from_numpy(np.array(cam_poses.camera_pose)).to(self.device)
+        int_torch = torch.from_numpy(np.array(self.calibration.K_cams)).to(self.device)
+
+        with torch.no_grad():
+            with torch.amp.autocast('cuda', dtype=self.dtype):
+                self.images = self.images[None]  # add batch dimension
+                aggregated_tokens_list, ps_idx = self.model.aggregator(self.images)
+
+            # Predict Depth Maps
+            depth_map, depth_conf = self.model.depth_head(aggregated_tokens_list, self.images, ps_idx)
+
+            point_map = unproject_depth_map_to_point_map(depth_map.squeeze(0), 
+                                                                ext_torch, 
+                                                                int_torch)
+        
+
+        # Here we use the ext, int, depth_map, and point_map (points3D) to initialize the sparse reconstruction with tracked feature points
+        # 
+
+        points3D = Points3D(points = point_map.reshape(-1, 3))
+
+        return Scene(points3D=points3D, 
+                     cam_poses=cam_poses.camera_pose, 
+                     representation="point cloud")
+    
+
+###########################################################################################################
+############################################ CLASSICAL MODULES ############################################
+
+class Sparse3DReconstructionStereo(SceneEstimation):
+    def __init__(self, calibration: Calibration, image_path: str):
+        super().__init__(calibration=calibration, image_path=image_path)
+
+        self.module_name = "Sparse3DReconstructionMono"
+        self.description = f"""
+Sparsely reconstructs a 3D scene utilizing pre-processed information of camera poses and
+detected features tracked across the scene. Camera Poses are estimated prior to thie module
+through the camera pose estimation module. Features matched, or tracked are estimated 
+prior to this module through the feature matcher module. 
+This module can reconstruct sparse 3D scenes specifically using a stereo camera. This is 
+determined by the data used and the parameter 'view' on module function call. 
+This module can reconstruct sparse 3D scenes either through multi-view or two-view triangulation
+with a stereo camera. This is determined by the method used to find matching features. If features 
+are detected from pairwise matching, use the "two" method for the 'method' parameter. If features 
+are tracked across multiple frames, use the "multi" method for the 'method' parameter.
+Use this module when specified for sparse reconstruction and calibration data is provided when
+the data used is from a stereo camera specifically. This module is for reconstructing the scene 
+using the direct mathematical approach.
+"""
+        self.example = f"""
+Initialization:
+image_path = ...
+calibration_path = ...
+calibration_data = CalibrationReader(calibration_path).get_calibration()
+
+sparse_reconstruction = Sparse3DReconstructionStereo(calibration=calibration_data, image_path=image_path)
+
+Function Use (multi-view):
+feature_tracker = FeatureMatchLightGlueTracking(detector="superpoint")
+
 cam_poses = pose_estimator(features=features) # To Estimate Camera Poses from detected features
 
 tracked_features = feature_tracker(features=features) # To track features across multiple images 
 
 # Estimate 3D scene using multi-view due to tracking features from multiple images in previous step
 sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="multi") 
+
+Function Use (two-view):
+feature_matcher = FeatureMatchLoftrPair(img_path=image_path)
+
+cam_poses = pose_estimator(features=features) # To Estimate Camera Poses from detected features
+
+matched_features = feature_matcher(features=features) # To track features across multiple images 
+
+# Estimate 3D scene using multi-view due to tracking features from multiple images in previous step
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two") 
 """
         self.VIEWS = ["multi", "two"]
-        
-    # tracked_features: PointsMatched, cam_poses: CameraPose
-    def __call__(self, points: PointsMatched, camera_poses: CameraPose, view: str | None = "multi") -> Scene:
-        # if format.lower() not in self.FORMATS:
-        #     message = 'Error: no such option exist. Use on of ' + str(self.FORMATS)
-        #     raise Exception(message)
-        # if self.cam_setting.lower() not in self.CAM_SETTINGS:
-        #     message = 'Error: no such option exist. Use on of ' + str(self.CAM_SETTINGS)
-        #     raise Exception(message)
 
+    def __call__(self, points: PointsMatched, camera_poses: CameraPose, view: str | None = "multi") -> Scene:
+        if view not in self.VIEWS:
+            message = 'Error: setting is not supported. Use one of ' + str(self.VIEWS) + ' instead to use this Reconstruction Module.'
+            raise Exception(message)
+        
         # points_3d = []
         points_3d = Points3D()
 
         if view == self.VIEWS[0]: # Multi-view
+            if not points.multi_view:
+                message = 'Error: features are not tracked. Use the setting ' + str(self.VIEW[1]) + ' instead to use this Reconstruction Module for pairwise feature matching.'
+                raise Exception(message)
+            
             for i in tqdm(range(points.point_count)):
                 views = points.access_point3D(i)
 
@@ -66,150 +250,51 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="multi")
 
             scene = Scene(points3D = points_3d,cam_poses = camera_poses, representation = "point cloud") 
             return scene
-        elif view == self.VIEWS[1]:
-            pass
-        # scene = Scene(cam_poses= camera_poses, representation="point cloud")
-        # if format.lower() == self.FORMATS[0]:
-        #     if self.cam_setting.lower() in self.CAM_SETTINGS[0]: # Mono Cam Setting
-        #         for i in range(len(points)):
-        #             pts1 = points[i][0]
-        #             pts2 = points[i][1]
-        #             cam_pose1 = camera_poses[i]
-        #             cam_pose2 = camera_poses[i + 1]
-
-        #             pts = self.triangulate_points_mono(pts1, pts2, [cam_pose1, cam_pose2])
-        #             print(pts.points3D.shape)
-        #             # points_3d.append(pts)
-        #             scene.update_3d_points(pts)
-        #         # Construct 3D scene given points
-        #         #scene = Scene(points3D = Points3D(points=points_3d), cam_poses= camera_poses, representation="point cloud")
-
-        #         return scene
-        #     elif self.cam_setting.lower() in self.CAM_SETTINGS[1]: # Stereo Cam Setting
-        #         for i in range(len(points)):
-        #             pts1 = points[i][0].points2D # Right Camera
-        #             pts2 = points[i][1].points2D # Left Camera
-        #             cam_pose1 = camera_poses[i] # Left camera pose
-
-        #             pts = self.triangulate_points_stereo(pts1, pts2, [cam_pose1, cam_pose2])
-
-        #             # points_3d.append(pts)
-
-        #         # scene = Scene(points3D = Points3D(points=points_3d), cam_poses= camera_poses, representation="point cloud")
-        #         scene.update_3d_points(pts)
-        #         return scene
-        # elif format.lower() == self.FORMATS[1]: # TODO: Think about removing this if-else completely and the format option. Need an input/output for all functions, and this doesn't seem good as a solution for single 3D point estimation
-        #     if self.cam_setting.lower() in self.CAM_SETTINGS[0]:
-        #         pts1 = points[0][0].points2D
-        #         pts2 = points[0][1].points2D
-        #         cam_pose1 = camera_poses[0]
-        #         cam_pose2 = camera_poses[1]
-
-        #         pts = self.triangulate_points_mono(pts1, pts2, [cam_pose1, cam_pose2])
-
-        #         # points_3d.append(pts)
-
-        #         #scene = Scene(points3D = Points3D(points=points_3d), cam_poses= camera_poses, representation="point cloud")
-        #         scene.update_3d_points(pts)
-        #         return scene
-        #     elif self.cam_setting.lower() in self.CAM_SETTINGS[1]:
-        #         pts1 = points[0][0].points2D # Right Camera
-        #         pts2 = points[0][1].points2D # Left Camera
-        #         cam_pose1 = camera_poses[0] # Left camera pose
-
-        #         pts = self.triangulate_points_stereo(pts1, pts2, [cam_pose1, cam_pose2])
-
-        #         # points_3d.append(pts)
-
-        #         #scene = Scene(points3D = Points3D(points=points_3d), cam_poses= camera_poses, representation="point cloud")
-        #         scene.update_3d_points(pts)
-        #         return scene
-    
-    # Triangulation of points (Monocular Camera) - 2View
-    def triangulate_points_mono(self, pts1: Points2D, pts2: Points2D, camera_pose: list[np.ndarray]) -> Points3D:
-        if self.dist1 is not None:
-            pt1 = cv2.undistortPoints(pts1.points2D, self.K1, self.dist1)
-            pt2 = cv2.undistortPoints(pts2.points2D, self.K1, self.dist1)
+        elif view == self.VIEWS[1]: # Two-View
+            if points.multi_view:
+                message = 'Error: features are tracked. Use the setting ' + str(self.VIEW[0]) + ' instead to use this Reconstruction Module for feature tracking.'
+                raise Exception(message)
             
-            P1mtx = np.eye(3) @ camera_pose[0]
-            P2mtx = np.eye(3) @ camera_pose[1]
-        else:
-            pt1, pt2 = pts1.points2D.T, pts2.points2D.T
+            points_3d = Points3D()
 
-            P1mtx = self.K1 @ camera_pose[0]
-            P2mtx = self.K2 @ camera_pose[1]
+            for i in tqdm(range(len(points.pairwise_matches))):
+                pts1, pts2 = points.access_matching_pair(i) # Left and Right Image Features
+                pose = camera_poses.camera_pose[i]         # Left Camera
 
-        X = cv2.triangulatePoints(P1mtx, P2mtx, pt1, pt2)
-        X = (X[:-1]/X[-1]).T 
+                points3d = self.triangulate_points_stereo(pts1, pts2, pose)
 
-        pts3D = Points3D(points = X)
-        return pts3D
+                points_3d.update_points(points3d)
 
-    # Triangulation of points (Stereo Camera) - 2View
-    def triangulate_points_stereo(self, pts1: Points2D, pts2: Points2D, camera_pose: np.ndarray) -> np.ndarray:
+            scene = Scene(points3D = points_3d,cam_poses = camera_poses, representation = "point cloud") 
+            return scene
+    
+    # Triangulation of points (Stereo Camera) - 2View (Purely Stereo Camera)
+    def triangulate_points_stereo(self, pts1: np.ndarray, pts2: np.ndarray, camera_pose: np.ndarray) -> np.ndarray:
         Rot_R = self.R12 @ camera_pose[:, :3] 
         Trans_R = self.R12 @ camera_pose[:, 3:] + self.T12
         stereo_pose = np.hstack((Rot_R, Trans_R))
 
         if self.dist1 is not None:
-            pt1 = cv2.undistortPoints(pts1.points2D, self.K1, self.dist1)
-            pt2 = cv2.undistortPoints(pts2.points2D, self.K2, self.dist2)
+            pt1 = cv2.undistortPoints(pts1, self.K1, self.dist1)
+            pt2 = cv2.undistortPoints(pts2, self.K2, self.dist2)
             P1mtx = np.eye(3) @ camera_pose
             P2mtx = np.eye(3) @ stereo_pose
         else:
-            pt1 = pts1.points2D
-            pt2 = pts2.points2D
+            pt1 = pts1.T
+            pt2 = pts2.T
             P1mtx = self.K1 @ camera_pose
             P2mtx = self.K2 @ stereo_pose
 
         X = cv2.triangulatePoints(P1mtx, P2mtx, pt1, pt2)
         X = (X[:-1]/X[-1]).T[0]
 
-        # pts3D = Points3D(points3D = X)
-        return X # pts3D
-
-    def triangulate_nView_points_Mono(self, views: np.ndarray, cam_poses: list[np.ndarray]) -> np.ndarray:
-
-        # total_cameras = len(self.scene_point_2d_map[pt_index])
-        total_cameras = views.shape[0]
-        A = np.zeros((2*total_cameras, 4))
-
-        # Read Hartley and Zisserman to see if we need the normalization factor??
-        if self.dist1 is None:
-            for i in range(views.shape[0]):
-                cam, pt = views[i, 0], views[i, 1:]
-                cam = int(cam)
-                Pmat = self.K1 @ cam_poses[cam]
-
-                row1 = pt[0]*Pmat[2, :] - Pmat[0, :]
-                row2 = pt[1]*Pmat[2, :] - Pmat[1, :]
-
-                A[2*i, :] = row1
-                A[2*i + 1, :] = row2
-        else: 
-            for i in range(views.shape[0]):
-                cam, pt = views[i, 0], views[i, 1:]
-                Pmat = np.eye(3) @ cam_poses[cam]
-                xUnd = cv2.undistortPoints(pt, self.K1, self.dist1)
-
-                row1 = xUnd[0, 0, 0]*Pmat[2, :] - Pmat[0, :]
-                row2 = xUnd[0, 0, 1]*Pmat[2, :] - Pmat[1, :]
-
-                A[2*i, :] = row1
-                A[2*i + 1, :] = row2
-
-        U, S, V = np.linalg.svd(A)
-        X = V[-1, :]
-        X = (X[:-1]/X[-1]).T
-
-        return X
+        return X 
     
     # def triangulate_nView_points_Stereo(self, views: np.ndarray, cam_poses: list[np.ndarray]) -> np.ndarray:
 
     #     # total_cameras = len(self.scene_point_2d_map[pt_index])
     #     total_cameras = len(views.shape[0])
     #     A = np.zeros((4*total_cameras, 4))
-
 
     #     Rot_R = self.R12 @ camera_pose[:, :3] 
     #     Trans_R = self.R12 @ camera_pose[:, 3:] + self.T12
@@ -289,3 +374,250 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="multi")
     #     X = (X[:-1]/X[-1]).T
 
     #     return X
+    
+
+class Sparse3DReconstructionMono(SceneEstimation):
+    def __init__(self, calibration: Calibration, 
+                 image_path: str, 
+                 min_observe: int = 3,
+                 min_angle: float = 1.0):
+        super().__init__(calibration=calibration, image_path=image_path)
+
+
+        self.module_name = "Sparse3DReconstructionMono"
+        self.description = f"""
+Sparsely reconstructs a 3D scene utilizing pre-processed information of camera poses and
+detected features tracked across the scene. Camera Poses are estimated prior to thie module
+through the camera pose estimation module. Features matched, or tracked are estimated 
+prior to this module through the feature matcher module. 
+This module can reconstruct sparse 3D scenes specifically using a monocular camera. This is 
+determined by the data used and the parameter 'view' on module function call. 
+This module can reconstruct sparse 3D scenes either through multi-view or two-view triangulation.
+This is determined by the method used to find matching features. If features are detected from 
+pairwise matching, use the "two" method for the 'method' parameter. If features are tracked
+across multiple frames, use the "multi" method for the 'method' parameter.
+Use this module when specified for sparse reconstruction and calibration data is provided,
+with the camera being used is a monocular cmaera. This  module is for reconstructing the 
+scene using the direct mathematical approach.
+
+Initialization Parameters:
+- image_path (str): The image path where the images are stored to utilize for scene building.
+- calibration (Calibration): Data type that stores the camera's calibration data initialized from the calibration 
+reader module
+- min_observe: The minimum number of observations (number of tracked feature points) needed to conduct a 3D 
+point estimation. Note: this must be greater than 2
+    - Default (int): 3 
+- min_angle: The minimum angle required between bearing rays from paired 2D feature point to accept a 3D point 
+estimation from the set of corresponding 2D feature points. Used for the Triangulation Angle Test.
+    - Default (float): 1.0 (Typically 1.0 - 3.0 [Number represents angle degree])
+
+Function Call Parameters:
+- camera_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
+specifically from the CameraPoseEstimation modules. 
+"""
+        self.example = f"""
+Initialization:
+image_path = ...
+calibration_path = ...
+calibration_data = CalibrationReader(calibration_path).get_calibration()
+
+sparse_reconstruction = Sparse3DReconstructionMono(calibration=calibration_data, image_path=image_path)
+
+Function Use (multi-view):
+feature_tracker = FeatureMatchLightGlueTracking(detector="superpoint")
+
+cam_poses = pose_estimator(features=features) # To Estimate Camera Poses from detected features
+
+tracked_features = feature_tracker(features=features) # To track features across multiple images 
+
+# Estimate 3D scene using multi-view due to tracking features from multiple images in previous step
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="multi") 
+
+Function Use (two-view):
+feature_matcher = FeatureMatchLoftrPair(img_path=image_path)
+
+cam_poses = pose_estimator(features=features) # To Estimate Camera Poses from detected features
+
+matched_features = feature_matcher(features=features) # To track features across multiple images 
+
+# Estimate 3D scene using multi-view due to tracking features from multiple images in previous step
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two") 
+"""
+        self.VIEWS = ["multi", "two"]
+        self.minimum_observation = min_observe # N-view functionality only
+        self.angle_check = TriangulationCheck(calibration=calibration, min_angle=min_angle)
+
+    # tracked_features: PointsMatched, cam_poses: CameraPose
+    def __call__(self, points: PointsMatched, camera_poses: CameraPose, view: str | None = "multi") -> Scene:
+
+        if view not in self.VIEWS:
+            message = 'Error: setting is not supported. Use one of ' + str(self.VIEWS) + ' instead to use this Reconstruction Module.'
+            raise Exception(message)
+        
+        # points_3d = []
+        points_3d = Points3D()
+
+        # BAL File for Optimization Module
+        num_observations = 0 
+        num_cameras = len(camera_poses.camera_pose)
+        observations = []
+
+        if view == self.VIEWS[0]: # Multi-view
+            if not points.multi_view:
+                message = 'Error: features are not tracked. Use the setting ' + str(self.VIEW[1]) + ' instead to use this Reconstruction Module for pairwise feature matching.'
+                raise Exception(message)
+            
+            point_index = 0
+            for i in tqdm(range(points.point_count)):
+                views = points.access_point3D(i)
+
+                if views.shape[0] < self.minimum_observation: # Below minimum observation for accurate 3D triangulation
+                    continue 
+                # Check triangulation angle of points
+                min_angle, max_angle = self.angle_check(views, camera_poses.camera_pose)
+                if not min_angle:
+                    continue
+
+                # BAL Data Construction
+                point_ind = np.array([point_index for _ in range(views.shape[0])]).reshape((views.shape[0],1))
+                norm_pts = self._normalize_feat_points(views)#views[:, 1:])
+                observation = np.hstack((np.vstack(views[:,0]), point_ind, norm_pts))#views[:,1:]))
+                observations.append(observation)
+                num_observations += views.shape[0] # Number of observations
+
+                # Estimate 3D point
+                point = self.triangulate_nView_points_Mono(views, camera_poses.camera_pose)
+                points_3d.update_points(point)
+
+                point_index += 1 # Successfully Estimated Point
+
+            # Build BAL data
+            ba_data = BundleAdjustmentData(num_cameras=num_cameras, 
+                                           num_points=points_3d.points3D.shape[0],
+                                           num_observations=num_observations,
+                                           observations=observations,
+                                           cameras=camera_poses,
+                                           points=points_3d.points3D,
+                                           dist=[self.dist1],
+                                           mono=True)
+
+            scene = Scene(points3D = points_3d,
+                          cam_poses = camera_poses, 
+                          representation = "point cloud",
+                          bal_data=ba_data) 
+            return scene
+        elif view == self.VIEWS[1]: # Two-View
+            if points.multi_view:
+                message = 'Error: features are tracked. Use the setting ' + str(self.VIEW[0]) + ' instead to use this Reconstruction Module for feature tracking.'
+                raise Exception(message)
+            
+            points_3d = Points3D()
+
+            for i in tqdm(range(len(points.pairwise_matches))):
+                pts1, pts2 = points.access_matching_pair(i) # frame_i and frame_i+1
+                pose1 = camera_poses.camera_pose[i]         # frame_i
+                pose2 = camera_poses.camera_pose[i + 1]     # frame_i+1
+
+                points3d = self.triangulate_points_mono(pts1, pts2, [pose1, pose2])
+
+                points_3d.update_points(points3d)
+
+            scene = Scene(points3D = points_3d,cam_poses = camera_poses, representation = "point cloud") 
+            return scene
+    
+    def _normalize_feat_points(self, view: np.ndarray): #pts1: np.ndarray):
+        cams, pts = view[:, 0], view[:, 1:]
+        #cam = int(cam)
+        # Normalize Points without undistorting points for Bundle Adjustment Optimization
+        if self.calibration.multi_cam:
+            pts_norm = []
+            for i in range(cams.shape[0]): 
+                cam = int(cams[i])
+                K = self.calibration.K_cams[cam]
+                pt = pts[i, :]
+                pt_norm = cv2.undistortPoints(pt.T, K, np.zeros((1,5)))[:, 0, :][0]
+                pts_norm.append(pt_norm)
+            pts_norm = np.array(pts_norm)
+        else:
+            pts_norm = cv2.undistortPoints(pts.T, self.K1, np.zeros((1,5)))[:, 0, :]
+
+        return pts_norm
+
+    def min_angle_test(self):
+        pass
+
+    # Triangulation of points (Monocular Camera) - 2View
+    def triangulate_points_mono(self, pts1: np.ndarray, pts2: np.ndarray, camera_pose: list[np.ndarray]) -> np.ndarray:
+        if self.dist1 is not None:
+            pt1 = cv2.undistortPoints(pts1, self.K1, self.dist1)
+            pt2 = cv2.undistortPoints(pts2, self.K1, self.dist1)
+            
+            P1mtx = np.eye(3) @ camera_pose[0]
+            P2mtx = np.eye(3) @ camera_pose[1]
+        else:
+            pt1, pt2 = pts1.T, pts2.T
+
+            P1mtx = self.K1 @ camera_pose[0]
+            P2mtx = self.K1 @ camera_pose[1]
+
+        X = cv2.triangulatePoints(P1mtx, P2mtx, pt1, pt2)
+        X = (X[:-1]/X[-1]).T 
+
+        # pts3D = Points3D(points = X)
+        # return pts3D
+
+        return X    
+
+    def triangulate_nView_points_Mono(self, views: np.ndarray, cam_poses: list[np.ndarray]) -> np.ndarray:
+
+        # total_cameras = len(self.scene_point_2d_map[pt_index])
+        total_cameras = views.shape[0]
+        A = np.zeros((2*total_cameras, 4))
+
+        # Read Hartley and Zisserman to see if we need the normalization factor??
+        if self.dist1 is None: # Keep Points in Pixel Coordinates
+            for i in range(views.shape[0]):
+                cam, pt = views[i, 0], views[i, 1:]
+                cam = int(cam)
+                Pmat = self.K1 @ cam_poses[cam]
+
+                row1 = pt[0]*Pmat[2, :] - Pmat[0, :]
+                row2 = pt[1]*Pmat[2, :] - Pmat[1, :]
+
+                A[2*i, :] = row1
+                A[2*i + 1, :] = row2
+        else: 
+            if self.calibration.multi_cam:
+                for i in range(views.shape[0]):
+                    cam, pt = views[i, 0], views[i, 1:]
+                    cam = int(cam)
+                    Pmat = np.eye(3) @ cam_poses[cam]
+                    K = self.calibration.K_cams[cam]
+                    dist = self.calibration.cam_dists[cam]
+
+                    xUnd = cv2.undistortPoints(pt, K, dist) # Undistort and Normalize Points
+
+                    row1 = xUnd[0, 0, 0]*Pmat[2, :] - Pmat[0, :]
+                    row2 = xUnd[0, 0, 1]*Pmat[2, :] - Pmat[1, :]
+
+                    A[2*i, :] = row1
+                    A[2*i + 1, :] = row2
+            else:
+                for i in range(views.shape[0]):
+                    cam, pt = views[i, 0], views[i, 1:]
+                    cam = int(cam)
+                    Pmat = np.eye(3) @ cam_poses[cam]
+                    xUnd = cv2.undistortPoints(pt, self.K1, self.dist1) # Undistort and Normalize Points
+
+                    row1 = xUnd[0, 0, 0]*Pmat[2, :] - Pmat[0, :]
+                    row2 = xUnd[0, 0, 1]*Pmat[2, :] - Pmat[1, :]
+
+                    A[2*i, :] = row1
+                    A[2*i + 1, :] = row2
+
+        U, S, V = np.linalg.svd(A)
+        X = V[-1, :]
+
+        X = (X[:-1]/X[-1]).T
+
+        return X
