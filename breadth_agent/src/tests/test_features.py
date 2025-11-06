@@ -28,15 +28,15 @@ camera_data = CameraDataManager(image_path=image_path,
                                 calibration_path=calibration_path).get_camera_data()
 # Feature Module Initialization
 # calibration_data = CalibrationReader(calibration_path).get_calibration()
-# feature_detector = FeatureDetectionSIFT(image_path=image_path, 
-#                                         max_keypoints=15000,
-#                                         edge_threshold=25)
+feature_detector = FeatureDetectionSIFT(cam_data=camera_data, 
+                                        max_keypoints=15000,
+                                        edge_threshold=25)
 # feature_detector = FeatureDetectionORB(cam_data=camera_data, 
 #                                         max_keypoints=15000,
 #                                         )
 
-feature_detector = FeatureDetectionSP(cam_data=camera_data, 
-                                        max_keypoints=2400)
+# feature_detector = FeatureDetectionSP(cam_data=camera_data, 
+#                                         max_keypoints=2400)
 # feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
 #                                             detector="sift")
 # feature_tracker = FeatureMatchFlannTracking(cam_data=camera_data, 
@@ -46,13 +46,13 @@ feature_detector = FeatureDetectionSP(cam_data=camera_data,
 #                                      cam_data=camera_data,
 #                                      cross_check=False,
 #                                      RANSAC_threshold=0.005)
-# feature_matcher = FeatureMatchFlannPair(detector="orb", 
-#                                      cam_data=camera_data,
-#                                      RANSAC_threshold=0.03)
+feature_matcher = FeatureMatchFlannPair(detector="sift", 
+                                     cam_data=camera_data,
+                                     RANSAC_threshold=0.03)
 # feature_matcher = FeatureMatchRoMAPair(img_path=image_path, setting="outdoor")
-feature_tracker = FeatureMatchSuperGlueTracking(cam_data=camera_data,
-                                                detector='superpoint', 
-                                                setting='outdoor')
+# feature_tracker = FeatureMatchSuperGlueTracking(cam_data=camera_data,
+#                                                 detector='superpoint', 
+#                                                 setting='outdoor')
 
 # Solution Pipeline 
 detected_features = feature_detector()
@@ -64,7 +64,7 @@ detected_features = feature_detector()
 # print("Feature from Image 1:", detected_features[0].points2D.dtype, detected_features[0].descriptors.dtype, detected_features[0].scores.dtype)
 # print("Propagated Image Shape:", detected_features[0].image_size.dtype)
 
-# matched_features = feature_matcher(detected_features)
+matched_features = feature_matcher(detected_features)
 # matched_features = feature_matcher()
 
 
@@ -74,36 +74,36 @@ pair = 19
 # print(len(matched_features.pairwise_matches))
 
 
-tracked_features = feature_tracker(detected_features)
+# tracked_features = feature_tracker(detected_features)
 
-print(tracked_features.data_matrix.shape)
-print(tracked_features.point_count)
+# print(tracked_features.data_matrix.shape)
+# print(tracked_features.point_count)
 
-image_path = sorted(glob.glob(image_path + "\\*"))
+# image_path = sorted(glob.glob(image_path + "\\*"))
 
-j = 0
-for i in range(1000):
-    if (tracked_features.access_point3D(i).shape[0] > 4):
-        if j < 3: 
-            j += 1
-            continue
-        print(f"Point {i}:", tracked_features.access_point3D(i))
-        print()
-        fig,ax = plt.subplots(1, tracked_features.access_point3D(i).shape[0], figsize=(30, 15))
+# j = 0
+# for i in range(1000):
+#     if (tracked_features.access_point3D(i).shape[0] > 4):
+#         if j < 3: 
+#             j += 1
+#             continue
+#         print(f"Point {i}:", tracked_features.access_point3D(i))
+#         print()
+#         fig,ax = plt.subplots(1, tracked_features.access_point3D(i).shape[0], figsize=(30, 15))
 
-        for j in range(tracked_features.access_point3D(i).shape[0]):
-            img = cv2.resize(cv2.imread(image_path[j]), tracked_features.image_size, interpolation=cv2.INTER_AREA)
-            #img = cv2.resize(img, (640, 480), interpolation=cv2.INTER_AREA)
-            ax[j].imshow(img)
-            xx = tracked_features.access_point3D(i)[j, 1]
-            yy = tracked_features.access_point3D(i)[j, 2]
-            circ = Circle((xx,yy),20)
-            ax[j].add_patch(circ)
+#         for j in range(tracked_features.access_point3D(i).shape[0]):
+#             img = cv2.resize(cv2.imread(image_path[j]), tracked_features.image_size, interpolation=cv2.INTER_AREA)
+#             #img = cv2.resize(img, (640, 480), interpolation=cv2.INTER_AREA)
+#             ax[j].imshow(img)
+#             xx = tracked_features.access_point3D(i)[j, 1]
+#             yy = tracked_features.access_point3D(i)[j, 2]
+#             circ = Circle((xx,yy),20)
+#             ax[j].add_patch(circ)
         
-        plt.tight_layout()
-        plt.show()
+#         plt.tight_layout()
+#         plt.show()
 
-        break
+#         break
 
 
 def plot_matches(img1, img2, feat1, feat2):
@@ -138,16 +138,16 @@ def plot_matches(img1, img2, feat1, feat2):
 
 
 
-# image_path = sorted(glob.glob(image_path + "\\*"))
+image_path = sorted(glob.glob(image_path + "\\*"))
 
-# pt1, pt2 = matched_features.access_matching_pair(pair)
-# # print(pt1.shape)
-# # print(pt2.shape)
-# # print(pt1)
-# # print(pt2)
-# # print(matched_features.image_size)
-# # print(matched_features.image_size)
-# img1 = cv2.resize(cv2.imread(image_path[pair]), matched_features.image_size, interpolation=cv2.INTER_AREA)
-# img2 = cv2.resize(cv2.imread(image_path[pair+1]), matched_features.image_size, interpolation=cv2.INTER_AREA)
+pt1, pt2 = matched_features.access_matching_pair(pair)
+# print(pt1.shape)
+# print(pt2.shape)
+# print(pt1)
+# print(pt2)
+# print(matched_features.image_size)
+# print(matched_features.image_size)
+img1 = cv2.resize(cv2.imread(image_path[pair]), matched_features.image_size, interpolation=cv2.INTER_AREA)
+img2 = cv2.resize(cv2.imread(image_path[pair+1]), matched_features.image_size, interpolation=cv2.INTER_AREA)
 
-# plot_matches(img1, img2, pt1, pt2)
+plot_matches(img1, img2, pt1, pt2)

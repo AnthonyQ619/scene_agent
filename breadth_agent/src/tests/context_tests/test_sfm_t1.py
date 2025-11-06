@@ -27,7 +27,6 @@ bal_path = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\
 from modules.cameramanager import CameraDataManager
 
 CDM = CameraDataManager(image_path=image_path,
-                        calibrated=True,
                         calibration_path=calibration_path)
 # Any image pre-processing steps are ran here
 # ...
@@ -57,7 +56,7 @@ from modules.camerapose import CamPoseEstimatorEssentialToPnP
 pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data)
 
 # From estimated features, estimate the camera poses for all image frames
-cam_poses = pose_estimator(features_pairs=feature_pairs)
+cam_poses = pose_estimator(feature_pairs=feature_pairs)
 
 # STEP 5: Estimate Feature Tracks:
 from modules.featurematching import FeatureMatchFlannTracking
@@ -71,28 +70,28 @@ tracked_features = feature_tracker(features=features)
 # STEP 6: Reconstruct Scene in Full
 from modules.scenereconstruction import Sparse3DReconstructionMono
 # Scene Reconstruction Module Initialization
-sparse_reconstruction = Sparse3DReconstructionMono(cam_data=camera_data, 
-                                                   image_path=image_path,
+sparse_reconstruction = Sparse3DReconstructionMono(cam_data=camera_data,
                                                    min_observe=3,
-                                                   min_angle=1.0)
+                                                   min_angle=1.0,
+                                                   view="multi")
 
 # Estimate sparse 3D scene from tracked features and camera poses
-sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="multi")
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
 
 # STEP 7: Run Optimization Algorithm
-from modules.optimization import BundleAdjustmentOptimizer
-# Build Optimizer
-optimizer = BundleAdjustmentOptimizer(scene=sparse_scene, cam_data=camera_data)
-optimizer.prep_optimizer(ratio_known_cameras=0.0, max_iterations=40)
+# from modules.optimization import BundleAdjustmentOptimizer
+# # Build Optimizer
+# optimizer = BundleAdjustmentOptimizer(scene=sparse_scene, cam_data=camera_data)
+# optimizer.prep_optimizer(ratio_known_cameras=0.0, max_iterations=40)
 
-# Run Optimizer
-optimal_scene = optimizer(bal_path)
+# # Run Optimizer
+# optimal_scene = optimizer(bal_path)
 
 # Optional Visualization
 from modules.visualize import VisualizeScene
 visualizer = VisualizeScene()
 
-visualizer(optimal_scene)
+visualizer(sparse_scene)
 
 
 

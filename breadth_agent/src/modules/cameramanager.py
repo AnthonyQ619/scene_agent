@@ -2,8 +2,8 @@ import numpy as np
 import cv2
 from typing import List, Optional, Tuple, Union
 from PIL import Image, ImageOps
-from models.sfm_models.vggt.utils.load_fn import load_and_preprocess_images, load_and_preprocess_images_square
-from .DataTypes.datatype import (CameraData,
+# from models.sfm_models.vggt.utils.load_fn import load_and_preprocess_images, load_and_preprocess_images_square
+from modules.DataTypes.datatype import (CameraData,
                                  Points2D, 
                                  Calibration, 
                                  Points3D, 
@@ -14,7 +14,7 @@ from .DataTypes.datatype import (CameraData,
 import glob
 import random
 from tqdm import tqdm
-from baseclass import ImageProcessorClass
+# from baseclass import ImageProcessorClass
 
 
 class CameraDataManager():
@@ -45,7 +45,7 @@ class CameraDataManager():
 
         if extrinsic is not None:
             stereo = True
-        if len(intrinsics) > 2:
+        if intrinsics is not None and len(intrinsics) > 2:
             multi_camera = True
 
         self.cam_data = CameraData(image_list=image_list,

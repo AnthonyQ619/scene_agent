@@ -24,10 +24,10 @@ class VisualizeScene(VisualizeClass):
         
 
     def __call__(self, data: Scene | np.ndarray, store:bool = False, path:str | None = None, format: str = "point cloud") -> None:
-        # data_np = data.points3D.points3D
+        data_np = data.points3D.points3D
 
         if format.lower() == self.FORMATS[0]:
-            pcd, bounds, mat = self.visualize_point_cloud(data)
+            pcd, bounds, mat = self.visualize_point_cloud(data_np)
 
         self.scene.scene = rendering.Open3DScene(self.window.renderer)
         self.window.add_child(self.scene)

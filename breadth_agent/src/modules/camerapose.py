@@ -3,20 +3,26 @@ import cv2
 import os
 from tqdm import tqdm
 import torch
+import torch.nn.functional as F
+from torchvision import transforms as TF
 
-from baseclass import CameraPoseEstimatorClass
-from .DataTypes.datatype import Points2D, Calibration, Points3D, CameraPose, PointsMatched, CameraData
-from models.sfm_models.vggt.utils.pose_enc import pose_encoding_to_extri_intri
-from models.sfm_models.vggt.utils.geometry import unproject_depth_map_to_point_map
-from models.sfm_models.vggt.models.vggt import VGGT
-from models.sfm_models.vggt.utils.load_fn import load_and_preprocess_images
+from modules.baseclass import CameraPoseEstimatorClass
+from modules.DataTypes.datatype import Points2D, Calibration, Points3D, CameraPose, PointsMatched, CameraData
+from modules.models.sfm_models.vggt.utils.pose_enc import pose_encoding_to_extri_intri
+from modules.models.sfm_models.vggt.utils.geometry import unproject_depth_map_to_point_map
+from modules.models.sfm_models.vggt.models.vggt import VGGT
+from modules.models.sfm_models.vggt.utils.load_fn import load_and_preprocess_images
 
+import glob
 ##########################################################################################################
 ############################################### ML MODULES ###############################################
 
 class CamPoseEstimatorVGGTModel(CameraPoseEstimatorClass):
-    def __init__(self, image_path: str, calibration: Calibration | None = None):
-        super().__init__(image_path=image_path, calibration=calibration)
+    def __init__(self, 
+                 cam_data: CameraData,
+                 image_path:str):
+        
+        super().__init__(cam_data = cam_data)
 
         self.module_name = "CamPoseEstimatorVGGTModel"
         self.description = f"""
@@ -66,53 +72,68 @@ pose_estimator() # No Features used with this module
         self.model = VGGT().to(device)
         self.model.load_state_dict(torch.load(WEIGHT_MODULE, weights_only=True))
 
-        self.images = load_and_preprocess_images(self.image_path).to(device)
+        # Load Images in correct format for VGGT inference
+        to_tensor = TF.ToTensor()
+        tensor_img_list = []
+        for ind in range(len(self.image_list)):
+            tensor_img_list.append(to_tensor(self.image_list[ind]))
+        self.images = torch.stack(tensor_img_list).to(device) 
 
-    def __call__(self, features: list[Points2D] | None = None) -> CameraPose:
-        cam_poses = CameraPose()
 
+    # def __call__(self, features: list[Points2D] | None = None) -> CameraPose:
+    def _estimate_camera_poses(self,
+                               camera_poses: CameraPose, 
+                               feature_pairs: PointsMatched) -> CameraPose:
+        # return super()._estimate_camera_poses(camera_poses, feature_pairs)
+        # cam_poses = CameraPose()
+
+        # VGGT Fixed Resolution to 518 for Inference
+        images = F.interpolate(self.images, size=(518, 518), mode="bilinear", align_corners=False)
+        # images = self.images
         with torch.no_grad():
             with torch.amp.autocast('cuda', dtype=self.dtype):
-                self.images = self.images[None]  # add batch dimension
-                aggregated_tokens_list, ps_idx = self.model.aggregator(self.images)
+                images = images[None]  # add batch dimension
+                aggregated_tokens_list, ps_idx = self.model.aggregator(images)
 
-            img_shape = self.images.shape
+            img_shape = images.shape
             # Predict Cameras
             pose_enc = self.model.camera_head(aggregated_tokens_list)[-1]
             # Extrinsic and intrinsic matrices, following OpenCV convention (camera from world)
-            extrinsic, intrinsic = pose_encoding_to_extri_intri(pose_enc, self.images.shape[-2:])
+            extrinsic, intrinsic = pose_encoding_to_extri_intri(pose_enc, images.shape[-2:])
             
             intrinsic_np = intrinsic.squeeze(0).detach().cpu().numpy()
             extrinsic_np = extrinsic.squeeze(0).detach().cpu().numpy()
 
             for i in range(extrinsic_np.shape[0]):
-                cam_poses.camera_pose.append(extrinsic_np[i, :, :])
-                cam_poses.rotations.append(extrinsic_np[i, :, :3])
-                cam_poses.translations.append(extrinsic_np[i, :, 3:])
+                camera_poses.camera_pose.append(extrinsic_np[i, :, :])
+                camera_poses.rotations.append(extrinsic_np[i, :, :3])
+                camera_poses.translations.append(extrinsic_np[i, :, 3:])
             
             # Store Intrinsics -> Reset camerapose to multi_cam approach
             intrins = []
-            dists = []  # Assume Camera image were undistorted for now
+            dists = []   # Assume Camera image were undistorted for now
 
             for i in range(intrinsic_np.shape[0]):
                 intrins.append(intrinsic_np[i, :, :])
                 dists.append(np.zeros((1,5)))
 
-            self.calibration.setup_multi_cam(intrins, dists)
+        self.cam_data.apply_new_calibration(intrins, dists)
 
-        print("Image Shape", img_shape)
-        return cam_poses
+        # print("Image Shape", img_shape)
+        # print(camera_poses.camera_pose)
+        return camera_poses
                 
 
 ###########################################################################################################
 ############################################ CLASSICAL MODULES ############################################
 
 class CamPoseEstimatorEssentialToPnP(CameraPoseEstimatorClass):
-    def __init__(self, cam_data: CameraData,
+    def __init__(self, 
+                 cam_data: CameraData,
                  iteration_count: int = 200,
                  reprojection_error: float = 3.0,
                  confidence: float = 0.99):
-        super().__init__(camera_data = cam_data)
+        super().__init__(cam_data = cam_data)
 
         self.module_name = "CamPoseEstimatorEssentialToPnP"
         self.description = f"""
@@ -152,46 +173,46 @@ pose_estimator(feature_pairs=feature_pairs) # Features used from Feature Detecto
         self.confidence = confidence
         
 
-    def __call__(self, features_pairs: PointsMatched | None = None) -> CameraPose:
-        assert(features_pairs.multi_view == False), "Features passed must be two view correspondences. Ensure to invoke Feature Matching Two View tools prior to this call."
-        # Update Calibration if necessary for image resizing/shaping from feature detectors
-        # self.calibration.update_cal_img_shape(features_pairs.image_scale)
-        # print(features_pairs.image_scale)
-        # self._setup_calibration(features_pairs.image_scale) # Update/setup calibration info
-
+    def _estimate_camera_poses(self,
+                               camera_poses: CameraPose,
+                               feature_pairs: PointsMatched) -> CameraPose:
+        assert(feature_pairs.multi_view == False), "Features passed must be two view correspondences. Ensure to invoke Feature Matching Two View tools prior to this call."
+       
         # Get First set of camera poses (Initial and 2nd Camera)
-        pts1, pts2 = features_pairs.access_matching_pair(0)
+        pts1, pts2 = feature_pairs.access_matching_pair(0)
 
-        cam_poses = self.estimate_first_pair(pts1, pts2) # First two poses defined here
-        self.cam_poses = cam_poses
+        # cam_poses = self.estimate_first_pair(pts1, pts2) # First two poses defined here
+        # self.cam_poses = cam_poses
+        self.estimate_first_pair(pts1, pts2, camera_poses) # First two poses defined here
 
-        cloud = self.two_view_triangulation(cam_poses.camera_pose[0], cam_poses.camera_pose[1], pts1, pts2)
+        cloud = self.two_view_triangulation(camera_poses.camera_pose[0], camera_poses.camera_pose[1], pts1, pts2)
 
         # for i in tqdm(range(len(features) - 2)):
-        for i in tqdm(range(1, len(features_pairs.pairwise_matches))):
+        for i in tqdm(range(1, len(feature_pairs.pairwise_matches)), 
+                      desc='Estimating Camera Poses'):
             
             if i > 1:
                 cloud = self.two_view_triangulation(pose1, pose2, pts1, pts2)
 
             # pts3_t = features[i+2]
             # pts2_3, pts3 = self.match_pairs(features[i + 1], pts3_t)
-            pts2_3, pts3 = features_pairs.access_matching_pair(i)
+            pts2_3, pts3 = feature_pairs.access_matching_pair(i)
 
             index, pts2_3_com, pts3_com, pts2_3_new, pts3_new = self.three_view_tracking(pts2, pts2_3, pts3)
 
             # print("Prev PAIR", pts2_3_com.shape)
             # print("Current POINTS", pts3_com.shape)
-            new_pose = self.estimate_pose_pnp(cloud[index], pts2_3_com, pts3_com, self.cam_poses.camera_pose[-1])
+            new_pose = self.estimate_pose_pnp(cloud[index], pts2_3_com, pts3_com, camera_poses.camera_pose[-1])
 
-            pose1 = self.cam_poses.camera_pose[-1]
+            pose1 = camera_poses.camera_pose[-1]
             pose2 = new_pose
             pts1 = pts2_3
             pts2 = pts3
 
-            self.cam_poses.camera_pose.append(new_pose)
+            camera_poses.camera_pose.append(new_pose)
 
-        return self.cam_poses
-    
+        return camera_poses
+
     def three_view_tracking(self, pts2: np.ndarray, pts2_3: np.ndarray, pts3: np.ndarray):
         #pts2 is the set of keypoints obtained from image(n-1) and image(n)
         #pts2_3 and pts3 are the set of keypoints obtained from image(n) and image(n+1)
@@ -225,11 +246,11 @@ pose_estimator(feature_pairs=feature_pairs) # Features used from Feature Detecto
         return index1,pts2_3_common,pts3_common,np.array(pts2_3_new),np.array(pts3_new)
 
 
-    def estimate_first_pair(self, pts1: np.ndarray, pts2: np.ndarray) -> CameraPose: #pts1: Points2D, pts2: Points2D) -> CameraPose:
-        cam_poses = CameraPose()
+    def estimate_first_pair(self, pts1: np.ndarray, pts2: np.ndarray, camera_poses: CameraPose) -> CameraPose: #pts1: Points2D, pts2: Points2D) -> CameraPose:
+        # cam_poses = CameraPose()
 
         initial_pose = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,0]])
-        cam_poses.camera_pose.append(initial_pose)
+        camera_poses.camera_pose.append(initial_pose)
 
         # E, mask = cv2.findEssentialMat(pts1.points2D, pts2.points2D, self.K1)
 
@@ -240,9 +261,9 @@ pose_estimator(feature_pairs=feature_pairs) # Features used from Feature Detecto
         _, R, T, _ = cv2.recoverPose(points1 = pts2, points2=pts1, cameraMatrix=self.K_mat, E = E)
 
         new_pose = np.hstack((R, T.reshape(3, 1)))
-        cam_poses.camera_pose.append(new_pose)
+        camera_poses.camera_pose.append(new_pose)
 
-        return cam_poses
+        # return cam_poses
 
     def estimate_pose_pnp(self, point_cloud: np.ndarray, pts1: np.ndarray, pts2: np.ndarray, prev_pose: np.ndarray) -> np.ndarray:
         #cv2.solvePnPRansac(point_cloud, pts2, self.K1, self.dist1, cv2.SOLVEPNP_ITERATIVE)
@@ -270,16 +291,13 @@ pose_estimator(feature_pairs=feature_pairs) # Features used from Feature Detecto
         
 
     def two_view_triangulation(self, pose_1: np.ndarray, pose_2: np.ndarray, pts1: np.ndarray, pts2: np.ndarray) -> np.ndarray:
-        # proj_1 = self.K1 @ pose_1
-        # proj_2 = self.K1 @ pose_2
 
-        #print(pts1.shape)
+        # Normalize Points
         pt1 = cv2.undistortPoints(pts1.T, self.K_mat, self.dist)
         pt2 = cv2.undistortPoints(pts2.T, self.K_mat, self.dist)
         
         P1mtx = np.eye(3) @ pose_1
         P2mtx = np.eye(3) @ pose_2
-
 
         # cloud = cv2.triangulatePoints(proj_1, proj_2, pts1.T, pts2.T)
         cloud = cv2.triangulatePoints(P1mtx, P2mtx, pt1, pt2)

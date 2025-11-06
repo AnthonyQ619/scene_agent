@@ -23,15 +23,16 @@ import matplotlib.pyplot as plt
 
 
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
+# image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\mapanything_test_dataset"
 calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\Structure-from-Motion\\calibration_new.npz"
 # image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_normal_lighting"
 # calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU.npz"
 
 # Read Camera Data
 CDM = CameraDataManager(image_path=image_path,
-                        calibrated=True,
-                        calibration_path=calibration_path)
+                        # calibration_path=calibration_path,
+                        target_resolution=(1024, 1024))
 
 cam_data = CDM.get_camera_data()
 
@@ -39,22 +40,23 @@ cam_data = CDM.get_camera_data()
 feature_detector = FeatureDetectionSIFT(cam_data=cam_data,
                                       max_keypoints=3000,
                                       ) #FeatureDetectionORB(image_path=image_path, max_keypoints=3000)
-feature_matcher = FeatureMatchBFPair(detector="sift", 
-                                     cam_data=cam_data,
-                                     cross_check=False,
-                                     RANSAC_threshold=0.005)
+# feature_matcher = FeatureMatchBFPair(detector="sift", 
+#                                      cam_data=cam_data,
+#                                      cross_check=False,
+#                                      RANSAC_threshold=0.005)
 
 # feature_matcher = FeatureMatchRoMAPair(img_path=image_path, setting="indoor")
-# pose_estimator = CamPoseEstimatorVGGTModel(image_path=image_path, calibration=calibration_data) #CamPoseEstimatorEssentialToPnP(calibration=calibration_data, image_path=image_path, detector="sift")
-pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=cam_data,
-                                                reprojection_error=4.0,
-                                                iteration_count=200,
-                                                confidence=0.995)
+pose_estimator = CamPoseEstimatorVGGTModel(cam_data=cam_data,
+                                           image_path=image_path) #CamPoseEstimatorEssentialToPnP(calibration=calibration_data, image_path=image_path, detector="sift")
+# pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=cam_data,
+#                                                 reprojection_error=4.0,
+#                                                 iteration_count=200,
+#                                                 confidence=0.995)
 
 # Solution Pipeline
 
 detected_features = feature_detector()
-matched_features = feature_matcher(detected_features)
+# matched_features = feature_matcher(detected_features)
 # matched_features = feature_matcher()
 
 # print(matched_features.access_matching_pair(0)[0].shape)
@@ -62,7 +64,7 @@ matched_features = feature_matcher(detected_features)
 
 # Include Pairwise feature matching here
 
-cam_poses = pose_estimator(matched_features) # (detected_features)
+cam_poses = pose_estimator() #(matched_features) # (detected_features)
 
 # print(cam_poses.camera_pose)
 # print(calibration_data.K_cams)

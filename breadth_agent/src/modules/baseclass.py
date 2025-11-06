@@ -7,7 +7,7 @@ This is to reduce the possiblility of the Agent to hallucinate code
 
 import numpy as np
 import cv2
-from DataTypes.datatype import (Scene, 
+from modules.DataTypes.datatype import (Scene, 
                                 CameraData, 
                                 Calibration, 
                                 Points2D, 
@@ -17,6 +17,7 @@ from DataTypes.datatype import (Scene,
 import glob
 from collections.abc import Callable
 
+import copy
 import random
 from tqdm import tqdm
 
@@ -26,15 +27,22 @@ from tqdm import tqdm
 class Normalization():
     def __init__(self, 
                  K: np.ndarray | None = None,
-                 dist: np.ndarray | None = None):
+                 dist: np.ndarray | None = None,
+                 multi_cam: bool = False):
         if K is None:
             self.K = None
             self.dist = None
             self.calibration = False
         else:
-            self.K = K
-            self.dist = dist
-            self.calibration = True
+            if multi_cam:
+                self.K_cams = K
+                self.dists = dist
+                self.calibration = True
+                self.multi_cam = multi_cam
+            else:
+                self.K = K
+                self.dist = dist
+                self.calibration = True
 
     def __call__(self, pts: Points2D) -> np.ndarray:
         if self.calibration:
@@ -46,6 +54,17 @@ class Normalization():
         # print(pts.points2D.shape)
         # print(self.dist1.shape)
         # print(self.K1.shape)
+        # if self.multi_cam:
+            #     pts_norm = []
+            #     for i in range(cams.shape[0]): 
+            #         cam = int(cams[i])
+            #         K = self.K_cams[cam]
+            #         pt = pts[i, :]
+            #         pt_norm = cv2.undistortPoints(pt.T, K, np.zeros((1,5)))[:, 0, :][0]
+            #         pts_norm.append(pt_norm)
+            #     pts_norm = np.array(pts_norm)
+            #     return pts_norm
+        # else:
         pts_norm = cv2.undistortPoints(pts.points2D.T, self.K, self.dist)[:, 0, :]
 
         return pts_norm
@@ -158,6 +177,68 @@ class FeatureTracker():
         
         return tracked_features
 
+class TriangulationCheck:
+    def __init__(self, 
+                 K_mat: np.ndarray,
+                 dist: np.ndarray): #min_angle: float = 1.0):
+        # Calibration Set up
+        self.K = K_mat
+        self.dist = dist
+
+        # # Minimum Angle Necessary 
+        # self.min_angle = min_angle
+
+    # views = [cam, x, y]:Nx3, camera_poses = [R, t]:4x4
+    def __call__(self, views: np.ndarray, 
+                 cam_poses: list[np.ndarray],
+                 minimum_angle: float = 1.0) -> tuple[bool, float]:
+        
+        # Setup
+        track_len = views.shape[0]
+        max_angle = 0.0
+        min_angle = 180.0
+
+        for i in range(track_len):
+            for j in range(i + 1, track_len):
+                cam1, pt1 = views[i, 0], views[i, 1:]
+                cam2, pt2 = views[j, 0], views[j, 1:]
+                cam1 = int(cam1)
+                cam2 = int(cam2)
+
+                pt_vec1 = self.copmute_bearing_vec(pt1)
+                pt_vec2 = self.copmute_bearing_vec(pt2)
+
+                R1 = cam_poses[cam1][:, :3]
+                R2 = cam_poses[cam2][:, :3]
+
+                pt_vec1_R = R1 @ pt_vec1
+                pt_vec2_R = R2 @ pt_vec2
+
+                angle = self.angle_from_pts(pt1_vec=pt_vec1_R, pt2_vec=pt_vec2_R)
+
+                # if angle > max_angle:
+                #     max_angle = angle
+                if angle <= min_angle:
+                    min_angle = angle
+
+
+        # return max_angle >= self.min_angle, max_angle
+        return min_angle >= minimum_angle, min_angle
+
+    def copmute_bearing_vec(self, pt: np.ndarray):
+        pt_norm = cv2.undistortPoints(pt, cameraMatrix=self.K, distCoeffs=self.dist)[:,0,:]
+
+        x = np.array([[pt_norm[0,0]], [pt_norm[0,1]], [1.0]])
+
+        x_cam = np.linalg.inv(self.K)@(x)
+        x_cam = x_cam / np.linalg.norm(x_cam)
+        return x_cam
+    
+    def angle_from_pts(self, pt1_vec: np.ndarray, pt2_vec: np.ndarray):
+        angle = np.dot(pt1_vec[:, 0], pt2_vec[:, 0])
+        angle = np.clip(angle, -1.0, 1.0)
+
+        return np.degrees(np.arccos(angle))
 ##########################################################################################################
 
 
@@ -183,30 +264,35 @@ class ImageProcessorClass():
     def __call__(self):
         pass
 
-
 class SceneEstimation():
-    def __init__(self, calibration: Calibration, image_path: str):
+    def __init__(self, cam_data: CameraData):
         self.module_name = "..."
         self.description = "..."
         self.example = "..."
 
-        self.calibration = calibration
-        self.stereo = calibration.stereo
-        self.K1 = calibration.K1
-        self.dist1 = calibration.distort
-        if self.stereo:
-            self.K2 = calibration.K2
-            self.dist2 = calibration.distort2
-            self.R12 = calibration.R12
-            self.T12 = calibration.T12
+        # Setting up Calibration Data
+        self.cam_data = cam_data
+        self.image_list = copy.copy(cam_data.image_list)
+        self.K_mat = cam_data.get_K(0)
+        self.dist = cam_data.get_distortion()
+        self.stereo = cam_data.stereo
+        self.multi_cam = cam_data.multi_cam
+
+        # Setup Minimum Angle Check Function
+        self.angle_check = TriangulationCheck(self.K_mat, self.dist)
         
-        self.image_path = sorted(glob.glob(image_path + "\\*"))[:10]
+        #self.image_path = sorted(glob.glob(image_path + "\\*"))[:10]
 
     def __call__(self, tracked_features: PointsMatched, cam_poses: CameraPose) -> Scene:
-        scene = Scene()
 
-        return scene
+        return self.build_reconstruction(tracked_features, cam_poses)
     
+    def build_reconstruction(self, 
+                             tracked_features: PointsMatched,
+                             cam_poses: CameraPose) -> Scene:
+        """Implement Algorithm to reconstruct scene here."""
+        pass
+
     # Point Maps estimation must have this function follow with tracked features
     # Point Maps must be in the shape of 
     def match_tracks_to_point_maps(self, 
@@ -237,16 +323,36 @@ class SceneEstimation():
                         frame, point2d = views[j, 0], views[j, 1:]
                         frame = int(frame)
                         x, y = round(point2d[0]), round(point2d[1]) # Determine whether to scale these points or not...
+    
+    # Normalize for BAL data optimization
+    def _normalize_points_for_BAL(self, view: np.ndarray): #pts1: np.ndarray):
+        cams, pts = view[:, 0], view[:, 1:]
+        #cam = int(cam)
+        # Normalize Points without undistorting points for Bundle Adjustment Optimization
+        if self.multi_cam:
+            pts_norm = []
+            for i in range(cams.shape[0]): 
+                cam = int(cams[i])
+                K = self.K_mat[cam]
+                pt = pts[i, :]
+                pt_norm = cv2.undistortPoints(pt.T, K, np.zeros((1,5)))[:, 0, :][0]
+                pts_norm.append(pt_norm)
+            pts_norm = np.array(pts_norm)
+        else:
+            pts_norm = cv2.undistortPoints(pts.T, self.K_mat, np.zeros((1,5)))[:, 0, :]
 
+        return pts_norm
+    
 class CameraPoseEstimatorClass():
-    def __init__(self, camera_data: CameraData):
+    def __init__(self, cam_data: CameraData):
         self.module_name = "..."
         self.description = "..."
         self.example = "..."
 
-        self.image_list = camera_data.image_list
-        self.K_mat = camera_data.get_K(0)
-        self.dist = camera_data.get_distortion()
+        self.cam_data = cam_data
+        self.image_list = copy.copy(cam_data.image_list)
+        self.K_mat = cam_data.get_K(0)
+        self.dist = cam_data.get_distortion()
 
     # def _setup_calibration(self, image_scale: list[float] | None = None):
     #     if image_scale is not None:
@@ -268,9 +374,19 @@ class CameraPoseEstimatorClass():
         
     def __call__(self, 
                  feature_pairs: PointsMatched | None = None) -> CameraPose:
-        poses = CameraPose()
+        poses = CameraPose() # Empty Data Condainer 
+
+        poses = self._estimate_camera_poses(camera_poses=poses,
+                                            feature_pairs=feature_pairs)
 
         return poses
+    
+    def _estimate_camera_poses(self, 
+                               camera_poses: CameraPose,
+                               feature_pairs: PointsMatched) -> CameraPose:
+        # Input Custom Pose Estimation Algorithm in this Function
+        
+        return camera_poses
 
 class FeatureClass():
     def __init__(self, cam_data: CameraData):

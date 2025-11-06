@@ -7,11 +7,11 @@ import cv2
 import numpy as np
 import glob
 from tqdm import tqdm
-from .DataTypes.datatype import Points2D, PointsMatched, CameraData
-from models.matchers import LightGlue, SuperGlue
+from modules.DataTypes.datatype import Points2D, PointsMatched, CameraData
+from modules.models.matchers import LightGlue, SuperGlue
 from romatch import roma_outdoor, roma_indoor
 
-from baseclass import FeatureMatching, FeatureTracking
+from modules.baseclass import FeatureMatching, FeatureTracking
 from collections.abc import Callable
 import kornia as K
 import kornia.feature as KF
@@ -508,6 +508,7 @@ class FeatureMatchFlannTracking(FeatureTracking):
     def __init__(self, 
                  cam_data: CameraData,
                  lowes_thresh: float = 0.75,
+                 k: int = 2,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99, 
                  detector:str = 'sift'):
@@ -571,6 +572,7 @@ tracked_features = feature_tracker(features=features) # Features used from Featu
 
         self.matcher = cv2.FlannBasedMatcher(index_params,search_params)
         self.lowes_thresh = lowes_thresh
+        self.k = k
 
         
     # def __call__(self, features: list[Points2D]) -> PointsMatched:
@@ -587,7 +589,7 @@ tracked_features = feature_tracker(features=features) # Features used from Featu
         desc1 = pt1.descriptors
         desc2 = pt2.descriptors
 
-        matches = self.matcher.knnMatch(desc1, desc2, k=2)
+        matches = self.matcher.knnMatch(desc1, desc2, k=self.k)
                  
         # if self.detector == self.DETECTORS[0]:
         # Conduct Lowe's Test Here
@@ -615,8 +617,70 @@ tracked_features = feature_tracker(features=features) # Features used from Featu
         #     return pts1_idx, pts2_idx
 
 class FeatureMatchBFTracking(FeatureMatching):
-    def __init__(self):
+    def __init__(self,
+                 cam_data: CameraData,
+                 detector:str = 'sift',
+                 lowes_thresh: float = 0.75,
+                 k: int = 2,
+                 cross_check: bool = True,
+                 RANSAC_threshold: float = 3.0,
+                 RANSAC_conf: float = 0.99,
+                 GMS: bool = False):
+
+
+        super().__init__(detector.lower(), 
+                         cam_data=cam_data,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC_threshold=RANSAC_threshold)
+
+        if self.detector ==  self.DETECTORS[0]:
+            norm_type = cv2.NORM_L2
+            self.matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
+        else:
+            norm_type = cv2.NORM_HAMMING
+
+        self.cross_check = cross_check
+        self.gms = GMS
+        self.k = k
+        self.lowes_thresh = lowes_thresh
+        # self.ransac = RANSAC
+        # self.ransac_threshold = RANSAC_threshold
+        # self.ransac_conf = RANSAC_conf
+
+        self.matcher = cv2.BFMatcher(normType=norm_type, 
+                                     crossCheck=self.cross_check)
+
+        self.module_name = "FeatureMatchBFTracking"
+
         pass
+
+    def matcher_parser(self, pt1: Points2D, pt2: Points2D) -> tuple[list, list]:
+        # img_shape = (image_size[0], image_size[1]) # Convert from HxW to WxH (OpenCV Convention)
+        desc1 = pt1.descriptors
+        desc2 = pt2.descriptors
+
+        if self.cross_check:
+            matches = self.matcher.match(desc1,desc2)
+        else:
+            matches = self.matcher.knnMatch(desc1, desc2, k=self.k)
+                
+        if not self.cross_check:
+            # Conduct Lowe's Test Here
+            good = []
+            for m,n in matches:
+                if m.distance < self.lowes_thresh*n.distance:
+                    good.append(m)
+        # if not self.cross_check:
+            pts1_idx = [good[i].queryIdx for i in range(len(good))]
+            pts2_idx = [good[i].trainIdx for i in range(len(good))]
+        else:
+            # if self.gms: # Specifically ORB detector
+            #     matches = matchGMS(img_shape, img_shape, )
+             
+            pts1_idx = [matches[i].queryIdx for i in range(len(matches))]
+            pts2_idx = [matches[i].trainIdx for i in range(len(matches))]
+
+        return pts1_idx, pts2_idx
 ##########################################################################################################
 ############################################ TWO-VIEW MODULES ############################################
 
@@ -1235,6 +1299,7 @@ class FeatureMatchFlannPair(FeatureMatching):
     def __init__(self, 
                  cam_data: CameraData, 
                  detector:str = 'sift',
+                 k: int = 2,
                  RANSAC: bool = True,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99,
@@ -1289,8 +1354,8 @@ features = feature_detector() # Call Feature Detector Module on image frames
 
 detected_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
 """
-
-        if self.detector ==  self.DETECTORS[:2]:
+        # print(self.detector)
+        if self.detector in self.DETECTORS[:2]:
             FLANN_INDEX_KDTREE = 1
             index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
         else: # Fast and Orb
@@ -1302,6 +1367,7 @@ detected_features = feature_matcher(features=features) # Features used from Feat
         
         search_params = dict(checks=50)   # or pass empty dictionary
         self.lowes_thresh = lowes_thresh
+        self.k = k
         # self.ransac = RANSAC
         # self.ransac_threshold = RANSAC_threshold
         # self.ransac_conf = RANSAC_conf
@@ -1365,7 +1431,7 @@ detected_features = feature_matcher(features=features) # Features used from Feat
     def matcher_parser(self, desc1: np.ndarray, desc2: np.ndarray) -> tuple[list, list]:        
         # print(desc1.shape)
         # print(desc1.dtype)
-        matches = self.matcher.knnMatch(desc1, desc2, k=2)
+        matches = self.matcher.knnMatch(desc1, desc2, k=self.k)
                  
         # if self.detector == self.DETECTORS[0] or self.detector == self.DETECTORS[2]:
         # Conduct Lowe's Test Here
@@ -1388,7 +1454,8 @@ class FeatureMatchBFPair(FeatureMatching):
                  RANSAC: bool = True,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99,
-                 GMS: bool = False):
+                 GMS: bool = False,
+                 lowes_thresh: float = 0.75):
 
         super().__init__(detector=detector.lower(), 
                          cam_data=cam_data,
@@ -1442,6 +1509,7 @@ tracked_features = feature_matcher(features=features) # Features used from Featu
         self.cross_check = cross_check
         self.gms = GMS
         self.k = k
+        self.lowes_thresh = lowes_thresh
         # self.ransac = RANSAC
         # self.ransac_threshold = RANSAC_threshold
         # self.ransac_conf = RANSAC_conf
@@ -1511,7 +1579,7 @@ tracked_features = feature_matcher(features=features) # Features used from Featu
             # Conduct Lowe's Test Here
             good = []
             for m,n in matches:
-                if m.distance < 0.75*n.distance:
+                if m.distance < self.lowes_thresh*n.distance:
                     good.append(m)
         # if not self.cross_check:
             pts1_idx = [good[i].queryIdx for i in range(len(good))]

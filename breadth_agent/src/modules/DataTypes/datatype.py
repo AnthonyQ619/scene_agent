@@ -28,7 +28,7 @@ class CameraData:
         # Assume Monocular Camera for now with OpenCV calibration convention (Wide belief)
         # Meaning: Skew Parameter will be zero in these cases.
         # height_scale, width_scale = img_scale[:]
-        assert (cam_idx >= 0 and cam_idx < len(self.intrinsics))
+        assert (cam_idx >= 0 and cam_idx < len(self.intrinsics)), "Assumed to be more cameras. Intrinsics likely not loaded properly. Use CameraDataManager to load calibration or estimate through VGGTPoseEsimtation."
         width_scale, height_scale = img_scale[:]
 
         self.intrinsics[cam_idx][0,0] = width_scale * self.intrinsics[cam_idx][0,0]   # fx x width_scale = fx'
@@ -37,17 +37,26 @@ class CameraData:
         self.intrinsics[cam_idx][1,2] = height_scale * self.intrinsics[cam_idx][1,2]  # cy x height_scale = cy'
 
     def update_calibration(self, img_scale: Tuple[float, float]):
-        for cam_idx in range(len(self.intrinsics)):
-            width_scale, height_scale = img_scale[:]
+        if self.intrinsics is not None:
+            for cam_idx in range(len(self.intrinsics)):
+                width_scale, height_scale = img_scale[:]
 
-            self.intrinsics[cam_idx][0,0] = width_scale * self.intrinsics[cam_idx][0,0]   # fx x width_scale = fx'
-            self.intrinsics[cam_idx][1,1] = height_scale * self.intrinsics[cam_idx][1,1]  # fy x height_scale = fy'
-            self.intrinsics[cam_idx][0,2] = width_scale * self.intrinsics[cam_idx][0,2]   # cx x width_scale = cx'
-            self.intrinsics[cam_idx][1,2] = height_scale * self.intrinsics[cam_idx][1,2]  # cy x height_scale = cy'
+                self.intrinsics[cam_idx][0,0] = width_scale * self.intrinsics[cam_idx][0,0]   # fx x width_scale = fx'
+                self.intrinsics[cam_idx][1,1] = height_scale * self.intrinsics[cam_idx][1,1]  # fy x height_scale = fy'
+                self.intrinsics[cam_idx][0,2] = width_scale * self.intrinsics[cam_idx][0,2]   # cx x width_scale = cx'
+                self.intrinsics[cam_idx][1,2] = height_scale * self.intrinsics[cam_idx][1,2]  # cy x height_scale = cy'
 
+    def apply_new_calibration(self, 
+                              intrinsics: List[np.ndarray],
+                              distortion: List[np.ndarray]):
+        self.intrinsics = intrinsics
+        self.distortions = distortion
 
     def get_K(self, cam_idx: int):
-        if self.stereo:
+        #assert(self.intrinsics is not None), "Calibration Data is not properly loaded. Ensure necessary steps are taken to generate calibration through VGGT tools or calibration is properly read with CameraDataManager."
+        if self.intrinsics is None:
+            return None
+        elif self.stereo:
             return self.intrinsics[0], self.intrinsics[1]
         elif self.multi_cam:
             return self.intrinsics
@@ -55,7 +64,10 @@ class CameraData:
             return self.intrinsics[0]
     
     def get_distortion(self):
-        if self.stereo:
+        #assert(self.intrinsics is not None), "Calibration Data is not properly loaded. Ensure necessary steps are taken to generate calibration through VGGT tools or calibration is properly read with CameraDataManager."
+        if self.intrinsics is None:
+            return None
+        elif self.stereo:
             return self.distortions[0], self.distortions[1]
         elif self.multi_cam:
             return self.distortions

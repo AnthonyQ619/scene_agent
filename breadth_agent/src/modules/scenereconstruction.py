@@ -1,82 +1,80 @@
 import cv2
 import numpy as np
-from baseclass import SceneEstimation
+from modules.baseclass import SceneEstimation
 from tqdm import tqdm
 import torch
 import os
-from models.sfm_models.vggt.utils.pose_enc import pose_encoding_to_extri_intri
-from models.sfm_models.vggt.utils.geometry import unproject_depth_map_to_point_map
-from models.sfm_models.vggt.models.vggt import VGGT
-from models.sfm_models.vggt.utils.load_fn import load_and_preprocess_images
+from modules.models.sfm_models.vggt.utils.pose_enc import pose_encoding_to_extri_intri
+from modules.models.sfm_models.vggt.utils.geometry import unproject_depth_map_to_point_map
+from modules.models.sfm_models.vggt.models.vggt import VGGT
+from modules.models.sfm_models.vggt.utils.load_fn import load_and_preprocess_images
 
-from .DataTypes.datatype import (Points2D, 
-                                 Calibration, 
-                                 Points3D, 
-                                 CameraPose, 
-                                 Scene, 
-                                 PointsMatched,
-                                 BundleAdjustmentData)
+from modules.DataTypes.datatype import (Points2D, 
+                                        CameraData, 
+                                        Points3D, 
+                                        CameraPose, 
+                                        Scene, 
+                                        PointsMatched,
+                                        BundleAdjustmentData)
 
 ############################################## HELPER CLASS ##############################################
 
-class TriangulationCheck:
-    def __init__(self, calibration: Calibration, min_angle: float = 1.0):
-        # Calibration Set up
-        self.K1 = calibration.K1
-        self.dist1 = calibration.distort
+# class TriangulationCheck:
+#     def __init__(self, calibration: Calibration, min_angle: float = 1.0):
+#         # Calibration Set up
+#         self.K1 = calibration.K1
+#         self.dist1 = calibration.distort
 
-        # Minimum Angle Necessary 
-        self.min_angle = min_angle
+#         # Minimum Angle Necessary 
+#         self.min_angle = min_angle
 
-    # views = [cam, x, y]:Nx3, camera_poses = [R, t]:4x4
-    def __call__(self, views: np.ndarray, cam_poses: list[np.ndarray]) -> tuple[bool, float]:
-        track_len = views.shape[0]
-        max_angle = 0.0
-        min_angle = 180.0
+#     # views = [cam, x, y]:Nx3, camera_poses = [R, t]:4x4
+#     def __call__(self, views: np.ndarray, cam_poses: list[np.ndarray]) -> tuple[bool, float]:
+#         track_len = views.shape[0]
+#         max_angle = 0.0
+#         min_angle = 180.0
 
-        for i in range(track_len):
-            for j in range(i + 1, track_len):
-                cam1, pt1 = views[i, 0], views[i, 1:]
-                cam2, pt2 = views[j, 0], views[j, 1:]
-                cam1 = int(cam1)
-                cam2 = int(cam2)
+#         for i in range(track_len):
+#             for j in range(i + 1, track_len):
+#                 cam1, pt1 = views[i, 0], views[i, 1:]
+#                 cam2, pt2 = views[j, 0], views[j, 1:]
+#                 cam1 = int(cam1)
+#                 cam2 = int(cam2)
 
-                pt_vec1 = self.copmute_bearing_vec(pt1)
-                pt_vec2 = self.copmute_bearing_vec(pt2)
+#                 pt_vec1 = self.copmute_bearing_vec(pt1)
+#                 pt_vec2 = self.copmute_bearing_vec(pt2)
 
-                R1 = cam_poses[cam1][:, :3]
-                R2 = cam_poses[cam2][:, :3]
+#                 R1 = cam_poses[cam1][:, :3]
+#                 R2 = cam_poses[cam2][:, :3]
 
-                pt_vec1_R = R1 @ pt_vec1
-                pt_vec2_R = R2 @ pt_vec2
+#                 pt_vec1_R = R1 @ pt_vec1
+#                 pt_vec2_R = R2 @ pt_vec2
 
-                angle = self.angle_from_pts(pt1_vec=pt_vec1_R, pt2_vec=pt_vec2_R)
+#                 angle = self.angle_from_pts(pt1_vec=pt_vec1_R, pt2_vec=pt_vec2_R)
 
-                # if angle > max_angle:
-                #     max_angle = angle
-                if angle <= min_angle:
-                    min_angle = angle
-
-
-        # return max_angle >= self.min_angle, max_angle
-        return min_angle >= self.min_angle, min_angle
+#                 # if angle > max_angle:
+#                 #     max_angle = angle
+#                 if angle <= min_angle:
+#                     min_angle = angle
 
 
+#         # return max_angle >= self.min_angle, max_angle
+#         return min_angle >= self.min_angle, min_angle
 
-    def copmute_bearing_vec(self, pt: np.ndarray):
-        pt_norm = cv2.undistortPoints(pt, cameraMatrix=self.K1, distCoeffs=self.dist1)[:,0,:]
+#     def copmute_bearing_vec(self, pt: np.ndarray):
+#         pt_norm = cv2.undistortPoints(pt, cameraMatrix=self.K1, distCoeffs=self.dist1)[:,0,:]
 
-        x = np.array([[pt_norm[0,0]], [pt_norm[0,1]], [1.0]])
+#         x = np.array([[pt_norm[0,0]], [pt_norm[0,1]], [1.0]])
 
-        x_cam = np.linalg.inv(self.K1)@(x)
-        x_cam = x_cam / np.linalg.norm(x_cam)
-        return x_cam
+#         x_cam = np.linalg.inv(self.K1)@(x)
+#         x_cam = x_cam / np.linalg.norm(x_cam)
+#         return x_cam
     
-    def angle_from_pts(self, pt1_vec: np.ndarray, pt2_vec: np.ndarray):
-        angle = np.dot(pt1_vec[:, 0], pt2_vec[:, 0])
-        angle = np.clip(angle, -1.0, 1.0)
+#     def angle_from_pts(self, pt1_vec: np.ndarray, pt2_vec: np.ndarray):
+#         angle = np.dot(pt1_vec[:, 0], pt2_vec[:, 0])
+#         angle = np.clip(angle, -1.0, 1.0)
 
-        return np.degrees(np.arccos(angle))
+#         return np.degrees(np.arccos(angle))
 
 
 ##########################################################################################################
@@ -86,9 +84,8 @@ class TriangulationCheck:
 
 class Sparse3DReconstructionVGGT(SceneEstimation):
     def __init__(self,
-                 calibration: Calibration, 
-                 image_path: str):
-        super().__init__(calibration=calibration, image_path=image_path)
+                 cam_data: CameraData):
+        super().__init__(cam_data=cam_data)
 
         self.module_name = "Sparse3DReconstructionVGGT"
         self.description = f"""
@@ -179,8 +176,9 @@ sparse_scene = sparse_reconstruction(camera_poses=cam_poses)
 ############################################ CLASSICAL MODULES ############################################
 
 class Sparse3DReconstructionStereo(SceneEstimation):
-    def __init__(self, calibration: Calibration, image_path: str):
-        super().__init__(calibration=calibration, image_path=image_path)
+    def __init__(self,
+                 cam_data: CameraData):
+        super().__init__(cam_data=cam_data)
 
         self.module_name = "Sparse3DReconstructionMono"
         self.description = f"""
@@ -377,12 +375,12 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
     
 
 class Sparse3DReconstructionMono(SceneEstimation):
-    def __init__(self, calibration: Calibration, 
-                 image_path: str, 
+    def __init__(self, cam_data: CameraData, 
+                 view: str = "multi",
                  min_observe: int = 3,
                  min_angle: float = 1.0):
-        super().__init__(calibration=calibration, image_path=image_path)
-
+        
+        super().__init__(cam_data=cam_data)
 
         self.module_name = "Sparse3DReconstructionMono"
         self.description = f"""
@@ -444,13 +442,17 @@ matched_features = feature_matcher(features=features) # To track features across
 sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two") 
 """
         self.VIEWS = ["multi", "two"]
+        self.view = view
         self.minimum_observation = min_observe # N-view functionality only
-        self.angle_check = TriangulationCheck(calibration=calibration, min_angle=min_angle)
+        self.min_angle = min_angle
+        # self.angle_check = TriangulationCheck(calibration=calibration, min_angle=min_angle)
 
     # tracked_features: PointsMatched, cam_poses: CameraPose
-    def __call__(self, points: PointsMatched, camera_poses: CameraPose, view: str | None = "multi") -> Scene:
+    def build_reconstruction(self, 
+                 points: PointsMatched, 
+                 camera_poses: CameraPose) -> Scene:
 
-        if view not in self.VIEWS:
+        if self.view not in self.VIEWS:
             message = 'Error: setting is not supported. Use one of ' + str(self.VIEWS) + ' instead to use this Reconstruction Module.'
             raise Exception(message)
         
@@ -462,9 +464,9 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
         num_cameras = len(camera_poses.camera_pose)
         observations = []
 
-        if view == self.VIEWS[0]: # Multi-view
+        if self.view == self.VIEWS[0]: # Multi-view
             if not points.multi_view:
-                message = 'Error: features are not tracked. Use the setting ' + str(self.VIEW[1]) + ' instead to use this Reconstruction Module for pairwise feature matching.'
+                message = 'Error: features are not tracked. Use the setting ' + str(self.VIEWS[1]) + ' instead to use this Reconstruction Module for pairwise feature matching.'
                 raise Exception(message)
             
             point_index = 0
@@ -474,13 +476,15 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
                 if views.shape[0] < self.minimum_observation: # Below minimum observation for accurate 3D triangulation
                     continue 
                 # Check triangulation angle of points
-                min_angle, max_angle = self.angle_check(views, camera_poses.camera_pose)
+                min_angle, max_angle = self.angle_check(views, 
+                                                        camera_poses.camera_pose,
+                                                        minimum_angle=self.min_angle)
                 if not min_angle:
                     continue
 
                 # BAL Data Construction
                 point_ind = np.array([point_index for _ in range(views.shape[0])]).reshape((views.shape[0],1))
-                norm_pts = self._normalize_feat_points(views)#views[:, 1:])
+                norm_pts = self._normalize_points_for_BAL(views)#views[:, 1:])
                 observation = np.hstack((np.vstack(views[:,0]), point_ind, norm_pts))#views[:,1:]))
                 observations.append(observation)
                 num_observations += views.shape[0] # Number of observations
@@ -498,7 +502,7 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
                                            observations=observations,
                                            cameras=camera_poses,
                                            points=points_3d.points3D,
-                                           dist=[self.dist1],
+                                           dist=[self.dist],
                                            mono=True)
 
             scene = Scene(points3D = points_3d,
@@ -506,9 +510,9 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
                           representation = "point cloud",
                           bal_data=ba_data) 
             return scene
-        elif view == self.VIEWS[1]: # Two-View
+        elif self.view == self.VIEWS[1]: # Two-View
             if points.multi_view:
-                message = 'Error: features are tracked. Use the setting ' + str(self.VIEW[0]) + ' instead to use this Reconstruction Module for feature tracking.'
+                message = 'Error: features are tracked. Use the setting ' + str(self.VIEWS[0]) + ' instead to use this Reconstruction Module for feature tracking.'
                 raise Exception(message)
             
             points_3d = Points3D()
@@ -525,40 +529,22 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
             scene = Scene(points3D = points_3d,cam_poses = camera_poses, representation = "point cloud") 
             return scene
     
-    def _normalize_feat_points(self, view: np.ndarray): #pts1: np.ndarray):
-        cams, pts = view[:, 0], view[:, 1:]
-        #cam = int(cam)
-        # Normalize Points without undistorting points for Bundle Adjustment Optimization
-        if self.calibration.multi_cam:
-            pts_norm = []
-            for i in range(cams.shape[0]): 
-                cam = int(cams[i])
-                K = self.calibration.K_cams[cam]
-                pt = pts[i, :]
-                pt_norm = cv2.undistortPoints(pt.T, K, np.zeros((1,5)))[:, 0, :][0]
-                pts_norm.append(pt_norm)
-            pts_norm = np.array(pts_norm)
-        else:
-            pts_norm = cv2.undistortPoints(pts.T, self.K1, np.zeros((1,5)))[:, 0, :]
-
-        return pts_norm
-
-    def min_angle_test(self):
-        pass
+    # def min_angle_test(self):
+    #     pass
 
     # Triangulation of points (Monocular Camera) - 2View
     def triangulate_points_mono(self, pts1: np.ndarray, pts2: np.ndarray, camera_pose: list[np.ndarray]) -> np.ndarray:
         if self.dist1 is not None:
-            pt1 = cv2.undistortPoints(pts1, self.K1, self.dist1)
-            pt2 = cv2.undistortPoints(pts2, self.K1, self.dist1)
+            pt1 = cv2.undistortPoints(pts1, self.K_mat, self.dist)
+            pt2 = cv2.undistortPoints(pts2, self.K_mat, self.dist)
             
             P1mtx = np.eye(3) @ camera_pose[0]
             P2mtx = np.eye(3) @ camera_pose[1]
         else:
             pt1, pt2 = pts1.T, pts2.T
 
-            P1mtx = self.K1 @ camera_pose[0]
-            P2mtx = self.K1 @ camera_pose[1]
+            P1mtx = self.K_mat @ camera_pose[0]
+            P2mtx = self.K_mat @ camera_pose[1]
 
         X = cv2.triangulatePoints(P1mtx, P2mtx, pt1, pt2)
         X = (X[:-1]/X[-1]).T 
@@ -575,45 +561,45 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
         A = np.zeros((2*total_cameras, 4))
 
         # Read Hartley and Zisserman to see if we need the normalization factor??
-        if self.dist1 is None: # Keep Points in Pixel Coordinates
+        # if self.dist is None: # Keep Points in Pixel Coordinates
+        #     for i in range(views.shape[0]):
+        #         cam, pt = views[i, 0], views[i, 1:]
+        #         cam = int(cam)
+        #         Pmat = self.K1 @ cam_poses[cam]
+
+        #         row1 = pt[0]*Pmat[2, :] - Pmat[0, :]
+        #         row2 = pt[1]*Pmat[2, :] - Pmat[1, :]
+
+        #         A[2*i, :] = row1
+        #         A[2*i + 1, :] = row2
+        # else: 
+        if self.multi_cam:
             for i in range(views.shape[0]):
                 cam, pt = views[i, 0], views[i, 1:]
                 cam = int(cam)
-                Pmat = self.K1 @ cam_poses[cam]
+                Pmat = np.eye(3) @ cam_poses[cam]
+                K = self.K_mat[cam]
+                dist = self.dist[cam]
 
-                row1 = pt[0]*Pmat[2, :] - Pmat[0, :]
-                row2 = pt[1]*Pmat[2, :] - Pmat[1, :]
+                xUnd = cv2.undistortPoints(pt, K, dist) # Undistort and Normalize Points
+
+                row1 = xUnd[0, 0, 0]*Pmat[2, :] - Pmat[0, :]
+                row2 = xUnd[0, 0, 1]*Pmat[2, :] - Pmat[1, :]
 
                 A[2*i, :] = row1
                 A[2*i + 1, :] = row2
-        else: 
-            if self.calibration.multi_cam:
-                for i in range(views.shape[0]):
-                    cam, pt = views[i, 0], views[i, 1:]
-                    cam = int(cam)
-                    Pmat = np.eye(3) @ cam_poses[cam]
-                    K = self.calibration.K_cams[cam]
-                    dist = self.calibration.cam_dists[cam]
+        else:
+            for i in range(views.shape[0]):
+                cam, pt = views[i, 0], views[i, 1:]
+                cam = int(cam)
+                Pmat = np.eye(3) @ cam_poses[cam]
+                xUnd = cv2.undistortPoints(pt, self.K_mat, self.dist) # Undistort and Normalize Points
 
-                    xUnd = cv2.undistortPoints(pt, K, dist) # Undistort and Normalize Points
+                row1 = xUnd[0, 0, 0]*Pmat[2, :] - Pmat[0, :]
+                row2 = xUnd[0, 0, 1]*Pmat[2, :] - Pmat[1, :]
 
-                    row1 = xUnd[0, 0, 0]*Pmat[2, :] - Pmat[0, :]
-                    row2 = xUnd[0, 0, 1]*Pmat[2, :] - Pmat[1, :]
-
-                    A[2*i, :] = row1
-                    A[2*i + 1, :] = row2
-            else:
-                for i in range(views.shape[0]):
-                    cam, pt = views[i, 0], views[i, 1:]
-                    cam = int(cam)
-                    Pmat = np.eye(3) @ cam_poses[cam]
-                    xUnd = cv2.undistortPoints(pt, self.K1, self.dist1) # Undistort and Normalize Points
-
-                    row1 = xUnd[0, 0, 0]*Pmat[2, :] - Pmat[0, :]
-                    row2 = xUnd[0, 0, 1]*Pmat[2, :] - Pmat[1, :]
-
-                    A[2*i, :] = row1
-                    A[2*i + 1, :] = row2
+                A[2*i, :] = row1
+                A[2*i + 1, :] = row2
 
         U, S, V = np.linalg.svd(A)
         X = V[-1, :]

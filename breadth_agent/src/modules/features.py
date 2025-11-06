@@ -3,9 +3,9 @@ import math
 import numpy as np
 import glob
 from tqdm import tqdm
-from .DataTypes.datatype import Points2D, Calibration, CameraData
-from baseclass import FeatureClass
-from models.features import SuperPoint, load_image, numpy_image_to_torch 
+from modules.DataTypes.datatype import Points2D, Calibration, CameraData
+from modules.baseclass import FeatureClass
+from modules.models.features import SuperPoint, load_image, numpy_image_to_torch 
 import torch
 
 ############################################ HELPER FUNCTIONS ############################################
@@ -222,7 +222,8 @@ features = feature_detector()
         eps=1e-7
 
         #for i in tqdm(range(len(self.image_path))): # len(self.image_path)
-        for i in tqdm(range(len(self.image_list))):
+        for i in tqdm(range(len(self.image_list)),
+                      desc="Detecting Features"):
 
             img = self.image_list[i] #self.image_path[i]
             im_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) #cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2GRAY)
@@ -575,7 +576,8 @@ features = feature_detector()
         self.detector = SuperPoint(max_num_keypoints=max_keypoints).eval().to(self.device) 
 
     def __call__(self) -> list[Points2D]:
-        for i in tqdm(range(len(self.image_list))): # len(self.image_path)
+        for i in tqdm(range(len(self.image_list)),
+                      desc="Detecting Features"): # len(self.image_path)
             
         # img in self.image_path:
             img = self.image_list[i]
