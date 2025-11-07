@@ -84,8 +84,9 @@ from modules.DataTypes.datatype import (Points2D,
 
 class Sparse3DReconstructionVGGT(SceneEstimation):
     def __init__(self,
-                 cam_data: CameraData):
-        super().__init__(cam_data=cam_data)
+                 cam_data: CameraData,
+                 min_observe: int = 3):
+        super().__init__(cam_data = cam_data)
 
         self.module_name = "Sparse3DReconstructionVGGT"
         self.description = f"""
@@ -143,11 +144,23 @@ sparse_scene = sparse_reconstruction(camera_poses=cam_poses)
         self.model = VGGT().to(self.device)
         self.model.load_state_dict(torch.load(WEIGHT_MODULE, weights_only=True))
 
-        self.images = load_and_preprocess_images(self.image_path).to(self.device) # Likely to be removed to Image Rader
+        self.height, self.width = self.image_list[0].shape[:2]
+        # Load Images in correct format for VGGT inference
+        to_tensor = TF.ToTensor()
+        tensor_img_list = []
+        for ind in range(len(self.image_list)):
+            tensor_img_list.append(to_tensor(self.image_list[ind]))
+        self.images = torch.stack(tensor_img_list).to(device) 
 
-    def __call__(self, tracked_features: PointsMatched, cam_poses: CameraPose) -> Scene:
+        self.minimum_observation = min_observe
+
+
+    def build_reconstruction(self, 
+                             tracked_features: PointsMatched, 
+                             cam_poses: CameraPose) -> Scene:
+
         ext_torch = torch.from_numpy(np.array(cam_poses.camera_pose)).to(self.device)
-        int_torch = torch.from_numpy(np.array(self.calibration.K_cams)).to(self.device)
+        int_torch = torch.from_numpy(np.array(self.K_mat)).to(self.device)
 
         with torch.no_grad():
             with torch.amp.autocast('cuda', dtype=self.dtype):
@@ -161,15 +174,22 @@ sparse_scene = sparse_reconstruction(camera_poses=cam_poses)
                                                                 ext_torch, 
                                                                 int_torch)
         
+        num_cameras = len(camera_poses.camera_pose)
 
         # Here we use the ext, int, depth_map, and point_map (points3D) to initialize the sparse reconstruction with tracked feature points
-        # 
+        scene = self.match_tracks_to_point_maps(tracked_features=tracked_features,
+                                                point_maps = point_map,
+                                                conf_maps = depth_conf,
+                                                minimum_observation = self.minimum_observation,
+                                                img_width = self.width,
+                                                num_cameras = num_cameras)
 
-        points3D = Points3D(points = point_map.reshape(-1, 3))
+        return scene
+        # points3D = Points3D(points = point_map.reshape(-1, 3))
 
-        return Scene(points3D=points3D, 
-                     cam_poses=cam_poses.camera_pose, 
-                     representation="point cloud")
+        # return Scene(points3D=points3D, 
+        #              cam_poses=cam_poses.camera_pose, 
+        #              representation="point cloud")
     
 
 ###########################################################################################################
