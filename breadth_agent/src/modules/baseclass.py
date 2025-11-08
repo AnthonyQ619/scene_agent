@@ -343,6 +343,67 @@ class SceneEstimation():
 
         return pts_norm
     
+    def _reprojection_error(self, 
+                            point: np.ndarray, 
+                            views: np.ndarray, 
+                            cam_poses: list[np.ndarray]) -> float:
+        X_h = np.append(point, 1)
+        errors = []
+        # print("POINT SHAPE:", X_h.shape)
+        if self.multi_cam:
+            for i in range(views.shape[0]):
+                cam, pt = views[i, 0], views[i, 1:]
+                cam = int(cam)
+                K = self.K_mat[cam]
+                dist = self.dist[cam]
+                rvec = cam_poses[cam][:, :3]
+                tvec = cam_poses[cam][:, 3]
+                # Pmat = np.eye() @ cam_poses[cam] 
+                # dist = self.dist[cam]
+
+                # xUnd = cv2.undistortPoints(pt, K, dist)
+
+                # x_proj_h = Pmat @ X_h
+                # x_proj = x_proj_h[:2] / x_proj_h[2]
+                # errors.append(np.linalg.norm(x_proj - xUnd))
+
+                imgpt_proj, _ = cv2.projectPoints(objectPoints=point.reshape((1,3)),
+                                                  rvec=rvec,
+                                                  tvec=tvec,
+                                                  cameraMatrix=K,
+                                                  distCoeffs=dist)#cv2.projectPoints(point.reshape((1,3)), rvec, tvec, self.K_mat, self.dist)
+                imgpt_proj = imgpt_proj.ravel()
+                pixel_error = np.linalg.norm(imgpt_proj - pt)
+
+                errors.append(pixel_error)
+
+            return np.mean(errors)
+        else:
+            for i in range(views.shape[0]):
+                cam, pt = views[i, 0], views[i, 1:]
+                cam = int(cam)
+                # Pmat = np.eye(3) @ cam_poses[cam]
+                # xUnd = cv2.undistortPoints(pt, self.K_mat, self.dist)
+                rvec = cam_poses[cam][:, :3]
+                tvec = cam_poses[cam][:, 3]
+                # print(rvec)
+                # x_proj_h = Pmat @ X_h
+                # x_proj = x_proj_h[:2] / x_proj_h[2]
+                # errors.append(np.linalg.norm(x_proj - xUnd))
+                imgpt_proj, _ = cv2.projectPoints(objectPoints=point.reshape((1,3)),
+                                                  rvec=rvec,
+                                                  tvec=tvec,
+                                                  cameraMatrix=self.K_mat,
+                                                  distCoeffs=self.dist)#cv2.projectPoints(point.reshape((1,3)), rvec, tvec, self.K_mat, self.dist)
+                imgpt_proj = imgpt_proj.ravel()
+                pixel_error = np.linalg.norm(imgpt_proj - pt)
+                # print("Point SHAPE", imgpt_proj.shape)
+                # print("Point Value", imgpt_proj)
+                # print("Original Point:", pt)
+                errors.append(pixel_error)
+
+            return np.mean(errors)
+    
 class CameraPoseEstimatorClass():
     def __init__(self, cam_data: CameraData):
         self.module_name = "..."
@@ -543,12 +604,13 @@ class FeatureTracking():
         return [], []
 
 class OptimizationClass():
-    def __init__(self, calibration: Calibration, scene: Scene):
+    def __init__(self, cam_data:CameraData, scene: Scene):
         self.module_name = "..."
         self.description = "..."
         self.example = "..."
 
-        self.calibration = calibration
+        self.cal = cam_data.get_K(0)
+        self.dist = cam_data.get_distortion()
         self.optimizer = ["BA"]
         # self.OPTIONS = ['essential', 'fundamental', 'homography', 'projective']
         # self.FORMATS = ['full', 'partial', 'pair']

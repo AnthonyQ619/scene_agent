@@ -23,7 +23,7 @@ class CameraDataManager():
                  calibration_path: str | None = None,
                  target_resolution: Tuple[int, int] | None = None):
         
-        image_files = sorted(glob.glob(image_path + "\\*"))
+        image_files = sorted(glob.glob(image_path + "\\*"))[:10]
 
         #self.camera_data = CameraData()    
         if calibration_path is None:

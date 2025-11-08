@@ -14,16 +14,16 @@ import torch
 import theseus as th
 import theseus.utils.examples as theg
 
-from DataTypes.datatype import Scene, BundleAdjustmentData, Points2D, Points3D, CameraPose, Calibration
-from baseclass import OptimizationClass
+from modules.DataTypes.datatype import Scene, CameraData, BundleAdjustmentData, Points2D, Points3D, CameraPose, Calibration
+from modules.baseclass import OptimizationClass
 
 
 class BundleAdjustmentOptimizer(OptimizationClass):
     def __init__(self, 
                  scene: Scene | None = None,
-                 calibration: Calibration | None = None,
+                 cam_data: CameraData | None = None,
                  ):
-        super.__init__(calibration = calibration)
+        # super.__init__(cam_data = cam_data)
 
         self.module_name = "BundleAdjustmentOptimizer"
         self.description = f"""
@@ -84,7 +84,7 @@ optimal_scene = optimizer(bal_path)
 
         # Active Scene Data for manipulation
         self.scene = scene
-        self.cal = calibration
+        # self.cal = calibration
         # self.bal = scene.bal_data # Bundle Adjustment Data for later use
 
         # Get Device

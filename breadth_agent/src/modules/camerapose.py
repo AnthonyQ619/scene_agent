@@ -19,8 +19,7 @@ import glob
 
 class CamPoseEstimatorVGGTModel(CameraPoseEstimatorClass):
     def __init__(self, 
-                 cam_data: CameraData,
-                 image_path:str):
+                 cam_data: CameraData):
         
         super().__init__(cam_data = cam_data)
 
@@ -249,7 +248,7 @@ pose_estimator(feature_pairs=feature_pairs) # Features used from Feature Detecto
     def estimate_first_pair(self, pts1: np.ndarray, pts2: np.ndarray, camera_poses: CameraPose) -> CameraPose: #pts1: Points2D, pts2: Points2D) -> CameraPose:
         # cam_poses = CameraPose()
 
-        initial_pose = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,0]])
+        initial_pose = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,0]], dtype=float)
         camera_poses.camera_pose.append(initial_pose)
 
         # E, mask = cv2.findEssentialMat(pts1.points2D, pts2.points2D, self.K1)

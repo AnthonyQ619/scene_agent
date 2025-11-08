@@ -3,6 +3,8 @@ import numpy as np
 from modules.baseclass import SceneEstimation
 from tqdm import tqdm
 import torch
+import torch.nn.functional as F
+from torchvision import transforms as TF
 import os
 from modules.models.sfm_models.vggt.utils.pose_enc import pose_encoding_to_extri_intri
 from modules.models.sfm_models.vggt.utils.geometry import unproject_depth_map_to_point_map
@@ -150,7 +152,7 @@ sparse_scene = sparse_reconstruction(camera_poses=cam_poses)
         tensor_img_list = []
         for ind in range(len(self.image_list)):
             tensor_img_list.append(to_tensor(self.image_list[ind]))
-        self.images = torch.stack(tensor_img_list).to(device) 
+        self.images = torch.stack(tensor_img_list).to(self.device) 
 
         self.minimum_observation = min_observe
 
@@ -162,10 +164,13 @@ sparse_scene = sparse_reconstruction(camera_poses=cam_poses)
         ext_torch = torch.from_numpy(np.array(cam_poses.camera_pose)).to(self.device)
         int_torch = torch.from_numpy(np.array(self.K_mat)).to(self.device)
 
+        # VGGT Fixed Resolution to 518 for Inference
+        images = F.interpolate(self.images, size=(518, 518), mode="bilinear", align_corners=False)
+        
         with torch.no_grad():
             with torch.amp.autocast('cuda', dtype=self.dtype):
-                self.images = self.images[None]  # add batch dimension
-                aggregated_tokens_list, ps_idx = self.model.aggregator(self.images)
+                images = images[None]  # add batch dimension
+                aggregated_tokens_list, ps_idx = self.model.aggregator(images)
 
             # Predict Depth Maps
             depth_map, depth_conf = self.model.depth_head(aggregated_tokens_list, self.images, ps_idx)
@@ -174,7 +179,7 @@ sparse_scene = sparse_reconstruction(camera_poses=cam_poses)
                                                                 ext_torch, 
                                                                 int_torch)
         
-        num_cameras = len(camera_poses.camera_pose)
+        num_cameras = len(cam_poses.camera_pose)
 
         # Here we use the ext, int, depth_map, and point_map (points3D) to initialize the sparse reconstruction with tracked feature points
         scene = self.match_tracks_to_point_maps(tracked_features=tracked_features,
@@ -397,6 +402,7 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
 class Sparse3DReconstructionMono(SceneEstimation):
     def __init__(self, cam_data: CameraData, 
                  view: str = "multi",
+                 reproj_error: float = 3.0,
                  min_observe: int = 3,
                  min_angle: float = 1.0):
         
@@ -465,6 +471,7 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
         self.view = view
         self.minimum_observation = min_observe # N-view functionality only
         self.min_angle = min_angle
+        self.reproj_error_min = reproj_error
         # self.angle_check = TriangulationCheck(calibration=calibration, min_angle=min_angle)
 
     # tracked_features: PointsMatched, cam_poses: CameraPose
@@ -502,18 +509,29 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
                 if not min_angle:
                     continue
 
-                # BAL Data Construction
-                point_ind = np.array([point_index for _ in range(views.shape[0])]).reshape((views.shape[0],1))
-                norm_pts = self._normalize_points_for_BAL(views)#views[:, 1:])
-                observation = np.hstack((np.vstack(views[:,0]), point_ind, norm_pts))#views[:,1:]))
-                observations.append(observation)
-                num_observations += views.shape[0] # Number of observations
+                # # BAL Data Construction
+                # point_ind = np.array([point_index for _ in range(views.shape[0])]).reshape((views.shape[0],1))
+                # norm_pts = self._normalize_points_for_BAL(views)#views[:, 1:])
+                # observation = np.hstack((np.vstack(views[:,0]), point_ind, norm_pts))#views[:,1:]))
+                # observations.append(observation)
+                # num_observations += views.shape[0] # Number of observations
 
                 # Estimate 3D point
                 point = self.triangulate_nView_points_Mono(views, camera_poses.camera_pose)
-                points_3d.update_points(point)
+                
+                reproj_error = self._reprojection_error(point, views, camera_poses.camera_pose)
+                if reproj_error <= self.reproj_error_min:
+                    # BAL Data Construction
+                    point_ind = np.array([point_index for _ in range(views.shape[0])]).reshape((views.shape[0],1))
+                    norm_pts = self._normalize_points_for_BAL(views)#views[:, 1:])
+                    observation = np.hstack((np.vstack(views[:,0]), point_ind, norm_pts))#views[:,1:]))
+                    observations.append(observation)
+                    num_observations += views.shape[0] # Number of observations
 
-                point_index += 1 # Successfully Estimated Point
+                    # Keep 3D point here
+                    points_3d.update_points(point)
+
+                    point_index += 1 # Successfully Estimated Point
 
             # Build BAL data
             ba_data = BundleAdjustmentData(num_cameras=num_cameras, 

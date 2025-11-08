@@ -332,7 +332,7 @@ class BundleAdjustmentData:
     num_points: int
     num_observations: int
     camera_int: list[np.ndarray]    # Camera Intrinsics, for each cam_i in list contains calibration matrix
-    observations: np.ndarray        # Mx4 matrices for each point observation where M=num_of_observations
+    observations: np.ndarray        # Mx4 matrices for each point observation where M=num_of_observations, and each row = [frame, 3d_point_ind, norm_x, norm_y]
     cameras: list[np.ndarray]       # List of cameras, with each row containing R(rodriguez), T, f, K1, K2 (k1 and k2 radial distortion)
     points: np.ndarray              # Nx3 matrix containing the X, Y, Z coordinates of points 
 
