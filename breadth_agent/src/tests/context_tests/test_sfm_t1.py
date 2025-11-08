@@ -45,7 +45,9 @@ features = feature_detector()
 from modules.featurematching import FeatureMatchFlannPair
 # Pairwise Feature Matching Module Initialization
 feature_matcher = FeatureMatchFlannPair(detector='sift', 
-                                        cam_data=camera_data)
+                                        cam_data=camera_data,
+                                        RANSAC_threshold=0.2,
+                                        lowes_thresh=0.6)
 
 # Detect Image Pair Correspondences for Pose Estimation
 feature_pairs = feature_matcher(features=features)
@@ -53,7 +55,10 @@ feature_pairs = feature_matcher(features=features)
 # STEP 4: Estimate Camera Poses of Scene with Feature Pairs
 from modules.camerapose import CamPoseEstimatorEssentialToPnP
 # Camera Pose Module Initialization
-pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data)
+pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data,
+                                                reprojection_error=4.0,
+                                                iteration_count=200,
+                                                confidence=0.995)
 
 # From estimated features, estimate the camera poses for all image frames
 cam_poses = pose_estimator(feature_pairs=feature_pairs)
@@ -62,7 +67,8 @@ cam_poses = pose_estimator(feature_pairs=feature_pairs)
 from modules.featurematching import FeatureMatchFlannTracking
 # Feature Tracking Module Initialization
 feature_tracker = FeatureMatchFlannTracking(detector='sift', 
-                                            cam_data=camera_data)
+                                            cam_data=camera_data,
+                                            RANSAC_threshold=0.2)
 
 # From estimated features, tracked features across multiple images
 tracked_features = feature_tracker(features=features)
@@ -71,27 +77,27 @@ tracked_features = feature_tracker(features=features)
 from modules.scenereconstruction import Sparse3DReconstructionMono
 # Scene Reconstruction Module Initialization
 sparse_reconstruction = Sparse3DReconstructionMono(cam_data=camera_data,
-                                                   min_observe=3,
-                                                   min_angle=1.0,
+                                                   min_observe=4,
+                                                   min_angle=2.0,
                                                    view="multi")
 
 # Estimate sparse 3D scene from tracked features and camera poses
 sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
 
 # STEP 7: Run Optimization Algorithm
-# from modules.optimization import BundleAdjustmentOptimizer
-# # Build Optimizer
-# optimizer = BundleAdjustmentOptimizer(scene=sparse_scene, cam_data=camera_data)
-# optimizer.prep_optimizer(ratio_known_cameras=0.0, max_iterations=40)
+from modules.optimization import BundleAdjustmentOptimizer
+# Build Optimizer
+optimizer = BundleAdjustmentOptimizer(scene=sparse_scene, cam_data=camera_data)
+optimizer.prep_optimizer(ratio_known_cameras=0.0, max_iterations=20)
 
-# # Run Optimizer
-# optimal_scene = optimizer(bal_path)
+# Run Optimizer
+optimal_scene = optimizer(bal_path)
 
 # Optional Visualization
-from modules.visualize import VisualizeScene
-visualizer = VisualizeScene()
+# from modules.visualize import VisualizeScene
+# visualizer = VisualizeScene()
 
-visualizer(sparse_scene)
+# visualizer(sparse_scene)
 
 
 
