@@ -1,8 +1,10 @@
 import numpy as np
+import torch
 import cv2
 import os
 import theseus as th
 import theseus.utils.examples as theg
+from theseus.utils.examples.bundle_adjustment.data import Camera, Observation
 
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple, Union
@@ -48,9 +50,18 @@ class CameraData:
 
     def apply_new_calibration(self, 
                               intrinsics: List[np.ndarray],
-                              distortion: List[np.ndarray]):
-        self.intrinsics = intrinsics
-        self.distortions = distortion
+                              distortion: List[np.ndarray] | None = None):
+        if len(intrinsics) > 1:
+            if distortion is None:
+                self.intrinsics = intrinsics
+                self.distortions = [np.zeros(1, 5)]*len(intrinsics) # Ensure distortion Param exists with equivalent list size
+            else:
+                self.intrinsics = intrinsics
+                self.distortions = distortion
+            self.multi_cam = True
+        else:
+            self.intrinsics = intrinsics[0]
+            self.distortions = distortion[0]
 
     def get_K(self, cam_idx: int):
         #assert(self.intrinsics is not None), "Calibration Data is not properly loaded. Ensure necessary steps are taken to generate calibration through VGGT tools or calibration is properly read with CameraDataManager."
@@ -74,7 +85,6 @@ class CameraData:
         else:
             return self.distortions[0]
     
-
 @dataclass
 class Points2D:
     points2D: np.ndarray        # Nx2 [np.float32] (Mono or Left image)
@@ -335,6 +345,7 @@ class BundleAdjustmentData:
     observations: np.ndarray        # Mx4 matrices for each point observation where M=num_of_observations, and each row = [frame, 3d_point_ind, norm_x, norm_y]
     cameras: list[np.ndarray]       # List of cameras, with each row containing R(rodriguez), T, f, K1, K2 (k1 and k2 radial distortion)
     points: np.ndarray              # Nx3 matrix containing the X, Y, Z coordinates of points 
+    dataset: theg.BundleAdjustmentDataset 
 
     def __init__(self, 
                  num_cameras: int, 
@@ -354,50 +365,97 @@ class BundleAdjustmentData:
         self.cam_data = self._setup_cameras(cameras, dist)
         self.points = points
 
-        self._write_file() # Write BAL file down
+        self._create_BADataset() # Write BAL file down
     
-    def _write_file(self) -> None:
+    def _create_BADataset(self) -> None:
         # Fixed File Name
-        file_path = os.path.realpath(__file__).split('\\')
-        file_path[0] = file_path[0] + "\\"
-        chosen_dir = "scene_data"
-        file_name = "bal_data.txt"
-        # Path to File
-        file_path = os.path.join(*file_path[:7], "results", chosen_dir, file_name)
-        print(self.points.shape)
+        # file_path = os.path.realpath(__file__).split('\\')
+        # file_path[0] = file_path[0] + "\\"
+        # chosen_dir = "scene_data"
+        # file_name = "bal_data.txt"
+        # # Path to File
+        # file_path = os.path.join(*file_path[:7], "results", chosen_dir, file_name)
+        # print(self.points.shape)
 
-        for p in self.points[1, :]:
-                    print(f"{p}")
-        for p in self.points[-1, :]:
-                    print(f"{p}")
+        # for p in self.points[1, :]:
+        #             print(f"{p}")
+        # for p in self.points[-1, :]:
+        #             print(f"{p}")
 
-        print(self.observations.shape[0])
-        print(self.num_observations)
-        print(self.num_cameras)
-        print(self.cam_data.shape[0])
-        print(self.num_points)
-        with open(file_path, "w+") as bal_file:
-            print(f"{self.num_cameras} {self.num_points} {self.num_observations}", file=bal_file)
+        print("Current Dataset Features")
+        print("Number of Observations:", self.observations.shape[0])
+        print("Number of Observations:", self.num_observations)
+        print("Number of Cameras in the Scene:", self.num_cameras)
+        print("Number of Cameras in the Scene:", self.cam_data.shape[0])
+        print("Number of 3D Points in the Scene:", self.num_points)
+        observations = []
+        cameras = []
+        points = []
 
-            # Write Observations
-            for i in range(self.observations.shape[0]):
-                ci, pi, x, y = self.observations[i, :] # ci = camera index, pi = point index (3D point), x,y = feature point
-                print(f"{int(ci)} {int(pi)} {x} {y}", file=bal_file)
+        # with open(file_path, "w+") as bal_file:
+            # print(f"{self.num_cameras} {self.num_points} {self.num_observations}", file=bal_file)
+        # Track Cameras in Scene
+        # camera_tracker = set()
 
-            # Write Camera Params
-            for cam in range(self.cam_data.shape[0]):
-                for p in self.cam_data[cam, :]:
-                    print(f"{p}", file=bal_file)
+        # Write Observations
+        for i in range(self.observations.shape[0]):
+            ci, pi, x, y = self.observations[i, :] # ci = camera index, pi = point index (3D point), x,y = feature point
+            # print(f"{int(ci)} {int(pi)} {x} {y}", file=bal_file)
+            # For Theseus Bundle Adjustment Dataset
+            feat = th.Point2(
+                tensor=torch.tensor(
+                    [float(x), float(y)], dtype=torch.float64
+                ).unsqueeze(0),
+                name=f"Feat{i}",
+            )
+            observations.append(
+                Observation(
+                    camera_index=int(ci),
+                    point_index=int(pi),
+                    image_feature_point=feat,
+                )
+            )
 
-            # Write Point Data (3D points)
-            for pt in range(self.points.shape[0]):
-                for p in self.points[pt, :]:
-                    print(f"{p}", file=bal_file)
+            # # Track Cameras in use
+            # camera_tracker.add(int(ci))
+
+        # Write Camera Params
+        for cam in range(self.cam_data.shape[0]):
+            params = []
+            # if cam in camera_tracker:
+            for p in self.cam_data[cam, :]:
+                # print(f"{p}", file=bal_file)
+                # For Theseus Bundle Adjustment Dataset
+                params.append(float(p))
+            cameras.append(Camera.from_params(params, name=f"Cam{cam}"))
+        # print("NUMBER OF CAMERAS", len(cameras))
+        # Write Point Data (3D points)
+        for pt in range(self.points.shape[0]):
+            params = []
+            for p in self.points[pt, :]:
+                # print(f"{p}", file=bal_file)
+                # For Theseus Bundle Adjustment Dataset
+                params.append(float(p))
+
+            points.append(
+                th.Point3(
+                    tensor=torch.tensor(params, dtype=torch.float64).unsqueeze(0),
+                    name=f"Pt{pt}",
+                )
+            )
+                
             
-        # End function here...
+        # Create Theseus variable for Bundle Adjustment Dataset
+        self.dataset =  theg.BundleAdjustmentDataset(
+                            cameras=cameras,
+                            points=points,
+                            observations=observations,
+                            gt_cameras=None,
+                            gt_points=None,
+                        )
 
-    def _create_BADataset(self) -> theg.BundleAdjustmentDataset:
-        pass
+    # def _create_BADataset(self) -> theg.BundleAdjustmentDataset:
+    #     pass
 
     def _setup_cameras(self, cameras: CameraPose, cam_dist: list[np.ndarray]) -> np.ndarray:
         self.rotations = cameras.get_rot_2_angle_axis() # Ensure this is an Nx3 Matrix
@@ -409,8 +467,10 @@ class BundleAdjustmentData:
         if self.mono:
             dist = cam_dist[0]
             cam_data = np.array([[f, dist[0, 0], dist[0, 1]]]*self.translations.shape[0])
-        else:
-            pass # TODO: Incorporate code later
+        else: # Assume Multi-view for now...
+            dist = cam_dist[0]
+            cam_data = np.array([[f, dist[0, 0], dist[0, 1]]]*self.translations.shape[0])
+
 
         # N x 9 matrix, where each row is the R, T, f, k1, k2 (where k1 and k2 are the dist params)
         camera_data = np.hstack((self.rotations, self.translations, cam_data)) 

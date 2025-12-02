@@ -37,25 +37,24 @@ Utilize this module in cases where images do not have extreme overlap, scale is 
 monocular camera setup, or runtime is not extremely necessary for computation.
 
 Initialization Parameters:
-- image_path (str): the image path in which the images are stored and to utilize for scene building
-- calibration: Data type that stores the camera's calibration data initialized from the calibration 
-reader module
-    - Default (Calibration): None (assume's no calibration data, and will estimate in model instead)
+- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
 
 Function Call Parameters:
 - None
+
+Module Input:
+    None
+    
+Module Output: 
+    CameraPose:
+        camera_pose: list[np.ndarray]   [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
+        rotations: list[np.ndarray]     [3 x 3] (np.float) Rotation matrices for each corresponding frame (Derived from camera_pose)
+        translations: list[np.ndarray]  [3 x 1] (np.float) Translation matrices for each corresponding frame (Derived from camera_pose)
 """
 
         self.example = f"""
 Initialization: 
-image_path = ... # Path to set of images
-calibration_data = CalibrationReader(calibration_path).get_calibration() # Used to get Calibration Data
-
-# With calibration provided
-pose_estimator = CamPoseEstimatorVGGTModel(image_path = image_path, calibration = calibration_data)
-
-# Without calibration provided
-pose_estimator = CamPoseEstimatorVGGTModel(image_path = image_path)
+pose_estimator = CamPoseEstimatorVGGTModel(cam_data = camera_data)
 
 Function call:  
 pose_estimator() # No Features used with this module
@@ -76,18 +75,24 @@ pose_estimator() # No Features used with this module
         tensor_img_list = []
         for ind in range(len(self.image_list)):
             tensor_img_list.append(to_tensor(self.image_list[ind]))
+
         self.images = torch.stack(tensor_img_list).to(device) 
 
+        self.img_shape = self.image_list[0].shape[:2] # Images 
 
     # def __call__(self, features: list[Points2D] | None = None) -> CameraPose:
     def _estimate_camera_poses(self,
                                camera_poses: CameraPose, 
                                feature_pairs: PointsMatched) -> CameraPose:
+        
+        assert self.img_shape[0] == self.img_shape[1], "Input images must be square size, or Height must equal Width. Must reshape images to a square size, such as (1024, 1024)"
         # return super()._estimate_camera_poses(camera_poses, feature_pairs)
         # cam_poses = CameraPose()
 
         # VGGT Fixed Resolution to 518 for Inference
         images = F.interpolate(self.images, size=(518, 518), mode="bilinear", align_corners=False)
+        new_scale = self.img_shape[0] / 518 # Get change of scale from old shape to new smaller shape
+
         # images = self.images
         with torch.no_grad():
             with torch.amp.autocast('cuda', dtype=self.dtype):
@@ -112,6 +117,8 @@ pose_estimator() # No Features used with this module
             intrins = []
             dists = []   # Assume Camera image were undistorted for now
 
+            intrinsic_np[:, :2, :] *=  new_scale
+            print(new_scale)
             for i in range(intrinsic_np.shape[0]):
                 intrins.append(intrinsic_np[i, :, :])
                 dists.append(np.zeros((1,5)))
@@ -120,9 +127,9 @@ pose_estimator() # No Features used with this module
 
         # print("Image Shape", img_shape)
         # print(camera_poses.camera_pose)
+        torch.cuda.empty_cache() #Empty GPU cache
         return camera_poses
                 
-
 ###########################################################################################################
 ############################################ CLASSICAL MODULES ############################################
 
@@ -144,28 +151,42 @@ in scale to the first pose estimation. Use this module for Monocular cameras tha
 calibrated for a given image set.
 
 Initialization Parameters:
-- calibration (Calibration): Data type that stores the camera's calibration data initialized from the 
-calibration reader module
-- image_path (str): The image path in which the images are stored and to utilize for scene building
+- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+- iteration_count: Number of iterations to run the Levenberg-Marquardt algorithm for Pose Estimation with PnP
+    - Default (int): 200,
+- reprojection_error: Inlier threshold value used by the RANSAC procedure. The parameter value is the maximum allowed distance between the observed and computed point projections to consider it an inlier.
+    - Default (float): 3.0
+- confidence: The probability that the algorithm produces a useful result. 
+    - Default (float): 0.99
 
 Function Call Parameters:
 - features_pairs (PointsMatched): Data Type containing the detected feature correspondences of image pairs
 estimated from the feature matcher modules.
+
+Module Input:
+    PointsMatched (Matched Features across image pairs)
+        pairwise_matches: list[np.ndarray]  [N x 4] -> [x1, y1, x2, y2]. Data Structure to store Pairwise feature matches.
+        multi_view: bool                    Determine if Pairwise/Multi-View Feature Matching (Should be False for Pairwise in this function)
+        image_size: np.ndarray              [1 x 2] [np.int64] (Simply Image Shape: (W, H))
+        image_scale: list[float]            [W_scale, H_scale] if image is resized
+    
+Module Output: 
+    CameraPose:
+        camera_pose: list[np.ndarray]   [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
+        rotations: list[np.ndarray]     [3 x 3] (np.float) Rotation matrices for each corresponding frame (Derived from camera_pose)
+        translations: list[np.ndarray]  [3 x 1] (np.float) Translation matrices for each corresponding frame (Derived from camera_pose)
 """
 
         self.example = f"""
 Initialization: 
-image_path = ... # Path to set of images
-calibration_data = CalibrationReader(calibration_path).get_calibration() # Used to get Calibration Data
-
-CamPoseEstimatorEssentialToPnP(image_path=image_path, calibration=calibration_data) 
+CamPoseEstimatorEssentialToPnP(cam_data = camera_data, calibration=calibration_data) 
 
 Function call:  
 features = feature_detector() # Call Feature Detector Module on image frames
 
 feature_pairs = feature_matcher(features) # Call Feature Matcher Module on detected features
 
-pose_estimator(feature_pairs=feature_pairs) # Features used from Feature Detector Module
+camera_pose = pose_estimator(feature_pairs=feature_pairs) # Features used from Feature Detector Module
 """
         self.reproj_error = reprojection_error
         self.iteration_ct = iteration_count

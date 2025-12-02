@@ -13,12 +13,14 @@ from modules.DataTypes.datatype import (Scene,
                                 Points2D, 
                                 PointsMatched, 
                                 CameraPose, 
-                                Points3D)
+                                Points3D,
+                                BundleAdjustmentData)
 import glob
 from collections.abc import Callable
 
 import copy
 import random
+import json
 from tqdm import tqdm
 
 ############################################# HELPER CLASSES #############################################
@@ -42,30 +44,29 @@ class Normalization():
             else:
                 self.K = K
                 self.dist = dist
+                self.multi_cam = False
                 self.calibration = True
 
-    def __call__(self, pts: Points2D) -> np.ndarray:
+    def __call__(self, pts: Points2D, frame_id:int) -> np.ndarray:
         if self.calibration:
-            return self._calibrated(pts)
+            return self._calibrated(pts, frame_id)
         else:
             return self._uncalibrated(pts)
         
-    def _calibrated(self, pts: Points2D) -> np.ndarray:
+    def _calibrated(self, pts: Points2D, frame_id: int) -> np.ndarray:
         # print(pts.points2D.shape)
         # print(self.dist1.shape)
         # print(self.K1.shape)
-        # if self.multi_cam:
-            #     pts_norm = []
-            #     for i in range(cams.shape[0]): 
-            #         cam = int(cams[i])
-            #         K = self.K_cams[cam]
-            #         pt = pts[i, :]
-            #         pt_norm = cv2.undistortPoints(pt.T, K, np.zeros((1,5)))[:, 0, :][0]
-            #         pts_norm.append(pt_norm)
-            #     pts_norm = np.array(pts_norm)
-            #     return pts_norm
-        # else:
-        pts_norm = cv2.undistortPoints(pts.points2D.T, self.K, self.dist)[:, 0, :]
+        if self.multi_cam:
+            pts_norm = []
+            # for i in range(cams.shape[0]): 
+            #     cam = int(cams[i])
+            K = self.K_cams[frame_id]
+            dist = self.dists[frame_id]
+            # pt = pts[i, :]
+            pts_norm = cv2.undistortPoints(pts.points2D.T, K, dist)[:, 0, :]
+        else:
+            pts_norm = cv2.undistortPoints(pts.points2D.T, self.K, self.dist)[:, 0, :]
 
         return pts_norm
     
@@ -79,7 +80,8 @@ class FeatureTracker():
                  K: np.ndarray,
                  dist: np.ndarray,
                  RANSAC_threshold: float,
-                 RANSAC_conf: float):
+                 RANSAC_conf: float,
+                 cam_data: CameraData):
 
         # Establish the data structures 
         self.track_map = {}
@@ -95,7 +97,8 @@ class FeatureTracker():
 
         # self.ep_check = EpipoleChecker(pxl_min=25)
         self.normalization = Normalization(K=K,
-                                           dist=dist)
+                                           dist=dist,
+                                           multi_cam=cam_data.multi_cam)
     
     def tracking_points(self, frame_id: float, pts1: Points2D, pts2: Points2D) -> None:        
         for i in range(pts1.points2D.shape[0]):
@@ -121,10 +124,12 @@ class FeatureTracker():
             self.observations.append([float(track_id), frame_id + 1, pt2[0], pt2[1]])
             self.track_map[key2] = track_id
 
-    def outlier_reject(self, pts1: Points2D, pts2: Points2D) -> tuple[Points2D, Points2D]:
-        pts_norm1 = self.normalization(pts1)
-        pts_norm2 = self.normalization(pts2)
-        
+    def outlier_reject(self, pts1: Points2D, pts2: Points2D, frame_id: int) -> tuple[Points2D, Points2D]:
+        pts_norm1 = self.normalization(pts1, frame_id)
+        pts_norm2 = self.normalization(pts2, frame_id + 1)
+
+        # print(pts_norm1.shape)
+        # print(pts_norm2.shape)
         # _, mask = cv2.findFundamentalMat(pts1.points2D, pts2.points2D, cv2.FM_LMEDS)
         # _, mask = cv2.findFundamentalMat(pts_norm1, pts_norm2, cv2.FM_LMEDS)
         F, mask = cv2.findFundamentalMat(pts_norm1, pts_norm2, cv2.FM_RANSAC, 
@@ -134,7 +139,8 @@ class FeatureTracker():
         # Could update points2D to inlier points with Mask
         inlier_pts1 = Points2D(**pts1.set_inliers(mask))
         inlier_pts2 = Points2D(**pts2.set_inliers(mask))
-
+        # print(pts_norm1.shape)
+        # print(inlier_pts1.points2D.shape)
         # # print(matches)
         # matches_np = np.array(matches)
 
@@ -151,7 +157,10 @@ class FeatureTracker():
                                          multi_view=True,
                                          image_scale=img_scale)
         
-        for scene in tqdm(range(0, len(features) - 1)):
+        outlier_count = []
+        matching_pair_ct = []
+
+        for scene in tqdm(range(0, len(features) - 1), desc="Tracking Points"):
             pt1 = features[scene]
             pt2 = features[scene + 1]
 
@@ -163,19 +172,47 @@ class FeatureTracker():
 
             # Outlier Rejection Here
             # matches_inlier, inlier_pts1, inlier_pts2 = self.outlier_reject(matches, new_pt1, new_pt2)
-            inlier_pts1, inlier_pts2 = self.outlier_reject(new_pt1, new_pt2)
+            inlier_pts1, inlier_pts2 = self.outlier_reject(new_pt1, new_pt2, scene)
             # inlier_pts1, inlier_pts2 = self.ep_check(inlier_pts1, inlier_pts2)
+
+            # Collect Metric Information
+            matching_pair_ct.append(inlier_pts1.points2D.shape[0])
+            outlier_count.append(self._z_score(inlier_pts1.points2D, inlier_pts2.points2D, sigma_th=3))
 
             # Feature Tracking algorithm here
             self.tracking_points(scene, inlier_pts1, inlier_pts2) #, matches_inlier)
 
             # matched_points.append([new_pt1, new_pt2])
+        
+        # Output Metric Information
+        counts_np = np.array(matching_pair_ct)
+        mean_ct = float(counts_np.mean())
+        min_ct = int(counts_np.min())
+        max_ct = int(counts_np.max())
+        avg_outlier = float(np.mean(np.array(outlier_count)))
+
+        event_msg = {"avg_outlier": avg_outlier, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
+        print(json.dumps(event_msg), flush=True)
 
         tracked_features.set_matched_matrix(self.observations)
         tracked_features.track_map = self.track_map
         tracked_features.point_count = self.next_track_id - 1
         
         return tracked_features
+    
+
+    def _z_score(self, pts1: np.ndarray, pts2: np.ndarray, sigma_th: int) -> np.ndarray:
+        pixel_diff = pts1 - pts2
+
+        pixel_dist = np.linalg.norm(pixel_diff, axis=1)
+
+        mu = np.mean(pixel_dist)
+        sigma = np.std(pixel_dist)
+        z = (pixel_dist - mu) / (sigma + 1e-12)
+        out_count = np.sum(np.abs(z) > sigma_th)
+
+        return out_count
+
 
 class TriangulationCheck:
     def __init__(self, 
@@ -295,23 +332,32 @@ class SceneEstimation():
 
     # Point Maps estimation must have this function follow with tracked features
     # Point Maps must be in the shape of 
-    def match_tracks_to_point_maps(self, 
+    def match_tracks_to_point_maps(self,
                                    tracked_features: PointsMatched,
                                    point_maps: np.ndarray,
                                    conf_maps: np.ndarray,
                                    minimum_observation: int,
-                                   filter_points: bool = False,
+                                   img_width: int,
+                                   num_cameras: int,
+                                   camera_poses: CameraPose,
                                    ) -> Scene:
-        
+       
         # points_3d = []
         points_3d = Points3D()
         w_scale, h_scale = tracked_features.image_scale[:]
 
         # # BAL File for Optimization Module
-        # num_observations = 0 
+        # num_observations = 0
         # num_cameras = len(camera_poses.camera_pose)
         # observations = []
+        scale = conf_maps.shape[-1] / img_width
+        observations = []
+        num_observations = 0
+        point_index = 0
 
+        print(scale)
+        print(img_width)
+        print(point_maps[0].shape)
         for i in tqdm(range(tracked_features.point_count)):
                 # views = [cam, x, y]:Nx3, camera_poses = [R, t]:4x4
                 views = tracked_features.access_point3D(i)
@@ -319,10 +365,53 @@ class SceneEstimation():
                 if views.shape[0] < minimum_observation:
                     track_len = views.shape[0]
 
-                    for j in range(track_len):
-                        frame, point2d = views[j, 0], views[j, 1:]
-                        frame = int(frame)
-                        x, y = round(point2d[0]), round(point2d[1]) # Determine whether to scale these points or not...
+                    # for j in range(track_len):
+                    # Take the first view, and build the 3D points around that View
+                    frame, point2d = views[0, 0], views[0, 1:]
+                    frame = int(frame)
+                    x, y = round(point2d[0]*scale), round(point2d[1]*scale) # Determine whether to scale these points or not...
+
+                    # BAL Data Construction
+                    point_ind = np.array([point_index for _ in range(views.shape[0])]).reshape((views.shape[0],1))
+                    norm_pts = self._normalize_points_for_BAL(views)#views[:, 1:])
+                    observation = np.hstack((np.vstack(views[:,0]), point_ind, norm_pts))#views[:,1:]))
+                    observations.append(observation)
+                    num_observations += views.shape[0] # Number of observations
+
+                    # get 3D point
+                    pred_point_3d = point_maps[frame][y, x]
+
+                    points_3d.update_points(pred_point_3d)
+
+                    # Update Point Index
+                    point_index += 1
+       
+        # Build BAL data
+        if self.multi_cam:
+            ba_data = BundleAdjustmentData(num_cameras=num_cameras,
+                                            num_points=points_3d.points3D.shape[0],
+                                            num_observations=num_observations,
+                                            observations=observations,
+                                            cameras=camera_poses,
+                                            points=points_3d.points3D,
+                                            dist=self.dist,
+                                            mono=False)
+        else:
+            ba_data = BundleAdjustmentData(num_cameras=num_cameras,
+                                            num_points=points_3d.points3D.shape[0],
+                                            num_observations=num_observations,
+                                            observations=observations,
+                                            cameras=camera_poses,
+                                            points=points_3d.points3D,
+                                            dist=[self.dist],
+                                            mono=True)
+
+
+        scene = Scene(points3D = points_3d,
+                      cam_poses = camera_poses,
+                      representation = "point cloud",
+                      bal_data=ba_data)
+        return scene
     
     # Normalize for BAL data optimization
     def _normalize_points_for_BAL(self, view: np.ndarray): #pts1: np.ndarray):
@@ -334,6 +423,7 @@ class SceneEstimation():
             for i in range(cams.shape[0]): 
                 cam = int(cams[i])
                 K = self.K_mat[cam]
+                # dist = self.dist[cam]
                 pt = pts[i, :]
                 pt_norm = cv2.undistortPoints(pt.T, K, np.zeros((1,5)))[:, 0, :][0]
                 pts_norm.append(pt_norm)
@@ -455,45 +545,30 @@ class FeatureClass():
         self.module_name = "..."
         self.description = "..."
         self.example = "..."
-        self.features = []
+        self.features: list[Points2D] = []
 
         self.image_list = cam_data.image_list
         self.image_scale = cam_data.image_scale
         self.image_shape = cam_data.image_list[0].shape[:2]
 
 
-        # self.image_path = sorted(glob.glob(image_path + "\\*"))
-        # self.image_list = images.image_list
-        # self.image_scale = images.image_scale
-
-
-
     def __call__(self) -> list[Points2D]:
         return self.features
     
-    # def _det_img_shape(self, img_path: str, reshape: tuple[int, int] | None = None) ->  np.typing.NDArray[np.uint8]:
-    #     h, w = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2GRAY).shape[:2]
-    #     print(h, w)
-    #     if reshape is not None:
-    #         h_new, w_new = reshape #TODO: ENSURE EVERYTHING IS (W, H), including RESHAPE PARAM
-    #         reshape_scale = [w_new / w, h_new / h]
-            
-    #         return reshape, reshape_scale
-    #     elif h > 1800 or w > 1800:
-    #         if h > w:
-    #             h_new, w_new = (1600, 1200)
-    #         elif w > h: 
-    #             h_new, w_new = (1200, 1600)
-    #         elif w == h:
-    #             h_new, w_new = (1024, 1024)
-                
-    #         reshape_scale = [w_new / w, h_new / h]
-    #         reshape = [w_new, h_new]
-    #         return reshape, reshape_scale
-    #     else:
-    #         reshape_scale = [1.0, 1.0]
-    #         reshape = [w, h]
-    #         return reshape, reshape_scale
+    def _metric_calculation(self):
+        set_of_pt_counts = []
+
+        for pts_2D in self.features:
+            num_pts = pts_2D.points2D.shape[0]
+            set_of_pt_counts.append(num_pts)
+        
+        counts_np = np.array(set_of_pt_counts)
+
+        mean_ct = counts_np.mean()
+        min_count = counts_np.min()
+        max_count = counts_np.max()
+
+        return float(mean_ct), int(min_count), int(max_count)
 
 class FeatureMatching():
     def __init__(self, 
@@ -519,7 +594,9 @@ class FeatureMatching():
             self.det_free = True
 
         # Setup Outlier Rejection
-        self.normalize = Normalization(K=self.K, dist=self.dist)
+        self.normalize = Normalization(K=self.K, 
+                                       dist=self.dist,
+                                       multi_cam=self.cam_data.multi_cam)
         self.ransac = RANSAC
         self.ransac_threshold = RANSAC_threshold
         self.ransac_conf = RANSAC_conf
@@ -538,10 +615,10 @@ class FeatureMatching():
 
         return matched_points
     
-    def outlier_reject(self, pts1: Points2D, pts2: Points2D) -> tuple[Points2D, Points2D]: # Move to Base Class
+    def outlier_reject(self, pts1: Points2D, pts2: Points2D, frame_id: int) -> tuple[Points2D, Points2D]: # Move to Base Class
         
-        pts1_norm = self.normalize(pts1)
-        pts2_norm = self.normalize(pts2)
+        pts1_norm = self.normalize(pts1, frame_id)
+        pts2_norm = self.normalize(pts2, frame_id+1)
 
         # F, mask = cv2.findFundamentalMat(pts1.points2D, pts2.points2D, cv2.FM_LMEDS)
         # F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, cv2.FM_LMEDS)
@@ -564,6 +641,47 @@ class FeatureMatching():
         matched_points = PointsMatched() 
 
         return matched_points
+
+    def _metric_calculation(self, matching_points: PointsMatched, sigma_th: int = 3):
+        outlier_count = self._z_score(matched_points=matching_points.pairwise_matches, sigma_th=sigma_th)
+        mean_ct, min_count, max_count = self._matching_feat_counts(matched_points=matching_points.pairwise_matches)
+        
+        return float(np.mean(outlier_count)), mean_ct, min_count, max_count
+    
+    def _matching_feat_counts(self, matched_points: list[np.ndarray]):
+        set_of_pt_counts = []
+
+        for i in range(len(matched_points)):
+            matching_points = matched_points[i]
+            num_pts = matching_points.shape[0]
+            set_of_pt_counts.append(num_pts)
+        
+        counts_np = np.array(set_of_pt_counts)
+
+        mean_ct = counts_np.mean()
+        min_count = counts_np.min()
+        max_count = counts_np.max()
+
+        return float(mean_ct), int(min_count), int(max_count)
+
+    def _z_score(self, matched_points: list[np.ndarray], sigma_th: int) -> np.ndarray:
+        outlier_counts = []
+
+        for i in range(len(matched_points)):
+            matching_points = matched_points[i]
+
+            pixel_diff = matching_points[:, :2] - matching_points[:, 2:]
+
+            pixel_dist = np.linalg.norm(pixel_diff, axis=1)
+
+            mu = np.mean(pixel_dist)
+            sigma = np.std(pixel_dist)
+            z = (pixel_dist - mu) / (sigma + 1e-12)
+            out_count = np.sum(np.abs(z) > sigma_th)
+
+            outlier_counts.append(int(out_count))
+        
+        return np.array(outlier_counts)
 
 class FeatureTracking():
     def __init__(self, detector:str, 
@@ -590,7 +708,8 @@ class FeatureTracking():
                                               K=self.K,
                                               dist=self.dist,
                                               RANSAC_threshold=RANSAC_threshold,
-                                              RANSAC_conf=RANSAC_conf)
+                                              RANSAC_conf=RANSAC_conf,
+                                              cam_data = self.cam_data)
 
     def __call__(self, features: list[Points2D]) -> PointsMatched:
         
@@ -604,14 +723,16 @@ class FeatureTracking():
         return [], []
 
 class OptimizationClass():
-    def __init__(self, cam_data:CameraData, scene: Scene):
+    def __init__(self, cam_data: CameraData):
         self.module_name = "..."
         self.description = "..."
         self.example = "..."
 
         self.cal = cam_data.get_K(0)
         self.dist = cam_data.get_distortion()
-        self.optimizer = ["BA"]
+        # self.optimizer = ["BA"]
+        # self.dataset = scene.bal_data.dataset
+        
         # self.OPTIONS = ['essential', 'fundamental', 'homography', 'projective']
         # self.FORMATS = ['full', 'partial', 'pair']
 

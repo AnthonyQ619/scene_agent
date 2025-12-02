@@ -3,12 +3,16 @@ from tqdm import tqdm
 import os
 import sys
 from openai import OpenAI
+from modules.cameramanager import CameraDataManager
 from modules.utilities.utilities import CalibrationReader
 from modules.features import (FeatureDetectionSIFT, 
                               FeatureDetectionSP, 
                               FeatureDetectionORB, 
                               FeatureDetectionFAST)
 from modules.featurematching import (FeatureMatchFlannTracking, 
+                                     FeatureMatchBFPair,
+                                     FeatureMatchFlannPair,
+                                     FeatureMatchBFTracking,
                                      FeatureMatchLoftrPair,
                                      FeatureMatchLightGlueTracking, 
                                      FeatureMatchSuperGlueTracking, 
@@ -17,11 +21,11 @@ from modules.featurematching import (FeatureMatchFlannTracking,
                                      FeatureMatchRoMAPair)
 from modules.camerapose import (CamPoseEstimatorEssentialToPnP, 
                                 CamPoseEstimatorVGGTModel)
-from modules.scenereconstruction import Sparse3DReconstructionMono
+from modules.scenereconstruction import Sparse3DReconstructionMono, Sparse3DReconstructionVGGT
 from modules.visualize import VisualizeScene
 import numpy as np
 
-CURRENT_PATH = str(os.path.dirname(__file__))
+CURRENT_PATH = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent\\agent_details"#str(os.path.dirname(__file__))
 
 def build_context_string(module_tool):
     name = module_tool.module_name
@@ -61,14 +65,14 @@ def build_tool_context_file(filename: str, set_of_tools: list, tool_type:str):
     
     file_to_write.close()
 
-def build_full_length_context_file(filename: str, context_file_path: str):
+def build_full_length_context_file(filename: str, context_file_path: str, num = 1):
     special_breaker = "\n===$&$===\n"
     if not os.path.isdir(CURRENT_PATH + "\\script_context"):
         os.mkdir(CURRENT_PATH + "\\script_context")
 
     file_to_write = open(CURRENT_PATH + "\\script_context\\" + filename, 'w')
 
-    context_files = sorted(glob.glob(context_file_path + "\\test_sfm_t*"))
+    context_files = sorted(glob.glob(context_file_path + "\\test_sfm_t*"))[:num]
     print(context_files)
     for i in range(len(context_files)):
 
@@ -117,30 +121,44 @@ def build_embedded_description_db(file_path: str):
 
 def tool_building():
     image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
-    calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\Structure-from-Motion\\calibration.npz"
-    calibration_data = CalibrationReader(calibration_path).get_calibration()
+    calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\Structure-from-Motion\\calibration_new.npz"
+    # calibration_data = CalibrationReader(calibration_path).get_calibration()
+    # STEP 1: Read in Camera Data
 
-    features = [FeatureDetectionSIFT(image_path=image_path), 
-                FeatureDetectionORB(image_path=image_path),
-                FeatureDetectionSP(image_path=image_path)]
+    CDM = CameraDataManager(image_path=image_path,
+                            calibration_path=calibration_path)
+    # Any image pre-processing steps are ran here
+    # ...
+    # Get Camera Data
+    camera_data = CDM.get_camera_data()
+
+
+    features = [FeatureDetectionSIFT(cam_data=camera_data), 
+                FeatureDetectionORB(cam_data=camera_data),
+                FeatureDetectionSP(cam_data=camera_data)]
     
-    matchers = [FeatureMatchFlannTracking(), 
-                FeatureMatchLoftrPair(image_path),
-                FeatureMatchLightGlueTracking(), 
-                FeatureMatchSuperGlueTracking(), 
-                FeatureMatchLightGluePair(), 
-                FeatureMatchSuperGluePair(),
-                FeatureMatchRoMAPair(image_path)]
+    trackers = [FeatureMatchFlannTracking(cam_data=camera_data),
+                FeatureMatchLightGlueTracking(cam_data=camera_data),
+                FeatureMatchBFTracking(cam_data=camera_data), 
+                FeatureMatchSuperGlueTracking(cam_data=camera_data)]
+    matchers = [
+                FeatureMatchLightGluePair(cam_data=camera_data), 
+                FeatureMatchSuperGluePair(cam_data=camera_data),
+                FeatureMatchFlannPair(cam_data=camera_data),
+                FeatureMatchBFPair(cam_data=camera_data),]
     
-    camera_pose_est = [CamPoseEstimatorEssentialToPnP(calibration_data, image_path=image_path),
-                       CamPoseEstimatorVGGTModel(image_path=image_path, calibration=calibration_data)]
+    camera_pose_est = [CamPoseEstimatorEssentialToPnP(cam_data=camera_data),
+                       CamPoseEstimatorVGGTModel(cam_data=camera_data)]
     
-    scene_estimators = [Sparse3DReconstructionMono(calibration=calibration_data, image_path=image_path)]
+    scene_estimators = [Sparse3DReconstructionMono(cam_data=camera_data),
+                        Sparse3DReconstructionVGGT(cam_data=camera_data)
+                        ]
 
     build_tool_context_file('feature_context.txt', features, "Features")
     build_tool_context_file('feature_matching_context.txt', matchers, "Feature Matcher")
     build_tool_context_file('camera_pose_context.txt', camera_pose_est, "Pose Estimation")
     build_tool_context_file('scene_const_context.txt', scene_estimators, "Scene Reconstruction")
+    build_tool_context_file('feature_tracking_context.txt', trackers, "Feature Tracker")
 
 
 if __name__ == "__main__":
@@ -150,9 +168,9 @@ if __name__ == "__main__":
         tool_building()
     elif arg == "script":
         path_to_files = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\tests\\context_tests"
-        build_full_length_context_file("full_context_scripts.txt", path_to_files)
+        build_full_length_context_file("full_context_scripts.txt", path_to_files, num=6)
     elif arg == "embed" or arg =="embedding":
-        path_to_file = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent_utils\\script_context\\full_context_scripts.txt"
+        path_to_file = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent\\agent_details\\script_context\\full_context_scripts.txt"
         build_embedded_description_db(path_to_file)
     elif arg == "test" or arg == "t":
         path_to_file = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent_utils\\script_context\\embed_description_list.txt"

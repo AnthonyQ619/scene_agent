@@ -1,0 +1,163 @@
+This is a file containing the Feature Tracker modules.
+===+&+===
+
+Tool Name: FeatureMatchFlannTracking
+
+Tool Description: 
+Detects point correspondance across multiple frames to track features. The feature matching
+algorithm used is the Flann feature detector. Unless specified directly, assume the features
+are detected using the SIFT algorithm and initialize through the detector parameter. 
+Other supported detectors are: SIFT, ORB, SuperPoint, and FAST.
+
+SuperPoint and Sift share the same parameters, whereas ORB and FAST share the same parameters.
+
+Use this module in the case a faster feature matcher is needed for tracking features, in which
+this module utilizes a nearest neighbor method for fast matching.
+
+Initialization Parameters: 
+- detector: String representing the name of the feature detector used for the features provided.
+    - Default (str): SIFT
+    
+Function Call Parameters:
+- features: list of features detected per scene estimated from the feature detection module
+
+
+Tool Example: 
+Initialization: 
+# Determine the detector that was used previously and initialize module with said detector
+
+# Feature Tracker Module initialized with the SIFT detector
+feature_tracker = FeatureMatchFlannTracking(detector='sift') # Initialized with detector 'sift' for proper matching
+
+# Feature Tracker Module initialized with the ORB detector 
+feature_tracker = FeatureMatchFlannTracking(detector='orb') # Initialized with detector 'orb' for proper matching
+
+# Feature Tracker Module intialized with the FAST detector
+feature_tracker = FeatureMatchFlannTracking(detector='fast') # Initialized with detector 'orb' for proper matching
+
+Example Usage in Script:  
+features = feature_detector() # Call Feature Detector Module on image frames
+
+tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
+
+
+===+&+===
+
+Tool Name: FeatureMatchLightGlueTracking
+
+Tool Description: 
+Detects point correspondance across multiple frames to track features for multi-view purposes. 
+The feature matching algorithm used is the LightGlue deep learning model trained as a feature 
+matcher. Unless specified directly, assume the features are detected using the SuperPoint 
+deep learning feature detector algorithm and initialized with the detector parameter. 
+Use this matching module when features need to be matched in images where the scene contains 
+low-lit enviornment or illumination changes occur in the scene (Outdoors for example), 
+and faster run time is REQUIRED, or when specified directly in this scenario.
+
+Other supported detectors are: SIFT and SuperPoint
+
+Initialization Parameters:
+
+- n_layers: Number of stacked self+cross attention layers. Reduce this value for faster inference 
+at the cost of accuracy (continuous red line in the plot above). 
+    - Default (int): 9 (all layers).
+
+- flash: Enable FlashAttention. Significantly increases the speed and reduces the memory consumption 
+without any impact on accuracy. 
+    - Default (bool): True (LightGlue automatically detects if FlashAttention is available).
+
+- mp: Enable mixed precision inference. 
+    - Default (bool): False (off)
+
+- depth_confidence: Controls the early stopping. A lower values stops more often at earlier layers. 
+    - Default (float): 0.95, disable with -1.
+
+- width_confidence: Controls the iterative point pruning. A lower value prunes more points earlier. 
+    - Default (float): 0.99, disable with -1.
+
+- filter_threshold: Match confidence. Increase this value to obtain less, but stronger matches. 
+    - Default (float): 0.1
+
+Function Call Parameters:
+- features: list of features detected per scene estimated from the feature detection module
+
+
+Tool Example: 
+Initialization: 
+# Determine the detector that was used previously and initialize module with said detector
+
+# Feature Matcher Module initialized with the SIFT detector
+feature_tracker = FeatureMatchLightGlueTracking(detector='sift') # Initialized with detector 'sift' for proper matching
+
+# Feature Matcher Module intialized with the SuperPoint detector
+feature_tracker = FeatureMatchLightGlueTracking(detector='SuperPoint') # Initialized with detector 'orb' for proper matching
+
+
+Example Usage in Script:  
+features = feature_detector() # Call Feature Detector Module on image frames
+
+tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
+
+
+===+&+===
+
+Tool Name: FeatureMatchBFTracking
+
+Tool Description: ...
+
+Tool Example: ...
+
+===+&+===
+
+Tool Name: FeatureMatchSuperGlueTracking
+
+Tool Description: 
+Detects point correspondance across multiple frames for feature tracking in case of multi-view 
+purposes. The feature matching algorithm used is the SuperGlue deep learning model trained 
+as a feature matcher. Unless specified directly, assume the features are detected using 
+the SuperPoint deep learning feature detector algorithm and initialize through the detector 
+parameter. Use this matching module when features need to be matched in images where the 
+scene contains low-lit enviornment or illumination changes occur in the scene 
+(Outdoors for example), and run time is NOT A CONCERN, or when specified directly.
+This matcher excels in Nighttime setting with SuperPoint as the detector, but other detectors
+can be utilized for efficiency purposes.
+
+Model is trained both for indoor and outdoor setting. When not specified, assume indoor
+setting to properly initialize the model.
+
+Other supported detectors are: SIFT and SuperPoint
+
+Initialization Parameters:
+- detector (str): Name of Feature Detector that was used to estimate the features provided.
+- sinkhorn_iterations: number iterations for running the Sinkhorn Algorithm in the model for optimal
+partial assignment of detected feature matches
+    - default (int): 20
+- match_threshold: confidence threshold (we choose 0.2) to retain some matches from the soft assignment
+stage
+    - default (float): 0.2
+- descriptor_dim: the dimensions for the estimated desciptor generated from the detector used
+    - default (int): 256
+- setting: the string to determine if the images are "indoor" or "outdoor"
+    - default (str): indoor
+
+Function Call Parameters:
+- features: list of features detected per scene estimated from the feature detection module
+
+
+Tool Example: 
+Initialization: 
+# Determine the detector that was used previously and initialize module with said detector
+
+# Feature Matcher Module initialized with the SIFT detector
+feature_tracker = FeatureMatchSuperGlueTracking(detector='sift') # Initialized with detector 'sift' for proper matching
+
+# Feature Matcher Module intialized with the SuperPoint detector
+feature_tracker = FeatureMatchSuperGlueTracking(detector='SuperPoint') # Initialized with detector 'orb' for proper matching
+
+Example Usage in Script:  
+features = feature_detector() # Call Feature Detector Module on image frames
+
+tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
+
+
+===+&+===

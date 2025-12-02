@@ -1,0 +1,606 @@
+
+===$&$===
+"""
+This script solves the problem of creating a sparse 3D representation of a scene featuring an object as the central point 
+using Structure-from-Motion as the algorithm solution. Using a monocular camera that is calibrated, the scene was captured to 
+exhibit consistent lighting, high textured regions, and recorded with incremental movement across sequential images taken from
+a video feed. The scene was an outdoor scene during the day with highly textured objects in the scene. The goal of this script 
+was to utilize the Structure-from-Motion (SfM) techniques and certain features of the scene to invoke the correct set 
+of tools to properly execute the SfM algorithm with high accuracy and computation speed.
+"""
+
+# ==#$#==
+
+# Construct Modules with Initialized Arguments
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
+calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\Structure-from-Motion\\calibration_new.npz"
+bal_path = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\scene_data\\bal_data.txt"
+
+
+# STEP 1: Read in Camera Data
+from modules.cameramanager import CameraDataManager
+
+CDM = CameraDataManager(image_path=image_path,
+                        calibration_path=calibration_path)
+
+# Get Camera Data
+camera_data = CDM.get_camera_data()
+
+# STEP 2: Estimate Features per Image
+from modules.features import FeatureDetectionSIFT
+# Feature Module Initialization
+feature_detector = FeatureDetectionSIFT(cam_data=camera_data, max_keypoints=6000)
+
+# Detect Features for all Images
+features = feature_detector()
+
+# STEP 3: Match Features Per Image 
+from modules.featurematching import FeatureMatchFlannPair
+# Pairwise Feature Matching Module Initialization
+feature_matcher = FeatureMatchFlannPair(detector='sift', 
+                                        cam_data=camera_data,
+                                        RANSAC_threshold=0.2,
+                                        lowes_thresh=0.6)
+
+# Detect Image Pair Correspondences for Pose Estimation
+feature_pairs = feature_matcher(features=features)
+
+# STEP 4: Estimate Camera Poses of Scene with Feature Pairs
+from modules.camerapose import CamPoseEstimatorEssentialToPnP
+# Camera Pose Module Initialization
+pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data,
+                                                reprojection_error=4.0,
+                                                iteration_count=200,
+                                                confidence=0.995)
+
+# From estimated features, estimate the camera poses for all image frames
+cam_poses = pose_estimator(feature_pairs=feature_pairs)
+
+# STEP 5: Estimate Feature Tracks:
+from modules.featurematching import FeatureMatchFlannTracking
+# Feature Tracking Module Initialization
+feature_tracker = FeatureMatchFlannTracking(detector='sift', 
+                                            cam_data=camera_data,
+                                            RANSAC_threshold=0.2)
+
+# From estimated features, tracked features across multiple images
+tracked_features = feature_tracker(features=features)
+
+# STEP 6: Reconstruct Scene in Full
+from modules.scenereconstruction import Sparse3DReconstructionMono
+# Scene Reconstruction Module Initialization
+sparse_reconstruction = Sparse3DReconstructionMono(cam_data=camera_data,
+                                                   min_observe=4,
+                                                   min_angle=2.0,
+                                                   view="multi")
+
+# Estimate sparse 3D scene from tracked features and camera poses
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
+
+# STEP 7: Run Optimization Algorithm
+from modules.optimization import BundleAdjustmentOptimizerLeastSquares
+# # Build Optimizer
+optimizer = BundleAdjustmentOptimizerLeastSquares(cam_data=camera_data,
+                                                  max_iterations=20, 
+                                                  num_epochs=1, 
+                                                  step_size=0.1,
+                                                  optimizer_cls="GaussNewton")
+
+# Run Optimizer
+optimal_scene = optimizer(scene=sparse_scene)
+
+
+# Optional Visualization
+from modules.visualize import VisualizeScene
+visualizer = VisualizeScene()
+
+visualizer(sparse_scene)
+
+
+
+
+===$&$===
+"""
+This script solves the problem of creating a sparse 3D representation of a scene featuring an object as the central point 
+using Structure-from-Motion as the algorithm solution. Using a monocular camera that is calibrated, the scene captured is
+Indoors of a tabletop/studio setup with a model house placed on bricks over a white surface. There are illumination changes
+the first image is darker with stronger shadows; subsequent images are brighter and more evenly lit. Then back to dark.
+Lighting direction is consistent and mostly diffuse with a few specular highlights. Predominantly high-textured (brick surfaces, 
+roof shingles, façade details). Some low-texture areas exist in the plain white background. The scene centers on a small 
+model building resting on painted, rough bricks. The object of interest (the model house) is present in all images. 
+The camera appears to move/rotate around the object, maintaining focus on the same subject. The object and bricks provide 
+rich texture; lighting is largely diffuse with minor highlights. Gradual viewpoint changes with moderate rotation and 
+small translations around the object; no extreme viewpoint jumps.
+
+
+Scene Summary: Indoor tabletop/studio scene featuring a small model house resting on painted, rough bricks over a white 
+background. Surfaces of interest (bricks, shingles, façade) are highly textured; the background is largely textureless. 
+Lighting is mostly diffuse with moderate inter-image exposure differences and minor specular highlights. 
+The camera moves smoothly around the object with moderate rotations and small translations, keeping the model house centered 
+and consistently visible.
+"""
+
+# ==#$#==
+
+# Construct Modules with Initialized Arguments
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_illumination_change"
+
+# STEP 1: Read in Camera Data
+from modules.cameramanager import CameraDataManager
+
+CDM = CameraDataManager(image_path=image_path,
+                        #calibration_path=calibration_path,
+                        target_resolution=[1024, 1024])
+# Any image pre-processing steps are ran here
+# ...
+# Get Camera Data
+camera_data = CDM.get_camera_data()
+
+# STEP 2: Estimate Features per Image
+from modules.features import FeatureDetectionSIFT
+# Feature Module Initialization
+feature_detector = FeatureDetectionSIFT(cam_data=camera_data)
+
+# Detect Features for all Images
+features = feature_detector()
+
+# STEP 3: Match Features Per Image 
+# Ignore
+
+# STEP 4: Estimate Camera Poses of Scene with Feature Pairs
+from modules.camerapose import CamPoseEstimatorVGGTModel
+# Camera Pose Module Initialization
+pose_estimator = CamPoseEstimatorVGGTModel(cam_data=camera_data)
+
+# From estimated features, estimate the camera poses for all image frames
+cam_poses = pose_estimator()
+
+# STEP 5: Estimate Feature Tracks:
+from modules.featurematching import FeatureMatchFlannTracking
+# Feature Tracking Module Initialization
+feature_tracker = FeatureMatchFlannTracking(detector='sift', 
+                                            cam_data=camera_data,
+                                            RANSAC_threshold=0.2)
+
+# From estimated features, tracked features across multiple images
+tracked_features = feature_tracker(features=features)
+
+# STEP 6: Reconstruct Scene in Full
+from modules.scenereconstruction import Sparse3DReconstructionVGGT
+# Scene Reconstruction Module Initialization
+sparse_reconstruction = Sparse3DReconstructionVGGT(cam_data=camera_data,
+                                                   min_observe=4)
+
+# Estimate sparse 3D scene from tracked features and camera poses
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
+
+# STEP 7: Run Optimization Algorithm
+from modules.optimization import BundleAdjustmentOptimizerLeastSquares
+# # Build Optimizer
+optimizer = BundleAdjustmentOptimizerLeastSquares(cam_data=camera_data,
+                                                  max_iterations=30, 
+                                                  num_epochs=1, 
+                                                  step_size=0.1,
+                                                  optimizer_cls="LevenbergMarquardt")
+
+# Run Optimizer
+optimal_scene = optimizer(scene=sparse_scene)
+
+
+# Optional Visualization
+from modules.visualize import VisualizeScene
+visualizer = VisualizeScene()
+
+visualizer(optimal_scene)
+===$&$===
+"""
+This script solves the problem of creating a sparse 3D representation of a scene featuring an object as the central point 
+using Structure-from-Motion as the algorithm solution. Using a monocular camera that is calibrated, the scene was captured Indoors 
+in studio with a white backdrop. Lighting appears consistent across the images; bright, directional studio light with similar shadows; 
+no notable illumination change. Overall low-textured scene. Background is smooth/blank; the red ball has mild mottled texture and 
+small scratches (moderate texture). A single red spherical object on a white surface remains in view in all images. 
+Lighting is mostly diffuse with some specular highlights and a stable shadow. The sequence suggests the camera moves rather than 
+the object rotating; as a sphere, appearance changes minimally. Gradual, incremental viewpoint/scale shifts (slight pull-back and 
+lateral movement); no extreme viewpoint changes or rotations.
+
+
+Scene Summary: Indoor studio setting with a white backdrop and consistent, bright directional lighting. A single red spherical 
+object rests on a white surface; the object remains static while the camera undergoes small lateral and scale changes. 
+The background is largely textureless, while the sphere exhibits mild mottling and small scratches with occasional specular highlights 
+and a stable cast shadow.
+"""
+
+# ==#$#==
+
+# Construct Modules with Initialized Arguments
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan8_normal_lighting"
+
+
+# STEP 1: Read in Camera Data
+from modules.cameramanager import CameraDataManager
+
+CDM = CameraDataManager(image_path=image_path,
+                        target_resolution=[1024, 1024])
+
+# Any image pre-processing steps are ran here
+# ...
+# Get Camera Data
+camera_data = CDM.get_camera_data()
+
+# STEP 2: Estimate Features per Image
+from modules.features import FeatureDetectionSP
+# Feature Module Initialization
+feature_detector = FeatureDetectionSP(cam_data=camera_data)
+
+# Detect Features for all Images
+features = feature_detector()
+
+# STEP 3: Match Features Per Image 
+# Ignore
+
+# STEP 4: Estimate Camera Poses of Scene with Feature Pairs
+from modules.camerapose import CamPoseEstimatorVGGTModel
+# Camera Pose Module Initialization
+pose_estimator = CamPoseEstimatorVGGTModel(cam_data=camera_data)
+
+# From estimated features, estimate the camera poses for all image frames
+cam_poses = pose_estimator()
+
+# STEP 5: Estimate Feature Tracks:
+from modules.featurematching import FeatureMatchSuperGlueTracking
+# Feature Tracking Module Initialization
+feature_tracker = FeatureMatchSuperGlueTracking(detector='superpoint', 
+                                            cam_data=camera_data,
+                                            RANSAC_threshold=0.5)
+
+# From estimated features, tracked features across multiple images
+tracked_features = feature_tracker(features=features)
+
+# STEP 6: Reconstruct Scene in Full
+from modules.scenereconstruction import Sparse3DReconstructionVGGT
+# Scene Reconstruction Module Initialization
+sparse_reconstruction = Sparse3DReconstructionVGGT(cam_data=camera_data,
+                                                   min_observe=4)
+
+# Estimate sparse 3D scene from tracked features and camera poses
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
+
+# STEP 7: Run Optimization Algorithm
+from modules.optimization import BundleAdjustmentOptimizerLeastSquares
+# # Build Optimizer
+optimizer = BundleAdjustmentOptimizerLeastSquares(cam_data=camera_data,
+                                                  max_iterations=30, 
+                                                  num_epochs=1, 
+                                                  step_size=0.1,
+                                                  optimizer_cls="LevenbergMarquardt")
+
+# Run Optimizer
+optimal_scene = optimizer(scene=sparse_scene)
+
+
+# Optional Visualization
+from modules.visualize import VisualizeScene
+visualizer = VisualizeScene()
+
+visualizer(optimal_scene)
+===$&$===
+"""
+This script solves the problem of creating a sparse 3D representation of an indoor scene with varying lighting conditions 
+using Structure-from-Motion as the algorithm solution. Using a monocular camera that is calibrated, the scene captures an Indoors 
+museum/stairwell-like interior with arches, balustrade and stone walls. Artificial indoor lighting appears consistent across the images; 
+only minor exposure/position changes of the ceiling lamp, no significant illumination change on the statue. Mixture of textures as the 
+stone statue and carved fruit details are highly textured; surrounding walls, pillars, steps and floor are mostly smooth/low-textured.
+A single stone statue mounted on a base is the persistent object of interest in all frames. Background architectural elements 
+(arches, staircase, panels) remain similar. The lighting is soft/diffuse from overhead fixtures, producing mostly matte appearance 
+on the stone. The sequence suggests small positional/rotational changes of the camera around the statue without leaving the 
+immediate area; the object stays centered and visible the whole time. Gradual, incremental viewpoint shifts (slight translations 
+and small rotations); no extreme or dramatic viewpoint changes.
+
+
+Scene Summary: An indoor museum/stairwell setting with arches, a balustrade, and stone walls under stable artificial lighting. 
+A central stone statue with richly textured carved details is consistently visible across three images, while surrounding walls, 
+pillars, steps, and floors are relatively smooth and low-textured. The camera undergoes small translations and rotations around 
+the statue, maintaining the object near the center with limited baseline changes and minimal illumination variation.
+"""
+
+# ==#$#==
+
+# Construct Modules with Initialized Arguments
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\images\\dslr_images_undistorted"
+calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\dslr_calibration_undistorted\\calibration_new.npz"
+# bal_path = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\scene_data\\bal_data.txt"
+
+
+# STEP 1: Read in Camera Data
+from modules.cameramanager import CameraDataManager
+
+CDM = CameraDataManager(image_path=image_path,
+                        calibration_path=calibration_path)
+
+# Get Camera Data
+camera_data = CDM.get_camera_data()
+
+# STEP 2: Estimate Features per Image
+from modules.features import FeatureDetectionSIFT
+# Feature Module Initialization
+feature_detector = FeatureDetectionSIFT(cam_data=camera_data, 
+                                        max_keypoints=6000,
+                                        contrast_threshold=0.02,
+                                        edge_threshold=50)
+
+# Detect Features for all Images
+features = feature_detector()
+
+# STEP 3: Match Features Per Image 
+from modules.featurematching import FeatureMatchFlannPair
+# Pairwise Feature Matching Module Initialization
+feature_matcher = FeatureMatchFlannPair(detector='sift', 
+                                        cam_data=camera_data,
+                                        RANSAC_threshold=0.6,
+                                        lowes_thresh=0.7)
+
+# Detect Image Pair Correspondences for Pose Estimation
+feature_pairs = feature_matcher(features=features)
+
+# STEP 4: Estimate Camera Poses of Scene with Feature Pairs
+from modules.camerapose import CamPoseEstimatorEssentialToPnP
+# Camera Pose Module Initialization
+pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data,
+                                                reprojection_error=4.0,
+                                                iteration_count=200,
+                                                confidence=0.995)
+
+# From estimated features, estimate the camera poses for all image frames
+cam_poses = pose_estimator(feature_pairs=feature_pairs)
+
+# STEP 5: Estimate Feature Tracks:
+from modules.featurematching import FeatureMatchFlannTracking
+# Feature Tracking Module Initialization
+feature_tracker = FeatureMatchFlannTracking(detector='sift', 
+                                            cam_data=camera_data,
+                                            RANSAC_threshold=0.2)
+
+# From estimated features, tracked features across multiple images
+tracked_features = feature_tracker(features=features)
+
+# STEP 6: Reconstruct Scene in Full
+from modules.scenereconstruction import Sparse3DReconstructionMono
+# Scene Reconstruction Module Initialization
+sparse_reconstruction = Sparse3DReconstructionMono(cam_data=camera_data,
+                                                   min_observe=4,
+                                                   min_angle=2.0,
+                                                   view="multi")
+
+# Estimate sparse 3D scene from tracked features and camera poses
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
+
+# STEP 7: Run Optimization Algorithm
+from modules.optimization import BundleAdjustmentOptimizerLeastSquares
+# # Build Optimizer
+optimizer = BundleAdjustmentOptimizerLeastSquares(cam_data=camera_data,
+                                                  max_iterations=10, 
+                                                  num_epochs=1, 
+                                                  step_size=0.1,
+                                                  optimizer_cls="GaussNewton")
+
+# Run Optimizer
+optimal_scene = optimizer(scene=sparse_scene)
+
+
+# Optional Visualization
+from modules.visualize import VisualizeScene
+visualizer = VisualizeScene()
+
+visualizer(sparse_scene)
+===$&$===
+"""
+This script solves the problem of creating a sparse 3D representation of an Indoors (tabletop/studio shot of a miniature street scene).
+It is captured on a monocular camera that is calibrated. Consistent, diffuse studio lighting with no significant illumination changes 
+across the set of images. The model buildings (brick walls, roof shingles, windows, awnings) are highly textured, while the white 
+background areas are low texture. Images show a scale-model block of buildings viewed from an oblique top‑down angle. The corner with 
+red and gray roofs and yellow shop awnings stays present in all frames. Lighting is soft/diffuse, minimal specular highlights. 
+The subject is richly textured (brick, shingles, facades) against a plain background. Camera motion is gradual between frames—small 
+rotations and slight translations around the building corner rather than extreme viewpoint changes.
+
+
+Scene Summary: A controlled indoor tabletop/studio scene featuring a miniature block of buildings with richly textured façades, brickwork, 
+shingles, windows, and yellow awnings. The camera views the subject from oblique, slightly top‑down angles with small rotational and 
+translational changes around a persistent building corner. Lighting is soft and uniform, producing stable appearances without specular 
+artifacts. The subject is set against a largely white, low‑texture background, ensuring most reliable features originate on the model itself.
+"""
+
+# ==#$#==
+
+# Construct Modules with Initialized Arguments
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan14_normal_lighting"
+calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
+
+
+# STEP 1: Read in Camera Data
+from modules.cameramanager import CameraDataManager
+
+CDM = CameraDataManager(image_path=image_path,
+                        calibration_path=calibration_path)
+
+# Get Camera Data
+camera_data = CDM.get_camera_data()
+
+# STEP 2: Estimate Features per Image
+from modules.features import FeatureDetectionSIFT
+# Feature Module Initialization
+feature_detector = FeatureDetectionSIFT(cam_data=camera_data, 
+                                        max_keypoints=6000,
+                                        contrast_threshold=0.02,
+                                        edge_threshold=50)
+
+# Detect Features for all Images
+features = feature_detector()
+
+# STEP 3: Match Features Per Image 
+from modules.featurematching import FeatureMatchFlannPair
+# Pairwise Feature Matching Module Initialization
+feature_matcher = FeatureMatchFlannPair(detector='sift', 
+                                        cam_data=camera_data,
+                                        RANSAC_threshold=0.3,
+                                        lowes_thresh=0.7)
+
+# Detect Image Pair Correspondences for Pose Estimation
+feature_pairs = feature_matcher(features=features)
+
+# STEP 4: Estimate Camera Poses of Scene with Feature Pairs
+from modules.camerapose import CamPoseEstimatorEssentialToPnP
+# Camera Pose Module Initialization
+pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data,
+                                                reprojection_error=4.0,
+                                                iteration_count=200,
+                                                confidence=0.995)
+
+# From estimated features, estimate the camera poses for all image frames
+cam_poses = pose_estimator(feature_pairs=feature_pairs)
+
+# STEP 5: Estimate Feature Tracks:
+from modules.featurematching import FeatureMatchFlannTracking
+# Feature Tracking Module Initialization
+feature_tracker = FeatureMatchFlannTracking(detector='sift', 
+                                            cam_data=camera_data,
+                                            RANSAC_threshold=0.3)
+
+# From estimated features, tracked features across multiple images
+tracked_features = feature_tracker(features=features)
+
+# STEP 6: Reconstruct Scene in Full
+from modules.scenereconstruction import Sparse3DReconstructionMono
+# Scene Reconstruction Module Initialization
+sparse_reconstruction = Sparse3DReconstructionMono(cam_data=camera_data,
+                                                   min_observe=4,
+                                                   min_angle=2.0,
+                                                   view="multi")
+
+# Estimate sparse 3D scene from tracked features and camera poses
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
+
+# STEP 7: Run Optimization Algorithm
+from modules.optimization import BundleAdjustmentOptimizerLeastSquares
+# # Build Optimizer
+optimizer = BundleAdjustmentOptimizerLeastSquares(cam_data=camera_data,
+                                                  max_iterations=10, 
+                                                  num_epochs=1, 
+                                                  step_size=0.1,
+                                                  optimizer_cls="GaussNewton")
+
+# Run Optimizer
+optimal_scene = optimizer(scene=sparse_scene)
+
+
+# Optional Visualization
+from modules.visualize import VisualizeScene
+visualizer = VisualizeScene()
+
+visualizer(sparse_scene)
+===$&$===
+"""
+This script solves the problem of creating a sparse 3D representation of a scene featuring an indoor environment
+using Structure-from-Motion as the algorithm solution. Using a monocular camera that is calibrated, the scene captures an Indoors, 
+tabletop/studio scene with a miniature building placed on bricks against a white background. Consistent, even diffuse lighting 
+across all three images; only minor shading changes from viewpoint/object rotation, no significant illumination change. Mostly 
+high-texture elements (gritty brick surfaces, roof shingles, façade details). Some low-texture regions are present (smooth painted 
+walls and the white background). A small model building is the persistent object of interest in all frames, resting on textured bricks. 
+The sequence appears to orbit/rotate around the model (or the model rotates on a turntable). The object is fairly highly textured, and 
+lighting is diffuse with soft shadows, aiding feature visibility. Viewpoint changes are incremental and moderate—small translations and 
+rotations/orbit around the object, with no extreme perspective or scale changes.
+
+
+Scene Summary: Indoor tabletop/studio setting with a miniature building resting on textured bricks against a plain white background. 
+Lighting is uniform and diffuse with soft shadows, producing consistent appearance across views. The building and bricks provide rich, 
+fine-scale texture; the white background is largely textureless. The viewpoints change moderately, effectively orbiting the object 
+(or the object rotates), yielding small to moderate parallax without extreme perspective changes.
+"""
+
+# ==#$#==
+
+# Construct Modules with Initialized Arguments
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_normal_lighting"
+calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
+
+
+# STEP 1: Read in Camera Data
+from modules.cameramanager import CameraDataManager
+
+CDM = CameraDataManager(image_path=image_path,
+                        calibration_path=calibration_path)
+
+# Get Camera Data
+camera_data = CDM.get_camera_data()
+
+# STEP 2: Estimate Features per Image
+from modules.features import FeatureDetectionORB
+# Feature Module Initialization
+feature_detector = FeatureDetectionORB(cam_data=camera_data, 
+                                        max_keypoints=5000)
+
+# Detect Features for all Images
+features = feature_detector()
+
+# STEP 3: Match Features Per Image 
+from modules.featurematching import FeatureMatchBFPair
+# Pairwise Feature Matching Module Initialization
+feature_matcher = FeatureMatchBFPair(detector='orb', 
+                                     cam_data=camera_data,
+                                     RANSAC_threshold=0.01,
+                                     lowes_thresh=0.6)
+
+# Detect Image Pair Correspondences for Pose Estimation
+feature_pairs = feature_matcher(features=features)
+
+# STEP 4: Estimate Camera Poses of Scene with Feature Pairs
+from modules.camerapose import CamPoseEstimatorEssentialToPnP
+# Camera Pose Module Initialization
+pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data,
+                                                reprojection_error=4.0,
+                                                iteration_count=340,
+                                                confidence=0.995)
+
+# From estimated features, estimate the camera poses for all image frames
+cam_poses = pose_estimator(feature_pairs=feature_pairs)
+
+# STEP 5: Estimate Feature Tracks:
+from modules.featurematching import FeatureMatchBFTracking
+# Feature Tracking Module Initialization
+feature_tracker = FeatureMatchBFTracking(detector='orb', 
+                                         cam_data=camera_data,
+                                         RANSAC_threshold=0.008,
+                                         cross_check=False)
+
+# From estimated features, tracked features across multiple images
+tracked_features = feature_tracker(features=features)
+
+# STEP 6: Reconstruct Scene in Full
+from modules.scenereconstruction import Sparse3DReconstructionMono
+# Scene Reconstruction Module Initialization
+sparse_reconstruction = Sparse3DReconstructionMono(cam_data=camera_data,
+                                                   min_observe=3,
+                                                   min_angle=2.0,
+                                                   view="multi")
+
+# Estimate sparse 3D scene from tracked features and camera poses
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
+
+# STEP 7: Run Optimization Algorithm
+from modules.optimization import BundleAdjustmentOptimizerLeastSquares
+# # Build Optimizer
+optimizer = BundleAdjustmentOptimizerLeastSquares(cam_data=camera_data,
+                                                  max_iterations=10, 
+                                                  num_epochs=1, 
+                                                  step_size=0.1,
+                                                  optimizer_cls="GaussNewton")
+
+# Run Optimizer
+optimal_scene = optimizer(scene=sparse_scene)
+
+
+# Optional Visualization
+from modules.visualize import VisualizeScene
+visualizer = VisualizeScene()
+
+visualizer(sparse_scene)
+===$&$===

@@ -6,11 +6,16 @@ mind a handful of constraints due to the nature of prompts we will receive.
 itself, so take note if it's image already, skip the parsing video step.
 3. Visualization is a step already known, and does not pertain to computer vision algorithms,
 ignore it.
+4. Only Discuss steps up to SPARSE RECONSTRUCTION. DO NOT MENTION dense reconstruction or any steps along those lines
+5. Determine if Calibration is a necessary step based on input as a query. If calibration path is provided, assume data
+is pre-calibrated and forgo that step.
 
-Now, for breaking problems down into a brief description, here are a few constraints:
+Now, for breaking down into solution steps, here are a few constraints:
 1. Keep things descriptive-based, as if it the description is from a computer vision textbook
 2. Ensure that the steps are in sequential order to properly solve the computer vision problem.
 Meaning, verify that the order of steps is what's necessary to carry out the state of the art solution.
 3. Don't forget to include any global optimization steps necessary for these computer vision problems.
 4. Don't forget to include feature tracking steps when necessary.
 5. Keep things in a list-based format. 
+6. Only Concern with the follow steps: Feature Detection, Feature Matching in image pairs, Camera Pose Estimation, Feature Tracking in multi-frames, Scene Reconstruction, and Global Optimization
+7. Keep description for each step brief, but explain what is needed or necessary for each step to be solved.

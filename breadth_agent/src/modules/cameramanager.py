@@ -23,7 +23,7 @@ class CameraDataManager():
                  calibration_path: str | None = None,
                  target_resolution: Tuple[int, int] | None = None):
         
-        image_files = sorted(glob.glob(image_path + "\\*"))[:10]
+        image_files = sorted(glob.glob(image_path + "\\*"))#[:25]
 
         #self.camera_data = CameraData()    
         if calibration_path is None:
@@ -56,6 +56,9 @@ class CameraDataManager():
                                    extrinsic=extrinsic,
                                    stereo=stereo,
                                    multi_cam=multi_camera)
+        
+        # Update Intrinsics if needed
+        self.cam_data.update_calibration(img_scale=image_scale)
 
     def _read_calibration(self, 
                           cal_file_path: str) -> tuple[List[np.ndarray],
@@ -145,7 +148,7 @@ class CameraDataManager():
             if target_resolution is not None:
                 h_new, w_new = target_resolution #TODO: ENSURE EVERYTHING IS (W, H), including RESHAPE PARAM
                 scale = (w_new / w, h_new / h)
-                target_res = (w, h)
+                target_res = (w_new, h_new)
             elif h > 1800 or w > 1800:
                 if h > w:
                     h_new, w_new = (1600, 1200)
@@ -177,7 +180,6 @@ class CameraDataManager():
 
                 image_list.append(image)
 
-            
         return image_list, image_scale, image_shape_old
             
     def get_camera_data(self) -> CameraData:

@@ -28,12 +28,12 @@ camera_data = CameraDataManager(image_path=image_path,
                                 calibration_path=calibration_path).get_camera_data()
 # Feature Module Initialization
 # calibration_data = CalibrationReader(calibration_path).get_calibration()
-feature_detector = FeatureDetectionSIFT(cam_data=camera_data, 
-                                        max_keypoints=15000,
-                                        edge_threshold=25)
-# feature_detector = FeatureDetectionORB(cam_data=camera_data, 
+# feature_detector = FeatureDetectionSIFT(cam_data=camera_data, 
 #                                         max_keypoints=15000,
-#                                         )
+#                                         edge_threshold=25)
+feature_detector = FeatureDetectionORB(cam_data=camera_data, 
+                                        max_keypoints=15000,
+                                        )
 
 # feature_detector = FeatureDetectionSP(cam_data=camera_data, 
 #                                         max_keypoints=2400)
@@ -46,7 +46,7 @@ feature_detector = FeatureDetectionSIFT(cam_data=camera_data,
 #                                      cam_data=camera_data,
 #                                      cross_check=False,
 #                                      RANSAC_threshold=0.005)
-feature_matcher = FeatureMatchFlannPair(detector="sift", 
+feature_matcher = FeatureMatchFlannPair(detector="orb", 
                                      cam_data=camera_data,
                                      RANSAC_threshold=0.03)
 # feature_matcher = FeatureMatchRoMAPair(img_path=image_path, setting="outdoor")
@@ -68,7 +68,7 @@ matched_features = feature_matcher(detected_features)
 # matched_features = feature_matcher()
 
 
-pair = 19
+pair = 3
 # print(matched_features.access_matching_pair(pair))
 # print(matched_features.access_matching_pair(pair)[0].shape)
 # print(len(matched_features.pairwise_matches))

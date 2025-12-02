@@ -1,0 +1,116 @@
+This is a file containing the Scene Reconstruction modules.
+===+&+===
+
+Tool Name: Sparse3DReconstructionMono
+
+Tool Description: 
+Sparsely reconstructs a 3D scene utilizing pre-processed information of camera poses and
+detected features tracked across the scene. Camera Poses are estimated prior to thie module
+through the camera pose estimation module. Features matched, or tracked are estimated 
+prior to this module through the feature matcher module. 
+This module can reconstruct sparse 3D scenes specifically using a monocular camera. This is 
+determined by the data used and the parameter 'view' on module function call. 
+This module can reconstruct sparse 3D scenes either through multi-view or two-view triangulation.
+This is determined by the method used to find matching features. If features are detected from 
+pairwise matching, use the "two" method for the 'method' parameter. If features are tracked
+across multiple frames, use the "multi" method for the 'method' parameter.
+Use this module when specified for sparse reconstruction and calibration data is provided,
+with the camera being used is a monocular cmaera. This  module is for reconstructing the 
+scene using the direct mathematical approach.
+
+Initialization Parameters:
+- image_path (str): The image path where the images are stored to utilize for scene building.
+- calibration (Calibration): Data type that stores the camera's calibration data initialized from the calibration 
+reader module
+- min_observe: The minimum number of observations (number of tracked feature points) needed to conduct a 3D 
+point estimation. Note: this must be greater than 2
+    - Default (int): 3 
+- min_angle: The minimum angle required between bearing rays from paired 2D feature point to accept a 3D point 
+estimation from the set of corresponding 2D feature points. Used for the Triangulation Angle Test.
+    - Default (float): 1.0 (Typically 1.0 - 3.0 [Number represents angle degree])
+
+Function Call Parameters:
+- camera_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
+specifically from the CameraPoseEstimation modules. 
+
+
+Tool Example: 
+Initialization:
+image_path = ...
+calibration_path = ...
+calibration_data = CalibrationReader(calibration_path).get_calibration()
+
+sparse_reconstruction = Sparse3DReconstructionMono(calibration=calibration_data, image_path=image_path)
+
+Function Use (multi-view):
+feature_tracker = FeatureMatchLightGlueTracking(detector="superpoint")
+
+cam_poses = pose_estimator(features=features) # To Estimate Camera Poses from detected features
+
+tracked_features = feature_tracker(features=features) # To track features across multiple images 
+
+# Estimate 3D scene using multi-view due to tracking features from multiple images in previous step
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="multi") 
+
+Function Use (two-view):
+feature_matcher = FeatureMatchLoftrPair(img_path=image_path)
+
+cam_poses = pose_estimator(features=features) # To Estimate Camera Poses from detected features
+
+matched_features = feature_matcher(features=features) # To track features across multiple images 
+
+# Estimate 3D scene using multi-view due to tracking features from multiple images in previous step
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two") 
+
+
+===+&+===
+
+Tool Name: Sparse3DReconstructionVGGT
+
+Tool Description: 
+Sparsely, and densely, reconstructs a 3D scene utilizing pre-processed information of camera poses and
+images of the scene. Camera Poses are estimated prior to thie module through the camera pose estimation 
+module, specifically from VGGT pose estimation. Features do NOT need to be tracked or matched between frames.
+This module can reconstruct sparse 3D scenes specifically using a monocular camera. 
+This module can reconstruct sparse 3D scenes either through single view or multi-view scenes.
+This is determined by the how many images exist in the scene and how many poses were estimated from the previous
+module using the VGGT pose estimation tool specifically.
+Use this module when specified for sparse/dense reconstruction and the scene doesn't allow for many features to be detected
+from given feature detectors. Utilize this module in conjuction with the VGGT pose estimation module in these cases
+where feature detection is low. This  module is for reconstructing the scene using the deep learning approach. 
+Computation time should not matter when invoking this tool.
+
+Initialization Parameters:
+- image_path (str): the image path where the images are stored to utilize for scene building.
+- calibration (Calibration): Data type that stores the camera's calibration data initialized from the calibration 
+reader module
+
+Function Call Parameters:
+- camera_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
+specifically from the CameraPoseEstimation modules. This scene reconstruction is called in conjuction with the VGGT 
+pose estimation module.
+
+
+Tool Example: 
+Initialization:
+image_path = ...
+calibration_path = ...
+calibration_data = CalibrationReader(calibration_path).get_calibration()
+
+# Camera Pose Module Initialization
+pose_estimator = CamPoseEstimatorVGGTModel(image_path=image_path, 
+                                            calibration=calibration_data)
+
+# Scene Reconstruction Module Initialization
+sparse_reconstruction = Sparse3DReconstructionVGGT(calibration=calibration_data, 
+                                                   image_path=image_path)
+
+Function Use:
+# From estimated features, estimate the camera poses for all image frames
+cam_poses = pose_estimator()
+
+# Estimate sparse 3D scene from tracked features and camera poses
+sparse_scene = sparse_reconstruction(camera_poses=cam_poses)
+
+
+===+&+===

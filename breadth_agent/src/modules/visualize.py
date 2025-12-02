@@ -25,17 +25,18 @@ class VisualizeScene(VisualizeClass):
 
     def __call__(self, data: Scene | np.ndarray, store:bool = False, path:str | None = None, format: str = "point cloud") -> None:
         data_np = data.points3D.points3D
+        # data_np = data
 
         # TESTING
-        max_magnitude_row_index = np.argmax(np.linalg.norm(data_np, axis=1))
-        row_with_largest_magnitude = data_np[max_magnitude_row_index, :]
-        mask = np.isin(element = data.bal_data.observations[:, 1], test_elements=np.array([max_magnitude_row_index]))
-        desired_array = data.bal_data.observations[mask]
-        # data.bal_data.
-        print("OUTLIER POINT", row_with_largest_magnitude)
-        print("INLIER POINT", data_np[1, :])
-        print("2D Points (Normalized)", desired_array)
-        print("Point Index", max_magnitude_row_index)
+        # max_magnitude_row_index = np.argmax(np.linalg.norm(data_np, axis=1))
+        # row_with_largest_magnitude = data_np[max_magnitude_row_index, :]
+        # mask = np.isin(element = data.bal_data.observations[:, 1], test_elements=np.array([max_magnitude_row_index]))
+        # desired_array = data.bal_data.observations[mask]
+        # # data.bal_data.
+        # print("OUTLIER POINT", row_with_largest_magnitude)
+        # print("INLIER POINT", data_np[1, :])
+        # print("2D Points (Normalized)", desired_array)
+        # print("Point Index", max_magnitude_row_index)
 
         # DONE TESTING - TODO: REMOVE
         if format.lower() == self.FORMATS[0]:

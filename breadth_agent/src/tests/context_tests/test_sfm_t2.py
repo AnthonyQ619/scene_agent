@@ -1,20 +1,27 @@
 """
 This script solves the problem of creating a sparse 3D representation of a scene featuring an object as the central point 
-using Structure-from-Motion as the algorithm solution. Using a monocular camera that is calibrated, the scene was captured to 
-exhibit consistent lighting, high textured regions, and recorded with incremental movement across sequential images taken from
-a video feed. The scene was an indoor well-lit scene with a highly textured object in the scene as the focal point. 
-The goal of this script was to utilize the Structure-from-Motion (SfM) techniques and certain features of the scene to 
-invoke the correct set of tools to properly execute the SfM algorithm with high accuracy and and computation speed in mind
-with the preference of ORB over SIFT.
+using Structure-from-Motion as the algorithm solution. Using a monocular camera that is calibrated, the scene captured is
+Indoors of a tabletop/studio setup with a model house placed on bricks over a white surface. There are illumination changes
+the first image is darker with stronger shadows; subsequent images are brighter and more evenly lit. Then back to dark.
+Lighting direction is consistent and mostly diffuse with a few specular highlights. Predominantly high-textured (brick surfaces, 
+roof shingles, façade details). Some low-texture areas exist in the plain white background. The scene centers on a small 
+model building resting on painted, rough bricks. The object of interest (the model house) is present in all images. 
+The camera appears to move/rotate around the object, maintaining focus on the same subject. The object and bricks provide 
+rich texture; lighting is largely diffuse with minor highlights. Gradual viewpoint changes with moderate rotation and 
+small translations around the object; no extreme viewpoint jumps.
+
+
+Scene Summary: Indoor tabletop/studio scene featuring a small model house resting on painted, rough bricks over a white 
+background. Surfaces of interest (bricks, shingles, façade) are highly textured; the background is largely textureless. 
+Lighting is mostly diffuse with moderate inter-image exposure differences and minor specular highlights. 
+The camera moves smoothly around the object with moderate rotations and small translations, keeping the model house centered 
+and consistently visible.
 """
 
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\Structure-from-Motion\\calibration_new.npz"
-bal_path = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\scene_data\\bal_data.txt"
-
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_illumination_change"
 
 # STEP 1: Read in Camera Data
 from modules.cameramanager import CameraDataManager
@@ -66,16 +73,20 @@ sparse_reconstruction = Sparse3DReconstructionVGGT(cam_data=camera_data,
 sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
 
 # STEP 7: Run Optimization Algorithm
-# from modules.optimization import BundleAdjustmentOptimizer
+from modules.optimization import BundleAdjustmentOptimizerLeastSquares
 # # Build Optimizer
-# optimizer = BundleAdjustmentOptimizer(scene=sparse_scene, cam_data=camera_data)
-# optimizer.prep_optimizer(ratio_known_cameras=0.0, max_iterations=20)
+optimizer = BundleAdjustmentOptimizerLeastSquares(cam_data=camera_data,
+                                                  max_iterations=30, 
+                                                  num_epochs=1, 
+                                                  step_size=0.1,
+                                                  optimizer_cls="LevenbergMarquardt")
 
-# # Run Optimizer
-# optimal_scene = optimizer(bal_path)
+# Run Optimizer
+optimal_scene = optimizer(scene=sparse_scene)
+
 
 # Optional Visualization
 from modules.visualize import VisualizeScene
 visualizer = VisualizeScene()
 
-visualizer(sparse_scene)
+visualizer(optimal_scene)

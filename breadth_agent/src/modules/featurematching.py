@@ -1,7 +1,7 @@
 import sys
 sys.path.append("C:\\Users\\Anthony\\Documents\\Projects\\Matchers\\RoMa\\romatch")
 ############ TEMP SOLUTION FOR NOW #################
-
+import json
 import cv2
 # from cv2.xfeatures2d import matchGMS
 import numpy as np
@@ -21,132 +21,6 @@ import piexif
 
 
 ############################################## HELPER CLASS ##############################################
-
-# Convert points to normalized iamge coordinates!
-# class Normalization():
-#     def __init__(self, 
-#                  K: np.ndarray | None = None,
-#                  dist: np.ndarray | None = None):
-#         if K is None:
-#             self.K = None
-#             self.dist = None
-#             self.calibration = False
-#         else:
-#             self.K = K
-#             self.dist = dist
-#             self.calibration = True
-
-#     def __call__(self, pts: Points2D) -> np.ndarray:
-#         if self.calibration:
-#             return self._calibrated(pts)
-#         else:
-#             return self._uncalibrated(pts)
-        
-#     def _calibrated(self, pts: Points2D) -> np.ndarray:
-#         # print(pts.points2D.shape)
-#         # print(self.dist1.shape)
-#         # print(self.K1.shape)
-#         pts_norm = cv2.undistortPoints(pts.points2D.T, self.K, self.dist)[:, 0, :]
-
-#         return pts_norm
-    
-
-#     def _uncalibrated(self, pts:Points2D) -> Points2D:
-#         pass 
-
-# class FeatureTracker():
-#     def __init__(self, 
-#                  matcher_parser: Callable[[Points2D, Points2D], tuple],
-#                  cam_data: CameraData
-#                  ):
-
-#         # Establish the data structures 
-#         self.track_map = {}
-#         self.next_track_id = 0
-#         self.observations = []
-
-#         # Set the Matcher
-#         self.matcher = matcher_parser
-
-#         self.ep_check = EpipoleChecker(pxl_min=25)
-#         self.normalization = Normalization(cam_data=cam_data)
-    
-#     def tracking_points(self, frame_id: float, pts1: Points2D, pts2: Points2D) -> None:        
-#         for i in range(pts1.points2D.shape[0]):
-#             pt1_id = pts1.points2D[i, :].tobytes()
-#             pt2_id = pts2.points2D[i, :].tobytes()
-
-#             key1 = (frame_id, pt1_id)
-#             key2 = (frame_id + 1, pt2_id)
-
-#             if key2 in self.track_map:
-#                 continue
-
-#             if key1 in self.track_map:
-#                 track_id = self.track_map[key1]
-#             else:
-#                 track_id = self.next_track_id
-#                 self.next_track_id += 1
-#                 pt1 = pts1.points2D[i, :]
-#                 self.observations.append([float(track_id), frame_id, pt1[0], pt1[1]])
-#                 self.track_map[key1] = track_id
-        
-#             pt2 = pts2.points2D[i, :] 
-#             self.observations.append([float(track_id), frame_id + 1, pt2[0], pt2[1]])
-#             self.track_map[key2] = track_id
-
-#     def outlier_reject(self, pts1: Points2D, pts2: Points2D) -> tuple[Points2D, Points2D]:
-#         pts_norm1 = self.normalization(pts1)
-#         pts_norm2 = self.normalization(pts2)
-        
-#         # _, mask = cv2.findFundamentalMat(pts1.points2D, pts2.points2D, cv2.FM_LMEDS)
-#         _, mask = cv2.findFundamentalMat(pts_norm1, pts_norm2, cv2.FM_LMEDS)
-
-#         # Could update points2D to inlier points with Mask
-#         inlier_pts1 = Points2D(**pts1.set_inliers(mask))
-#         inlier_pts2 = Points2D(**pts2.set_inliers(mask))
-
-#         # # print(matches)
-#         # matches_np = np.array(matches)
-
-#         # # print(inlier_pts1.points2D.shape)
-#         # matches_inlier = matches_np[mask.ravel()==1].tolist()
-#         # # print(len(matches_inlier))
-#         # return matches_inlier, inlier_pts1, inlier_pts2
-#         return inlier_pts1, inlier_pts2
-    
-#     def match_full(self, features: list[Points2D]) -> PointsMatched:
-#         img_size = features[0].image_size
-#         img_scale = features[0].reshape_scale
-#         tracked_features = PointsMatched(image_size=img_size, 
-#                                          multi_view=True,
-#                                          image_scale=img_scale)
-        
-#         for scene in tqdm(range(0, len(features) - 1)):
-#             pt1 = features[scene]
-#             pt2 = features[scene + 1]
-
-#             # matches, idx1, idx2 = self.matcher_parser(pt1, pt2) # Match and Lowe's Ratio Test
-#             idx1, idx2 = self.matcher(pt1, pt2)
-
-#             new_pt1 = Points2D(**pt1.splice_2D_points(idx1))
-#             new_pt2 = Points2D(**pt2.splice_2D_points(idx2))
-
-#             # Outlier Rejection Here
-#             # matches_inlier, inlier_pts1, inlier_pts2 = self.outlier_reject(matches, new_pt1, new_pt2)
-#             inlier_pts1, inlier_pts2 = self.outlier_reject(new_pt1, new_pt2)
-#             # inlier_pts1, inlier_pts2 = self.ep_check(inlier_pts1, inlier_pts2)
-
-#             # Feature Tracking algorithm here
-#             self.tracking_points(scene, inlier_pts1, inlier_pts2) #, matches_inlier)
-
-#             # matched_points.append([new_pt1, new_pt2])
-
-#         tracked_features.set_matched_matrix(self.observations)
-#         tracked_features.track_map = self.track_map
-#         tracked_features.point_count = self.next_track_id - 1
-        
-#         return tracked_features
 
 # class EpipoleChecker():
 #     def __init__(self, frac: float = 0.02, pxl_min: int = 12):
@@ -278,7 +152,9 @@ setting to properly initialize the model.
 Other supported detectors are: SIFT and SuperPoint
 
 Initialization Parameters:
+- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
 - detector (str): Name of Feature Detector that was used to estimate the features provided.
+    - default (str): superpoint
 - sinkhorn_iterations: number iterations for running the Sinkhorn Algorithm in the model for optimal
 partial assignment of detected feature matches
     - default (int): 20
@@ -289,9 +165,15 @@ stage
     - default (int): 256
 - setting: the string to determine if the images are "indoor" or "outdoor"
     - default (str): indoor
+- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
+     is considered an outlier and is not used for computing the final fundamental matrix.
+    - Default (float): 1.0
+    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
+    - Default (float): 0.99
 
 Function Call Parameters:
-- features: list of features detected per scene estimated from the feature detection module
+- features (list[Points2D]): list of features detected per scene estimated from the feature detection module
 """ # TODO: Fill in details for the matcher. Be precise as we want the agent to know when exactly to use this
         
         self.example = f"""
@@ -299,10 +181,10 @@ Initialization:
 # Determine the detector that was used previously and initialize module with said detector
 
 # Feature Matcher Module initialized with the SIFT detector
-feature_tracker = FeatureMatchSuperGlueTracking(detector='sift') # Initialized with detector 'sift' for proper matching
+feature_tracker = FeatureMatchSuperGlueTracking(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
 
 # Feature Matcher Module intialized with the SuperPoint detector
-feature_tracker = FeatureMatchSuperGlueTracking(detector='SuperPoint') # Initialized with detector 'orb' for proper matching
+feature_tracker = FeatureMatchSuperGlueTracking(cam_data = camera_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
 
 Example Usage in Script:  
 features = feature_detector() # Call Feature Detector Module on image frames
@@ -391,29 +273,34 @@ and faster run time is REQUIRED, or when specified directly in this scenario.
 Other supported detectors are: SIFT and SuperPoint
 
 Initialization Parameters:
-
+- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+- detector (str): Name of Feature Detector that was used to estimate the features provided.
+    - Default (str): SIFT
 - n_layers: Number of stacked self+cross attention layers. Reduce this value for faster inference 
 at the cost of accuracy (continuous red line in the plot above). 
     - Default (int): 9 (all layers).
-
 - flash: Enable FlashAttention. Significantly increases the speed and reduces the memory consumption 
 without any impact on accuracy. 
     - Default (bool): True (LightGlue automatically detects if FlashAttention is available).
-
 - mp: Enable mixed precision inference. 
     - Default (bool): False (off)
-
 - depth_confidence: Controls the early stopping. A lower values stops more often at earlier layers. 
     - Default (float): 0.95, disable with -1.
-
 - width_confidence: Controls the iterative point pruning. A lower value prunes more points earlier. 
     - Default (float): 0.99, disable with -1.
-
 - filter_threshold: Match confidence. Increase this value to obtain less, but stronger matches. 
     - Default (float): 0.1
+- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
+     is considered an outlier and is not used for computing the final fundamental matrix.
+    - Default (float): 1.0
+    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
+    - Default (float): 0.99
+Other supported detectors are: SIFT and SuperPoint
 
 Function Call Parameters:
-- features: list of features detected per scene estimated from the feature detection module
+
+- features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """ # TODO: Fill in details for the matcher. Be precise as we want the agent to know when exactly to use this
         
         self.example = f"""
@@ -421,10 +308,10 @@ Initialization:
 # Determine the detector that was used previously and initialize module with said detector
 
 # Feature Matcher Module initialized with the SIFT detector
-feature_tracker = FeatureMatchLightGlueTracking(detector='sift') # Initialized with detector 'sift' for proper matching
+feature_tracker = FeatureMatchLightGlueTracking(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
 
 # Feature Matcher Module intialized with the SuperPoint detector
-feature_tracker = FeatureMatchLightGlueTracking(detector='SuperPoint') # Initialized with detector 'orb' for proper matching
+feature_tracker = FeatureMatchLightGlueTracking(cam_data = camera_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
 
 
 Example Usage in Script:  
@@ -532,11 +419,23 @@ Use this module in the case a faster feature matcher is needed for tracking feat
 this module utilizes a nearest neighbor method for fast matching.
 
 Initialization Parameters: 
+- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
 - detector: String representing the name of the feature detector used for the features provided.
     - Default (str): SIFT
-    
+- k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing with lowes threshold.
+    - Default (int): 2
+- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
+     is considered an outlier and is not used for computing the final fundamental matrix.
+    - Default (float): 1.0
+    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
+    - Default (float): 0.99
+- lowes_thresh: Threshold for Lowe's Ratio Test, accepting a match only if the ratio of the distance to the best match to the distance of the second-best match is 
+     below a specific threshold
+    - Default (float): 0.75
+
 Function Call Parameters:
-- features: list of features detected per scene estimated from the feature detection module
+- features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """
 
         self.example = f"""
@@ -544,13 +443,13 @@ Initialization:
 # Determine the detector that was used previously and initialize module with said detector
 
 # Feature Tracker Module initialized with the SIFT detector
-feature_tracker = FeatureMatchFlannTracking(detector='sift') # Initialized with detector 'sift' for proper matching
+feature_tracker = FeatureMatchFlannTracking(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
 
 # Feature Tracker Module initialized with the ORB detector 
-feature_tracker = FeatureMatchFlannTracking(detector='orb') # Initialized with detector 'orb' for proper matching
+feature_tracker = FeatureMatchFlannTracking(cam_data = camera_data, detector='orb') # Initialized with detector 'orb' for proper matching
 
 # Feature Tracker Module intialized with the FAST detector
-feature_tracker = FeatureMatchFlannTracking(detector='fast') # Initialized with detector 'orb' for proper matching
+feature_tracker = FeatureMatchFlannTracking(cam_data = camera_data, detector='fast') # Initialized with detector 'orb' for proper matching
 
 Example Usage in Script:  
 features = feature_detector() # Call Feature Detector Module on image frames
@@ -616,7 +515,7 @@ tracked_features = feature_tracker(features=features) # Features used from Featu
         #     #return good_matches, pts1_idx, pts2_idx
         #     return pts1_idx, pts2_idx
 
-class FeatureMatchBFTracking(FeatureMatching):
+class FeatureMatchBFTracking(FeatureTracking):
     def __init__(self,
                  cam_data: CameraData,
                  detector:str = 'sift',
@@ -632,6 +531,62 @@ class FeatureMatchBFTracking(FeatureMatching):
                          cam_data=cam_data,
                          RANSAC_conf=RANSAC_conf,
                          RANSAC_threshold=RANSAC_threshold)
+        
+        self.module_name = "FeatureMatchBFTracking"
+        self.description = f"""
+Detects point correspondance between multiple frames to track any matching 
+features across the set of images. The feature matching algorithm used is the Brute-Force 
+feature detector. Unless specified directly, assume the features are detected using the SIFT 
+algorithm and initialize through the detector parameter. 
+Other supported detectors are: SIFT, ORB, SuperPoint, and FAST. 
+
+Use this Feature Matching Module when fast, real time, feature matching needs to be 
+conducted. This is less accurate than Flann and the ML models, but is much faster.
+
+Initalization Parameters:
+- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+- detector: String representing the name of the feature detector used for the features provided.
+    - Default (str): SIFT
+- k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing with lowes threshold.
+    - Default (int): 2
+- cross_check: If it is false, this is will be default BFMatcher behaviour when it finds the k nearest neighbors for each query descriptor. If True
+     then the nearest neighbor method with k=1 will only return pairs (i,j) such that for i-th query descriptor the j-th descriptor in the matcher's 
+     collection is the nearest and vice versa, i.e. the BFMatcher will only return consistent pairs. Such technique usually produces best results with 
+     minimal number of outliers when there are enough matches. i.e only use when there's are lot of feature points
+    - Default (bool): False
+- RANSAC: Determines whether to use RANSAC for outlier rejection of matched feature points. If False, uses FM_LMEDS, or the Least-Median-of-Squares (LMedS) algorithm.
+    - Default (bool): True
+- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
+     is considered an outlier and is not used for computing the final fundamental matrix.
+    - Default (float): 1.0
+    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
+    - Default (float): 0.99
+- lowes_thresh: Threshold for Lowe's Ratio Test, accepting a match only if the ratio of the distance to the best match to the distance of the second-best match is 
+     below a specific threshold
+    - Default (float): 0.75
+
+Function Call Parameters:
+- features list[Points2D]: list of features detected per scene estimated from the feature detection module
+"""
+        self.example = f"""
+Initialization: 
+# Determine the detector that was used previously and initialize module with said detector
+
+# Feature Matcher Module initialized with the SIFT detector
+feature_tracker = FeatureMatchBFTracking(cam_data=cam_data, detector='sift') # Initialized with detector 'sift' for proper matching
+
+# Feature Matcher Module initialized with the ORB detector 
+feature_tracker = FeatureMatchBFTracking(cam_data=cam_data, detector='orb') # Initialized with detector 'orb' for proper matching
+
+# Feature Matcher Module intialized with the SuperPoint detector
+feature_tracker = FeatureMatchBFTracking(cam_data=cam_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
+
+Example Usage in Script:  
+features = feature_detector() # Call Feature Detector Module on image frames
+
+tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
+"""
 
         if self.detector ==  self.DETECTORS[0]:
             norm_type = cv2.NORM_L2
@@ -650,9 +605,7 @@ class FeatureMatchBFTracking(FeatureMatching):
         self.matcher = cv2.BFMatcher(normType=norm_type, 
                                      crossCheck=self.cross_check)
 
-        self.module_name = "FeatureMatchBFTracking"
-
-        pass
+        
 
     def matcher_parser(self, pt1: Points2D, pt2: Points2D) -> tuple[list, list]:
         # img_shape = (image_size[0], image_size[1]) # Convert from HxW to WxH (OpenCV Convention)
@@ -992,7 +945,9 @@ setting to properly initialize the model.
 Other supported detectors are: SIFT and SuperPoint.
 
 Initialization Parameters:
+- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
 - detector (str): Name of Feature Detector that was used to estimate the features provided.
+    - default (str): superpoint
 - sinkhorn_iterations: number iterations for running the Sinkhorn Algorithm in the model for optimal
 partial assignment of detected feature matches
     - default (int): 20
@@ -1003,6 +958,14 @@ stage
     - default (int): 256
 - setting: the string to determine if the images are "indoor" or "outdoor"
     - default (str): indoor
+- RANSAC: Determines whether to use RANSAC for outlier rejection of matched feature points. If False, uses FM_LMEDS, or the Least-Median-of-Squares (LMedS) algorithm.
+    - Default (bool): True
+- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
+     is considered an outlier and is not used for computing the final fundamental matrix.
+    - Default (float): 1.0
+    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
+    - Default (float): 0.99
 
 Function Call Parameters:
 - features (list[Points2D]): list of features detected per scene estimated from the feature detection module
@@ -1013,15 +976,15 @@ Initialization:
 # Determine the detector that was used previously and initialize module with said detector
 
 # Feature Matcher Module initialized with the SIFT detector
-feature_matcher = FeatureMatchSuperGluePair(detector='sift') # Initialized with detector 'sift' for proper matching
+feature_matcher = FeatureMatchSuperGluePair(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
 
 # Feature Matcher Module intialized with the SuperPoint detector
-feature = FeatureMatchSuperGluePair(detector='SuperPoint') # Initialized with detector 'orb' for proper matching
+feature_matcher = FeatureMatchSuperGluePair(cam_data = camera_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
 
 Example Usage in Script:  
 features = feature_detector() # Call Feature Detector Module on image frames
 
-tracked_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
+matched_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
 """
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
@@ -1078,11 +1041,16 @@ tracked_features = feature_matcher(features=features) # Features used from Featu
             new_pt1 = Points2D(**pt1.splice_2D_points(idx1))
             new_pt2 = Points2D(**pt2.splice_2D_points(idx2))
 
-            inlier_pts1, inlier_pts2, _ = self.outlier_reject(new_pt1, new_pt2)
+            inlier_pts1, inlier_pts2, _ = self.outlier_reject(new_pt1, new_pt2, scene)
 
             # inlier_pts1, inlier_pts2 = self.ep_check(inlier_pts1, inlier_pts2)
 
             matched_points.set_matching_pair(np.hstack((inlier_pts1.points2D, inlier_pts2.points2D)))
+
+        avg_outliers, mean_ct, min_ct, max_ct = self._metric_calculation(matched_points) 
+
+        event_msg = {"avg_outlier": avg_outliers, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
+        print(json.dumps(event_msg), flush=True)
 
         return matched_points
 
@@ -1149,29 +1117,31 @@ the scene (Outdoors for example) with faster run time being REQUIRED, or when sp
 Other supported detectors are: SIFT and SuperPoint
 
 Initialization Parameters:
-
+- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
 - detector (str): Name of Feature Detector that was used to estimate the features provided.
-
+    - Default (str): SIFT
 - n_layers: Number of stacked self+cross attention layers. Reduce this value for faster inference 
 at the cost of accuracy (continuous red line in the plot above). 
     - Default (int): 9 (all layers).
-
 - flash: Enable FlashAttention. Significantly increases the speed and reduces the memory consumption 
 without any impact on accuracy. 
     - Default (bool): True (LightGlue automatically detects if FlashAttention is available).
-
 - mp: Enable mixed precision inference. 
     - Default (bool): False (off)
-
 - depth_confidence: Controls the early stopping. A lower values stops more often at earlier layers. 
     - Default (float): 0.95, disable with -1.
-
 - width_confidence: Controls the iterative point pruning. A lower value prunes more points earlier. 
     - Default (float): 0.99, disable with -1.
-
 - filter_threshold: Match confidence. Increase this value to obtain less, but stronger matches. 
     - Default (float): 0.1
-
+- RANSAC: Determines whether to use RANSAC for outlier rejection of matched feature points. If False, uses FM_LMEDS, or the Least-Median-of-Squares (LMedS) algorithm.
+    - Default (bool): True
+- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
+     is considered an outlier and is not used for computing the final fundamental matrix.
+    - Default (float): 1.0
+    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
+    - Default (float): 0.99
 Other supported detectors are: SIFT and SuperPoint
 
 Function Call Parameters:
@@ -1184,16 +1154,16 @@ Initialization:
 # Determine the detector that was used previously and initialize module with said detector
 
 # Feature Matcher Module initialized with the SIFT detector
-feature_matcher = FeatureMatchLightGluePair(detector='sift') # Initialized with detector 'sift' for proper matching
+feature_matcher = FeatureMatchLightGluePair(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
 
 # Feature Matcher Module intialized with the SuperPoint detector
-feature = FeatureMatchLightGluePair(detector='SuperPoint') # Initialized with detector 'orb' for proper matching
+feature_matcher = FeatureMatchLightGluePair(cam_data = camera_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
 
 
 Example Usage in Script:  
 features = feature_detector() # Call Feature Detector Module on image frames
 
-tracked_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
+matched_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
 """
         self.matcher = LightGlue(features=self.detector, 
                                  n_layers = n_layers,
@@ -1252,11 +1222,16 @@ tracked_features = feature_matcher(features=features) # Features used from Featu
             new_pt1 = Points2D(**pt1.splice_2D_points(idx1))
             new_pt2 = Points2D(**pt2.splice_2D_points(idx2))
 
-            inlier_pts1, inlier_pts2, F_mat = self.outlier_reject(new_pt1, new_pt2)
+            inlier_pts1, inlier_pts2, F_mat = self.outlier_reject(new_pt1, new_pt2, scene)
             # inlier_pts1, inlier_pts2 = self.ep_check(inlier_pts1, inlier_pts2, F_mat)
             #inlier_pts1, inlier_pts2 = self.ep_check(new_pt1, new_pt2)
 
             matched_points.set_matching_pair(np.hstack((inlier_pts1.points2D, inlier_pts2.points2D)))
+
+        avg_outliers, mean_ct, min_ct, max_ct = self._metric_calculation(matched_points) 
+
+        event_msg = {"avg_outlier": avg_outliers, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
+        print(json.dumps(event_msg), flush=True)
 
         return matched_points
 
@@ -1326,28 +1301,38 @@ Use this module in the case a faster feature matcher is needed for feature pair 
 in which this module utilizes a nearest neighbor method for fast matching.
 
 Initialization Parameters: 
+- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
 - detector: String representing the name of the feature detector used for the features provided.
     - Default (str): SIFT
-    
+- k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing with lowes threshold.
+    - Default (int): 2
+- RANSAC: Determines whether to use RANSAC for outlier rejection of matched feature points. If False, uses FM_LMEDS, or the Least-Median-of-Squares (LMedS) algorithm.
+    - Default (bool): True
+- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
+     is considered an outlier and is not used for computing the final fundamental matrix.
+    - Default (float): 1.0
+    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
+    - Default (float): 0.99
+- lowes_thresh: Threshold for Lowe's Ratio Test, accepting a match only if the ratio of the distance to the best match to the distance of the second-best match is 
+     below a specific threshold
+    - Default (float): 0.75
+
 Function Call Parameters:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
-
 """
         self.example = f"""
 Initialization: 
 # Determine the detector that was used previously and initialize module with said detector
 
 # Feature Matcher Module initialized with the SIFT detector
-feature_matcher = FeatureMatchFlannPair(detector='sift') # Initialized with detector 'sift' for proper matching
+feature_matcher = FeatureMatchFlannPair(cam_data=cam_data, detector='sift') # Initialized with detector 'sift' for proper matching
 
 # Feature Matcher Module initialized with the SuperPoint detector
-feature_matcher = FeatureMatchFlannPair(detector='superpoint') # Initialized with detector 'sift' for proper matching
+feature_matcher = FeatureMatchFlannPair(cam_data=cam_data, detector='superpoint') # Initialized with detector 'sift' for proper matching
 
 # Feature Matcher Module initialized with the ORB detector 
-feature = FeatureMatchFlannPair(detector='orb') # Initialized with detector 'orb' for proper matching
-
-# Feature Matcher Module intialized with the FAST detector
-feature = FeatureMatchFlannPair(detector='fast') # Initialized with detector 'orb' for proper matching
+feature_matcher = FeatureMatchFlannPair(cam_data=cam_data, detector='orb') # Initialized with detector 'orb' for proper matching
 
 Example Usage in Script:  
 features = feature_detector() # Call Feature Detector Module on image frames
@@ -1400,11 +1385,19 @@ detected_features = feature_matcher(features=features) # Features used from Feat
             new_pt1 = Points2D(**pt1.splice_2D_points(idx1))
             new_pt2 = Points2D(**pt2.splice_2D_points(idx2))
 
-            inlier_pts1, inlier_pts2, F = self.outlier_reject(new_pt1, new_pt2)
+            inlier_pts1, inlier_pts2, F = self.outlier_reject(new_pt1, new_pt2, scene)
             # inlier_pts1, inlier_pts2 = self.ep_check(inlier_pts1, inlier_pts2, F, self.normalize)
 
-            matched_points.set_matching_pair(np.hstack((inlier_pts1.points2D, inlier_pts2.points2D)))
+            feat_pair = np.hstack((inlier_pts1.points2D, inlier_pts2.points2D))
+
+            matched_points.set_matching_pair(feat_pair)
             # matched_points.set_matching_pair(np.hstack((inlier_pts1, inlier_pts2)))
+
+        
+        avg_outliers, mean_ct, min_ct, max_ct = self._metric_calculation(matched_points) 
+
+        event_msg = {"avg_outlier": avg_outliers, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
+        print(json.dumps(event_msg), flush=True)
 
         return matched_points
 
@@ -1452,7 +1445,7 @@ class FeatureMatchBFPair(FeatureMatching):
                  k: int = 2,
                  cross_check: bool = True,
                  RANSAC: bool = True,
-                 RANSAC_threshold: float = 3.0,
+                 RANSAC_threshold: float = 1.0,
                  RANSAC_conf: float = 0.99,
                  GMS: bool = False,
                  lowes_thresh: float = 0.75):
@@ -1475,9 +1468,28 @@ Use this Feature Matching Module when fast, real time, feature matching needs to
 conducted. This is less accurate than Flann and the ML models, but is much faster.
 
 Initalization Parameters:
+- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
 - detector: String representing the name of the feature detector used for the features provided.
     - Default (str): SIFT
-    
+- k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing with lowes threshold.
+    - Default (int): 2
+- cross_check: If it is false, this is will be default BFMatcher behaviour when it finds the k nearest neighbors for each query descriptor. If True
+     then the nearest neighbor method with k=1 will only return pairs (i,j) such that for i-th query descriptor the j-th descriptor in the matcher's 
+     collection is the nearest and vice versa, i.e. the BFMatcher will only return consistent pairs. Such technique usually produces best results with 
+     minimal number of outliers when there are enough matches. i.e only use when there's are lot of feature points
+    - Default (bool): False
+- RANSAC: Determines whether to use RANSAC for outlier rejection of matched feature points. If False, uses FM_LMEDS, or the Least-Median-of-Squares (LMedS) algorithm.
+    - Default (bool): True
+- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
+     is considered an outlier and is not used for computing the final fundamental matrix.
+    - Default (float): 1.0
+    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
+    - Default (float): 0.99
+- lowes_thresh: Threshold for Lowe's Ratio Test, accepting a match only if the ratio of the distance to the best match to the distance of the second-best match is 
+     below a specific threshold
+    - Default (float): 0.75
+
 Function Call Parameters:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """
@@ -1486,13 +1498,13 @@ Initialization:
 # Determine the detector that was used previously and initialize module with said detector
 
 # Feature Matcher Module initialized with the SIFT detector
-feature_matcher = FeatureMatchBFPair(detector='sift') # Initialized with detector 'sift' for proper matching
+feature_matcher = FeatureMatchBFPair(cam_data=cam_data, detector='sift') # Initialized with detector 'sift' for proper matching
 
 # Feature Matcher Module initialized with the ORB detector 
-feature = FeatureMatchBFPair(detector='orb') # Initialized with detector 'orb' for proper matching
+feature = FeatureMatchBFPair(cam_data=cam_data, detector='orb') # Initialized with detector 'orb' for proper matching
 
 # Feature Matcher Module intialized with the FAST detector
-feature = FeatureMatchBFPair(detector='fast') # Initialized with detector 'orb' for proper matching
+feature = FeatureMatchBFPair(cam_data=cam_data, detector='fast') # Initialized with detector 'orb' for proper matching
 
 Example Usage in Script:  
 features = feature_detector() # Call Feature Detector Module on image frames
@@ -1502,7 +1514,6 @@ tracked_features = feature_matcher(features=features) # Features used from Featu
 
         if self.detector ==  self.DETECTORS[0]:
             norm_type = cv2.NORM_L2
-            self.matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
         else:
             norm_type = cv2.NORM_HAMMING
 
@@ -1542,9 +1553,14 @@ tracked_features = feature_matcher(features=features) # Features used from Featu
             new_pt1 = Points2D(**pt1.splice_2D_points(idx1))
             new_pt2 = Points2D(**pt2.splice_2D_points(idx2))
 
-            inlier_pts1, inlier_pts2, _ = self.outlier_reject(new_pt1, new_pt2)
+            inlier_pts1, inlier_pts2, _ = self.outlier_reject(new_pt1, new_pt2, scene)
 
             matched_points.set_matching_pair(np.hstack((inlier_pts1.points2D, inlier_pts2.points2D)))
+
+        avg_outliers, mean_ct, min_ct, max_ct = self._metric_calculation(matched_points) 
+
+        event_msg = {"avg_outlier": avg_outliers, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
+        print(json.dumps(event_msg), flush=True)
 
         return matched_points
 

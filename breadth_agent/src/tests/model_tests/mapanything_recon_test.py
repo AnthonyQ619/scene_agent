@@ -289,6 +289,7 @@ def run_mapanything(
     # Run inference
     views = []
     for view_idx in range(images.shape[0]):
+        print("IMAGE SHAPE:", images[view_idx][None].shape)
         view = {
             "img": images[view_idx][None],  # Add batch dimension
             "data_norm_type": [image_normalization_type],

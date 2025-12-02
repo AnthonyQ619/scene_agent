@@ -24,47 +24,93 @@ import matplotlib.pyplot as plt
 
 # Construct Modules with Initialized Arguments
 # image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\mapanything_test_dataset"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\Structure-from-Motion\\calibration_new.npz"
+# Construct Modules with Initialized Arguments
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_normal_lighting"
+calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
 # image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_normal_lighting"
 # calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU.npz"
 
-# Read Camera Data
+# # Read Camera Data
+# CDM = CameraDataManager(image_path=image_path,
+#                         calibration_path=calibration_path)
+#                         # target_resolution=(1024, 1024))
+
+# cam_data = CDM.get_camera_data()
+# STEP 1: Read in Camera Data
+from modules.cameramanager import CameraDataManager
+
 CDM = CameraDataManager(image_path=image_path,
-                        # calibration_path=calibration_path,
-                        target_resolution=(1024, 1024))
+                        calibration_path=calibration_path)
 
-cam_data = CDM.get_camera_data()
+# Get Camera Data
+camera_data = CDM.get_camera_data()
 
+# STEP 2: Estimate Features per Image
+from modules.features import FeatureDetectionORB
 # Feature Module Initialization
-feature_detector = FeatureDetectionSIFT(cam_data=cam_data,
-                                      max_keypoints=3000,
-                                      ) #FeatureDetectionORB(image_path=image_path, max_keypoints=3000)
-# feature_matcher = FeatureMatchBFPair(detector="sift", 
-#                                      cam_data=cam_data,
-#                                      cross_check=False,
-#                                      RANSAC_threshold=0.005)
+feature_detector = FeatureDetectionORB(cam_data=camera_data, 
+                                        max_keypoints=5000)
 
-# feature_matcher = FeatureMatchRoMAPair(img_path=image_path, setting="indoor")
-pose_estimator = CamPoseEstimatorVGGTModel(cam_data=cam_data,
-                                           image_path=image_path) #CamPoseEstimatorEssentialToPnP(calibration=calibration_data, image_path=image_path, detector="sift")
-# pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=cam_data,
-#                                                 reprojection_error=4.0,
-#                                                 iteration_count=200,
-#                                                 confidence=0.995)
+# Detect Features for all Images
+features = feature_detector()
 
-# Solution Pipeline
+# STEP 3: Match Features Per Image 
+# from modules.featurematching import FeatureMatchFlannPair
+# # Pairwise Feature Matching Module Initialization
+# feature_matcher = FeatureMatchFlannPair(detector='orb', 
+#                                         cam_data=camera_data,
+#                                         RANSAC_threshold=0.07,
+#                                         lowes_thresh=0.75)
 
-detected_features = feature_detector()
-# matched_features = feature_matcher(detected_features)
-# matched_features = feature_matcher()
+from modules.featurematching import FeatureMatchBFPair
+# Pairwise Feature Matching Module Initialization
+feature_matcher = FeatureMatchBFPair(detector='orb', 
+                                     cam_data=camera_data,
+                                     RANSAC_threshold=0.01,
+                                     lowes_thresh=0.6)
 
-# print(matched_features.access_matching_pair(0)[0].shape)
-# print(len(detected_features))
+# Detect Image Pair Correspondences for Pose Estimation
+feature_pairs = feature_matcher(features=features)
 
-# Include Pairwise feature matching here
+# STEP 4: Estimate Camera Poses of Scene with Feature Pairs
+from modules.camerapose import CamPoseEstimatorEssentialToPnP
+# Camera Pose Module Initialization
+pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data,
+                                                reprojection_error=4.0,
+                                                iteration_count=340,
+                                                confidence=0.995)
 
-cam_poses = pose_estimator() #(matched_features) # (detected_features)
+# From estimated features, estimate the camera poses for all image frames
+cam_poses = pose_estimator(feature_pairs=feature_pairs)
+# # Feature Module Initialization
+# feature_detector = FeatureDetectionSIFT(cam_data=cam_data,
+#                                       max_keypoints=3000,
+#                                       ) #FeatureDetectionORB(image_path=image_path, max_keypoints=3000)
+# # feature_matcher = FeatureMatchBFPair(detector="sift", 
+# #                                      cam_data=cam_data,
+# #                                      cross_check=False,
+# #                                      RANSAC_threshold=0.005)
+
+# # feature_matcher = FeatureMatchRoMAPair(img_path=image_path, setting="indoor")
+# pose_estimator = CamPoseEstimatorVGGTModel(cam_data=cam_data,
+#                                            image_path=image_path) #CamPoseEstimatorEssentialToPnP(calibration=calibration_data, image_path=image_path, detector="sift")
+# # pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=cam_data,
+# #                                                 reprojection_error=4.0,
+# #                                                 iteration_count=200,
+# #                                                 confidence=0.995)
+
+# # Solution Pipeline
+
+# detected_features = feature_detector()
+# # matched_features = feature_matcher(detected_features)
+# # matched_features = feature_matcher()
+
+# # print(matched_features.access_matching_pair(0)[0].shape)
+# # print(len(detected_features))
+
+# # Include Pairwise feature matching here
+
+# cam_poses = pose_estimator() #(matched_features) # (detected_features)
 
 # print(cam_poses.camera_pose)
 # print(calibration_data.K_cams)
