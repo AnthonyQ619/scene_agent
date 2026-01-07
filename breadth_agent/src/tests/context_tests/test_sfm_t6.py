@@ -86,16 +86,16 @@ sparse_reconstruction = Sparse3DReconstructionMono(cam_data=camera_data,
 sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
 
 # STEP 7: Run Optimization Algorithm
-from modules.optimization import BundleAdjustmentOptimizerLeastSquares
-# # Build Optimizer
-optimizer = BundleAdjustmentOptimizerLeastSquares(cam_data=camera_data,
-                                                  max_iterations=10, 
-                                                  num_epochs=1, 
-                                                  step_size=0.1,
-                                                  optimizer_cls="GaussNewton")
+# from modules.optimization import BundleAdjustmentOptimizerLeastSquares
+# # # Build Optimizer
+# optimizer = BundleAdjustmentOptimizerLeastSquares(cam_data=camera_data,
+#                                                   max_iterations=10, 
+#                                                   num_epochs=1, 
+#                                                   step_size=0.1,
+#                                                   optimizer_cls="GaussNewton")
 
-# Run Optimizer
-optimal_scene = optimizer(scene=sparse_scene)
+# # Run Optimizer
+# optimal_scene = optimizer(scene=sparse_scene)
 
 
 # Optional Visualization

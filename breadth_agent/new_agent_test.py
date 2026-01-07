@@ -1,20 +1,24 @@
 from src.agent.prompt_agent import PromptEnhancmentAgent
 from src.agent.coding_agent import CodeAgent
-from src.agent.code_refinement_agent import CodeRefine
+from src.agent.programmer_agent import ProgramManagerLLM
+# from src.agent.code_refinement_agent import CodeRefine
 
 
 def main():
     path_for_testing = 'C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\generated_code'
-    instruction_path = 'C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent_utils\\agent_instructions\\prompt_enh_examples.txt'
-    full_length_context_path = 'C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent_utils\\script_context\\full_context_scripts.txt'
-    embed_vectors_path = 'C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent_utils\\script_context\\embed_description_list.txt'
-    api_path = 'C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent_utils\\tool_context'
-    first_agent_test = PromptEnhancmentAgent(instruction_path=instruction_path,
+    instruction_path = 'C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent\\agent_details\\agent_instructions\\prompt_enh_examples.txt'
+    full_length_context_path = 'C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent\\agent_details\\script_context\\full_context_scripts.txt'
+    embed_vectors_path = 'C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent\\agent_details\\script_context\\embed_description_list.txt'
+    api_path = 'C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent\\agent_details\\tool_context'
+    first_agent_test = PromptEnhancmentAgent(full_length_path=full_length_context_path,
+                                             embedding_database_path=embed_vectors_path,
+                                             instruction_path=instruction_path,
                                              model = 'gpt-5-2025-08-07')
-    second_agent_test = CodeAgent(full_length_path=full_length_context_path, 
-                                  embedding_database_path=embed_vectors_path,
-                                  response_format='code',
-                                  model='gpt-5-2025-08-07')
+    second_agent_test = ProgramManagerLLM(api_directory=api_path)
+    # second_agent_test = CodeAgent(full_length_path=full_length_context_path, 
+    #                               embedding_database_path=embed_vectors_path,
+    #                               response_format='code',
+    #                               model='gpt-5-2025-08-07')
     # third_agent_task = CodeRefine(path_for_testing, api_path=api_path,
     #                               model='gpt-5-2025-08-07')
 
@@ -27,28 +31,46 @@ def main():
     # include problem statement and scene description.
     # TODO: Explore including scene description into prompt enhancment phase (step 2 of agent)
 
+#     temp_prompt = """
+# Images: C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan30_normal_lighting
+# """
     temp_prompt = """
-This is a video of an outdoor scene around a statue. I want to create a 3D representation
-of this data, focused on the statue.
-C:\\Users\\Anthony\\Documents\\Projects\\datasets\\Structure-from-Motion\\sfm_dataset
-"""
+    Images: C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\Lighthouse"""
 
-    output, problem_statement = first_agent_test(temp_prompt)
+    scene_description, problem_statement = first_agent_test(temp_prompt)
 
-    print(output)
-    temp_file_propmt = open(path_for_testing + "\\generated_prompt.txt", 'w')
+    context = open("C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\tests\\context_tests\\test_sfm_t1.py", 'r')
+    examples = context.read()
+    context.close()
+    print(scene_description)
+    print(problem_statement)
 
-    temp_file_propmt.write(output)
+    output = second_agent_test(scene_description + problem_statement + "\n" + examples)
+    print()
+    print("STEP 1", output.feature_step)
+    print()
+    print("STEP 2", output.matcher_step)
+    print()
+    print("STEP 3", output.pose_step)
+    print()
+    print("STEP 4", output.tracking_step)
+    print()
+    print("STEP 5", output.scene_est_step)
+    print()
+    print("STEP 6", output.optim_step)
+    # temp_file_propmt = open(path_for_testing + "\\generated_prompt.txt", 'w')
 
-    temp_file_propmt.close()
+    # temp_file_propmt.write(output)
 
-    code = second_agent_test(output, problem_statement)
+    # temp_file_propmt.close()
 
-    temp_file = open(path_for_testing + "\\temp_file.py", 'w')
+    # code = second_agent_test(output, problem_statement)
 
-    temp_file.write(code)
+    # temp_file = open(path_for_testing + "\\temp_file.py", 'w')
 
-    temp_file.close()
+    # temp_file.write(code)
+
+    # temp_file.close()
 
     # script_file = 'temp_file.py'
     

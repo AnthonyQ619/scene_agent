@@ -25,10 +25,10 @@ import matplotlib.pyplot as plt
 # Construct Modules with Initialized Arguments
 # image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_normal_lighting"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
-# image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_normal_lighting"
-# calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU.npz"
+# image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan22_normal_lighting"
+# calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\images\\dslr_images_undistorted"
+calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\dslr_calibration_undistorted\\calibration_new.npz"
 
 # # Read Camera Data
 # CDM = CameraDataManager(image_path=image_path,
@@ -40,7 +40,8 @@ calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_datas
 from modules.cameramanager import CameraDataManager
 
 CDM = CameraDataManager(image_path=image_path,
-                        calibration_path=calibration_path)
+                        calibration_path=calibration_path,
+                        target_resolution=(480, 640))
 
 # Get Camera Data
 camera_data = CDM.get_camera_data()
@@ -48,9 +49,18 @@ camera_data = CDM.get_camera_data()
 # STEP 2: Estimate Features per Image
 from modules.features import FeatureDetectionORB
 # Feature Module Initialization
-feature_detector = FeatureDetectionORB(cam_data=camera_data, 
-                                        max_keypoints=5000)
-
+# feature_detector = FeatureDetectionORB(cam_data=camera_data, 
+#                                         max_keypoints=20000,
+#                                         set_nms=True,
+#                                         set_nms_allowed_points=8000,
+#                                         set_nms_tolerance = 0.2
+#                                         )
+# feature_detector = FeatureDetectionSIFT(cam_data=camera_data, 
+#                                         max_keypoints=9000,
+#                                         contrast_threshold=0.02,
+#                                         edge_threshold=50)
+feature_detector = FeatureDetectionSP(cam_data=camera_data,
+                                      max_keypoints=10000)
 # Detect Features for all Images
 features = feature_detector()
 
@@ -64,10 +74,16 @@ features = feature_detector()
 
 from modules.featurematching import FeatureMatchBFPair
 # Pairwise Feature Matching Module Initialization
-feature_matcher = FeatureMatchBFPair(detector='orb', 
-                                     cam_data=camera_data,
-                                     RANSAC_threshold=0.01,
-                                     lowes_thresh=0.6)
+# feature_matcher = FeatureMatchBFPair(detector='orb', 
+#                                      cam_data=camera_data,
+#                                      RANSAC_threshold
+#                                      =0.05,
+#                                      lowes_thresh=0.8)
+# feature_matcher = FeatureMatchFlannPair(detector="orb", 
+#                                      cam_data=camera_data,
+#                                      RANSAC_threshold=0.03)
+feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
+                                            RANSAC_threshold=0.03)
 
 # Detect Image Pair Correspondences for Pose Estimation
 feature_pairs = feature_matcher(features=features)
@@ -76,8 +92,8 @@ feature_pairs = feature_matcher(features=features)
 from modules.camerapose import CamPoseEstimatorEssentialToPnP
 # Camera Pose Module Initialization
 pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data,
-                                                reprojection_error=4.0,
-                                                iteration_count=340,
+                                                reprojection_error=7.0,
+                                                iteration_count=300,
                                                 confidence=0.995)
 
 # From estimated features, estimate the camera poses for all image frames

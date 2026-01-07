@@ -221,7 +221,7 @@ features = feature_detector()
 
         eps=1e-7
 
-        #for i in tqdm(range(len(self.image_path))): # len(self.image_path)
+        # for i in tqdm(range(len(self.image_path))): # len(self.image_path)
         for i in tqdm(range(len(self.image_list)),
                       desc="Detecting Features"):
 
@@ -331,7 +331,9 @@ class FeatureDetectionORB(FeatureClass):
                  fast_threshold: int = 20,
                  edge_threshold: int = 31,
                  WTA_K: int = 2,
-                 set_nms: bool = False):
+                 set_nms: bool = False,
+                 set_nms_allowed_points: int = 5000,
+                 set_nms_tolerance: float = 0.1):
         
         #super().__init__(image_path)
         super().__init__(cam_data)
@@ -400,7 +402,8 @@ features = feature_detector()
                                        fastThreshold = fast_threshold,
                                        edgeThreshold = edge_threshold)
         self.nms = set_nms
-
+        self.set_nms_allowed_points = set_nms_allowed_points
+        self.set_nms_tolerance = set_nms_tolerance
         # Update Calibration if Images are Resized
         # cam_data.update_calibration(self.image_scale)
 
@@ -416,11 +419,16 @@ features = feature_detector()
 
             kp, des = self.detector.detectAndCompute(im_gray, None)
             
+            # print(des.shape)
             if self.nms: 
+                sorted_indices = sorted(range(len(kp)), key=lambda x: kp[x].response, reverse=True)
+                kp = sorted(kp, key=lambda x: x.response, reverse=True)
+                des = des[sorted_indices]
                 result_list = anms_ssc(kp, 
-                                   cols=im_gray.shape[1], 
-                                   rows=im_gray.shape[0],
-                                   num_ret_points=3000)
+                                       tolerance=self.set_nms_tolerance,
+                                       cols=im_gray.shape[1], 
+                                       rows=im_gray.shape[0],
+                                       num_ret_points=self.set_nms_allowed_points)
             
                 pts = np.array([kp[i].pt for i in result_list], np.float32)
                 scores = np.vstack(np.array([kp[i].response for i in result_list], np.float32))
@@ -599,7 +607,7 @@ features = feature_detector()
             # img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
             #img_read, scale = load_image(img, self.image_reshape) # Need Image Shape
             img_torch = numpy_image_to_torch(img)
-            # print(img_read.shape)
+            # print(img_torch.shape)
             # Keypoints
             features = self.detector.extract(img_torch.to(self.device))
             

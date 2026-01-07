@@ -19,10 +19,10 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\Structure-from-Motion\\calibration_new.npz"
-# image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_low_lighting"
-# calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU.npz"
+# image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
+# calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\Structure-from-Motion\\calibration_new.npz"
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan15_normal_lighting"
+calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
 
 camera_data = CameraDataManager(image_path=image_path,
                                 calibration_path=calibration_path).get_camera_data()
@@ -31,28 +31,34 @@ camera_data = CameraDataManager(image_path=image_path,
 # feature_detector = FeatureDetectionSIFT(cam_data=camera_data, 
 #                                         max_keypoints=15000,
 #                                         edge_threshold=25)
-feature_detector = FeatureDetectionORB(cam_data=camera_data, 
-                                        max_keypoints=15000,
-                                        )
+# feature_detector = FeatureDetectionORB(cam_data=camera_data, 
+#                                         max_keypoints=20000,
+#                                         set_nms=True,
+#                                         set_nms_allowed_points=12000,
+#                                         set_nms_tolerance = 0.2
+#                                         )
 
-# feature_detector = FeatureDetectionSP(cam_data=camera_data, 
-#                                         max_keypoints=2400)
-# feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
-#                                             detector="sift")
+feature_detector = FeatureDetectionSP(cam_data=camera_data, 
+                                        max_keypoints=2400)
+feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
+                                            detector="superpoint")
+# feature_matcher = FeatureMatchSuperGluePair(cam_data=camera_data,
+#                                             detector='superpoint', 
+#                                             setting='indoor')
 # feature_tracker = FeatureMatchFlannTracking(cam_data=camera_data, 
 #                                             detector="sift",
 #                                             )
 # feature_matcher = FeatureMatchBFPair(detector="orb", 
 #                                      cam_data=camera_data,
 #                                      cross_check=False,
-#                                      RANSAC_threshold=0.005)
-feature_matcher = FeatureMatchFlannPair(detector="orb", 
-                                     cam_data=camera_data,
-                                     RANSAC_threshold=0.03)
+#                                      RANSAC_threshold=0.1)
+# feature_matcher = FeatureMatchFlannPair(detector="orb", 
+#                                      cam_data=camera_data,
+#                                      RANSAC_threshold=0.03)
 # feature_matcher = FeatureMatchRoMAPair(img_path=image_path, setting="outdoor")
 # feature_tracker = FeatureMatchSuperGlueTracking(cam_data=camera_data,
 #                                                 detector='superpoint', 
-#                                                 setting='outdoor')
+#                                                 setting='indoor')
 
 # Solution Pipeline 
 detected_features = feature_detector()
@@ -151,3 +157,7 @@ img1 = cv2.resize(cv2.imread(image_path[pair]), matched_features.image_size, int
 img2 = cv2.resize(cv2.imread(image_path[pair+1]), matched_features.image_size, interpolation=cv2.INTER_AREA)
 
 plot_matches(img1, img2, pt1, pt2)
+
+# cv2.drawKeypoints(img1, pt1, outImage=None, color=(255, 0, 0))
+# cv2.imshow("Selected keypoints", img1)
+# cv2.waitKey(0)

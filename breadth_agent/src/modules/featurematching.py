@@ -457,7 +457,7 @@ features = feature_detector() # Call Feature Detector Module on image frames
 tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
 """
 
-        if self.detector ==  self.DETECTORS[0]:
+        if self.detector in self.DETECTORS[:2]:
             FLANN_INDEX_KDTREE = 1
             index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
         else: # Fast and Orb
@@ -922,6 +922,7 @@ class FeatureMatchSuperGluePair(FeatureMatching):
             raise Exception(message)
         
         super().__init__(detector=detector.lower(), 
+                         matcher="superglue",
                          cam_data=cam_data,
                          RANSAC_conf=RANSAC_conf,
                          RANSAC=RANSAC,
@@ -1098,6 +1099,7 @@ class FeatureMatchLightGluePair(FeatureMatching):
             raise Exception(message)
 
         super().__init__(detector=detector.lower(), 
+                         matcher="lightglue",
                          cam_data=cam_data,
                          RANSAC_conf=RANSAC_conf,
                          RANSAC=RANSAC,
@@ -1222,6 +1224,19 @@ matched_features = feature_matcher(features=features) # Features used from Featu
             new_pt1 = Points2D(**pt1.splice_2D_points(idx1))
             new_pt2 = Points2D(**pt2.splice_2D_points(idx2))
 
+
+            # Tested for Keypoint to Sub-Pixel
+            # img1 = torch.from_numpy(self.cam_data.image_list[scene]).permute(2, 0, 1) / 255.0
+            # img2 = torch.from_numpy(self.cam_data.image_list[scene + 1]).permute(2, 0, 1) / 255.0
+            # print(img1.shape)
+            # print(new_pt1.image_size)
+            # print()
+            # refined_kp1, refined_kp2 = self.refiner(torch.from_numpy(new_pt1.points2D), 
+            #                                         torch.from_numpy(new_pt2.points2D), 
+            #                                         img1, img2, 
+            #                                         torch.from_numpy(new_pt1.descriptors), 
+            #                                         torch.from_numpy(new_pt2.descriptors))
+
             inlier_pts1, inlier_pts2, F_mat = self.outlier_reject(new_pt1, new_pt2, scene)
             # inlier_pts1, inlier_pts2 = self.ep_check(inlier_pts1, inlier_pts2, F_mat)
             #inlier_pts1, inlier_pts2 = self.ep_check(new_pt1, new_pt2)
@@ -1281,6 +1296,7 @@ class FeatureMatchFlannPair(FeatureMatching):
                  lowes_thresh: float = 0.75):
 
         super().__init__(detector=detector.lower(), 
+                         matcher="flann",
                          cam_data=cam_data,
                          RANSAC_conf=RANSAC_conf,
                          RANSAC=RANSAC,
@@ -1451,6 +1467,7 @@ class FeatureMatchBFPair(FeatureMatching):
                  lowes_thresh: float = 0.75):
 
         super().__init__(detector=detector.lower(), 
+                         matcher="bruteforce",
                          cam_data=cam_data,
                          RANSAC_threshold=RANSAC_threshold,
                          RANSAC=RANSAC,

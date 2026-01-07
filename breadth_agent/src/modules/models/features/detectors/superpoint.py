@@ -45,6 +45,7 @@
 import torch
 from kornia.color import rgb_to_grayscale
 from torch import nn
+import copy
 
 from .utils import Extractor
 
@@ -120,6 +121,7 @@ class SuperPoint(Extractor):
 
     def __init__(self, **conf):
         super().__init__(**conf)  # Update with default configuration.
+
         self.relu = nn.ReLU(inplace=True)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         c1, c2, c3, c4, c5 = 64, 64, 128, 128, 256
@@ -219,7 +221,7 @@ class SuperPoint(Extractor):
             sample_descriptors(k[None], d[None], 8)[0]
             for k, d in zip(keypoints, descriptors)
         ]
-
+        
         return {
             "keypoints": torch.stack(keypoints, 0),
             "keypoint_scores": torch.stack(scores, 0),

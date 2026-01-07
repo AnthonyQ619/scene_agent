@@ -17,6 +17,7 @@ from modules.DataTypes.datatype import (Scene,
                                 BundleAdjustmentData)
 import glob
 from collections.abc import Callable
+import torch
 
 import copy
 import random
@@ -128,8 +129,6 @@ class FeatureTracker():
         pts_norm1 = self.normalization(pts1, frame_id)
         pts_norm2 = self.normalization(pts2, frame_id + 1)
 
-        # print(pts_norm1.shape)
-        # print(pts_norm2.shape)
         # _, mask = cv2.findFundamentalMat(pts1.points2D, pts2.points2D, cv2.FM_LMEDS)
         # _, mask = cv2.findFundamentalMat(pts_norm1, pts_norm2, cv2.FM_LMEDS)
         F, mask = cv2.findFundamentalMat(pts_norm1, pts_norm2, cv2.FM_RANSAC, 
@@ -213,8 +212,7 @@ class FeatureTracker():
 
         return out_count
 
-
-class TriangulationCheck:
+class TriangulationCheck():
     def __init__(self, 
                  K_mat: np.ndarray,
                  dist: np.ndarray): #min_angle: float = 1.0):
@@ -276,6 +274,21 @@ class TriangulationCheck:
         angle = np.clip(angle, -1.0, 1.0)
 
         return np.degrees(np.arccos(angle))
+
+class KeypointRefinement():
+    def __init__(self,
+                 detector: str = "splg"):
+        SUPPORTED_DETECTORS = ["splg", "spsg", "dedode", "aliked", "xfeat"]
+        self.det = detector.lower()
+        if self.det not in SUPPORTED_DETECTORS:
+            message = 'Error: detector is not supported for keypoint refinement. Use one of ' + str(SUPPORTED_DETECTORS) + ' instead to use this Feature Matcher.'
+            raise Exception(message)
+        
+        self.keypt2subpx = torch.hub.load('KimSinjeong/keypt2subpx', 'Keypt2Subpx', pretrained=True, detector=self.det)
+
+    def get_refiner(self):
+        return self.keypt2subpx
+    
 ##########################################################################################################
 
 
@@ -423,9 +436,9 @@ class SceneEstimation():
             for i in range(cams.shape[0]): 
                 cam = int(cams[i])
                 K = self.K_mat[cam]
-                # dist = self.dist[cam]
+                dist = self.dist[cam]
                 pt = pts[i, :]
-                pt_norm = cv2.undistortPoints(pt.T, K, np.zeros((1,5)))[:, 0, :][0]
+                pt_norm = cv2.undistortPoints(pt.T, K, dist)[:, 0, :][0]#np.zeros((1,5)))[:, 0, :][0]
                 pts_norm.append(pt_norm)
             pts_norm = np.array(pts_norm)
         else:
@@ -573,6 +586,7 @@ class FeatureClass():
 class FeatureMatching():
     def __init__(self, 
                  detector:str, 
+                 matcher: str,
                  cam_data:CameraData,
                  RANSAC_threshold: float,
                  RANSAC: bool,
@@ -601,7 +615,12 @@ class FeatureMatching():
         self.ransac_threshold = RANSAC_threshold
         self.ransac_conf = RANSAC_conf
 
-    # def __call__(self) -> PointsMatched:
+        if self.detector == "superpoint":
+            if matcher.lower() == "lightglue":
+                self.refiner = KeypointRefinement(detector="splg").get_refiner()
+            elif matcher.lower() == "superglue":
+                self.refiner = KeypointRefinement(detector="spsg").get_refiner()
+    # def __call__(self) -> PointsMatched:  
     #     # Points Matched for Tracking -> data = N x [track_id, frame_num, x, y]
     #     # Points Matched for Pairwise Matching -> 
     #     matched_points = PointsMatched() 
@@ -623,9 +642,11 @@ class FeatureMatching():
         # F, mask = cv2.findFundamentalMat(pts1.points2D, pts2.points2D, cv2.FM_LMEDS)
         # F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, cv2.FM_LMEDS)
         if self.ransac:
-            F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, cv2.FM_RANSAC, 
-                                             ransacReprojThreshold=self.ransac_threshold, 
-                                             confidence=self.ransac_conf)
+            # F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, cv2.FM_RANSAC, 
+            #                                  ransacReprojThreshold=self.ransac_threshold, 
+            #                                  confidence=self.ransac_conf)
+            F, mask = cv2.findHomography(pts1_norm, pts2_norm, cv2.RANSAC, 
+                                         ransacReprojThreshold=self.ransac_threshold)
         else:
             F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, cv2.FM_LMEDS)
 

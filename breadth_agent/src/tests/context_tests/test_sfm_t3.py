@@ -18,8 +18,8 @@ and a stable cast shadow.
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-# image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan8_normal_lighting"
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan8_normal_lighting"
+# image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
 
 # STEP 1: Read in Camera Data
 from modules.cameramanager import CameraDataManager
@@ -35,7 +35,8 @@ camera_data = CDM.get_camera_data()
 # STEP 2: Estimate Features per Image
 from modules.features import FeatureDetectionSP
 # Feature Module Initialization
-feature_detector = FeatureDetectionSP(cam_data=camera_data)
+feature_detector = FeatureDetectionSP(cam_data=camera_data,
+                                      max_keypoints=10000)
 
 # Detect Features for all Images
 features = feature_detector()
@@ -56,7 +57,7 @@ from modules.featurematching import FeatureMatchSuperGlueTracking
 # Feature Tracking Module Initialization
 feature_tracker = FeatureMatchSuperGlueTracking(detector='superpoint', 
                                             cam_data=camera_data,
-                                            RANSAC_threshold=0.5)
+                                            RANSAC_threshold=0.4)
 
 # From estimated features, tracked features across multiple images
 tracked_features = feature_tracker(features=features)
@@ -72,7 +73,7 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
 
 # STEP 7: Run Optimization Algorithm
 from modules.optimization import BundleAdjustmentOptimizerLeastSquares
-# # Build Optimizer
+# Build Optimizer
 optimizer = BundleAdjustmentOptimizerLeastSquares(cam_data=camera_data,
                                                   max_iterations=30, 
                                                   num_epochs=1, 
@@ -87,4 +88,4 @@ optimal_scene = optimizer(scene=sparse_scene)
 from modules.visualize import VisualizeScene
 visualizer = VisualizeScene()
 
-visualizer(optimal_scene)
+visualizer(sparse_scene)

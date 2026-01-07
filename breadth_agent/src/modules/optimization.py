@@ -221,6 +221,7 @@ optimal_scene = optimizer(bal_path)
                 name=f"robust_{cost_function.name}",
             )
             objective.add(robust_cost_function)
+            #objective.add
         dtype = objective.dtype
 
         # Add regularization
@@ -313,6 +314,11 @@ optimal_scene = optimizer(bal_path)
             loss_value = torch.sum(loss.cpu().detach()).item()
             end_time = time.time_ns()
             
+            # Calibration Check -> Focal Length should be 1, distortion params should be 0
+            for c in ba.cameras:
+                print("Focal Length", c.focal_length,
+                      "Distortion 1:", c.calib_k1,
+                      "Distortion 2:", c.calib_k2)
             # self.print_histogram(ba, theseus_outputs, "Output histogram:")
             self.log.info(
                 f"Epoch: {epoch} Loss: {loss_value} "

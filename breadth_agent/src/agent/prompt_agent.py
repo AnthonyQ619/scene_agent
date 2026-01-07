@@ -1,5 +1,6 @@
 from openai import OpenAI
 import numpy as np
+import cv2
 # from sceneprogllm import LLM
 from langchain.chat_models import init_chat_model
 from langchain.messages import SystemMessage, HumanMessage
@@ -8,7 +9,7 @@ import glob
 import os 
 import re
 from pydantic import BaseModel, Field
-
+import shutil
 
 class DescriptionEncoder():
     def __init__(self, model: str = "text-embedding-3-small",
@@ -145,6 +146,43 @@ class ImageAnalysisLLM():
         #                                 use_cache = use_cache,
         #                                 model_name = self.model,
         #                                 temperature = temperature)
+
+    def resize_images(self,
+                      image_path: list[str],
+                      max_size: int,
+                      interpolation=cv2.INTER_AREA):
+        PATH = os.path.dirname(os.path.realpath(__file__))
+        new_img_path = os.path.join(PATH, "temp_images")
+
+        if not os.path.exists(new_img_path):
+            os.makedirs(new_img_path)
+
+        for i in range(len(image_path)):
+            img = cv2.imread(image_path[i], cv2.IMREAD_COLOR)
+            if img is None:
+                raise ValueError(f"Could not read image: {image_path}")
+
+            h, w = img.shape[:2]
+            max_dim = max(h, w)
+
+            # No resize needed
+            if max_dim <= max_size:
+                return img, 1.0
+
+            scale = max_size / max_dim
+            new_w = int(round(w * scale))
+            new_h = int(round(h * scale))
+
+            resized = cv2.resize(
+                img,
+                (new_w, new_h),
+                interpolation=interpolation
+            )   
+
+            cv2.imwrite(new_img_path + f"\\image_{i}.png", resized)
+
+        return new_img_path
+
     def parse_prompt(self, query):
         if os.name == "nt":
             path_pattern = r'((?:[A-Za-z]:\\|\\\\)[^\\\r\n]+(?:\\[^\\\r\n]+)*)'
@@ -155,7 +193,10 @@ class ImageAnalysisLLM():
 
         image_paths = sorted(glob.glob(found_paths[0] + "\\*"))[:self.k]
 
-        return image_paths
+        new_img_path = sorted(glob.glob(self.resize_images(image_paths, max_size=512) + "\\*"))
+
+        #return image_paths
+        return new_img_path
     
     def __call__(self, query):
         

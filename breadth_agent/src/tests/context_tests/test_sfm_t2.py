@@ -35,9 +35,10 @@ CDM = CameraDataManager(image_path=image_path,
 camera_data = CDM.get_camera_data()
 
 # STEP 2: Estimate Features per Image
-from modules.features import FeatureDetectionSIFT
+from modules.features import FeatureDetectionSP
 # Feature Module Initialization
-feature_detector = FeatureDetectionSIFT(cam_data=camera_data)
+feature_detector = FeatureDetectionSP(cam_data=camera_data,
+                                        max_keypoints=5000)
 
 # Detect Features for all Images
 features = feature_detector()
@@ -54,11 +55,12 @@ pose_estimator = CamPoseEstimatorVGGTModel(cam_data=camera_data)
 cam_poses = pose_estimator()
 
 # STEP 5: Estimate Feature Tracks:
-from modules.featurematching import FeatureMatchFlannTracking
+from modules.featurematching import FeatureMatchSuperGlueTracking
 # Feature Tracking Module Initialization
-feature_tracker = FeatureMatchFlannTracking(detector='sift', 
+feature_tracker = FeatureMatchSuperGlueTracking(detector='superpoint', 
                                             cam_data=camera_data,
-                                            RANSAC_threshold=0.2)
+                                            RANSAC_threshold=0.4)
+
 
 # From estimated features, tracked features across multiple images
 tracked_features = feature_tracker(features=features)
@@ -73,20 +75,20 @@ sparse_reconstruction = Sparse3DReconstructionVGGT(cam_data=camera_data,
 sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
 
 # STEP 7: Run Optimization Algorithm
-from modules.optimization import BundleAdjustmentOptimizerLeastSquares
-# # Build Optimizer
-optimizer = BundleAdjustmentOptimizerLeastSquares(cam_data=camera_data,
-                                                  max_iterations=30, 
-                                                  num_epochs=1, 
-                                                  step_size=0.1,
-                                                  optimizer_cls="LevenbergMarquardt")
+# from modules.optimization import BundleAdjustmentOptimizerLeastSquares
+# # # Build Optimizer
+# optimizer = BundleAdjustmentOptimizerLeastSquares(cam_data=camera_data,
+#                                                   max_iterations=30, 
+#                                                   num_epochs=1, 
+#                                                   step_size=0.1,
+#                                                   optimizer_cls="LevenbergMarquardt")
 
-# Run Optimizer
-optimal_scene = optimizer(scene=sparse_scene)
+# # Run Optimizer
+# optimal_scene = optimizer(scene=sparse_scene)
 
 
 # Optional Visualization
 from modules.visualize import VisualizeScene
 visualizer = VisualizeScene()
 
-visualizer(optimal_scene)
+visualizer(sparse_scene)

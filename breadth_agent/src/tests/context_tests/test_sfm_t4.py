@@ -38,7 +38,7 @@ camera_data = CDM.get_camera_data()
 from modules.features import FeatureDetectionSIFT
 # Feature Module Initialization
 feature_detector = FeatureDetectionSIFT(cam_data=camera_data, 
-                                        max_keypoints=6000,
+                                        max_keypoints=9000,
                                         contrast_threshold=0.02,
                                         edge_threshold=50)
 
@@ -89,16 +89,16 @@ sparse_reconstruction = Sparse3DReconstructionMono(cam_data=camera_data,
 sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
 
 # STEP 7: Run Optimization Algorithm
-from modules.optimization import BundleAdjustmentOptimizerLeastSquares
-# # Build Optimizer
-optimizer = BundleAdjustmentOptimizerLeastSquares(cam_data=camera_data,
-                                                  max_iterations=10, 
-                                                  num_epochs=1, 
-                                                  step_size=0.1,
-                                                  optimizer_cls="GaussNewton")
+# from modules.optimization import BundleAdjustmentOptimizerLeastSquares
+# # # Build Optimizer
+# optimizer = BundleAdjustmentOptimizerLeastSquares(cam_data=camera_data,
+#                                                   max_iterations=10, 
+#                                                   num_epochs=1, 
+#                                                   step_size=0.1,
+#                                                   optimizer_cls="GaussNewton")
 
-# Run Optimizer
-optimal_scene = optimizer(scene=sparse_scene)
+# # Run Optimizer
+# optimal_scene = optimizer(scene=sparse_scene)
 
 
 # Optional Visualization

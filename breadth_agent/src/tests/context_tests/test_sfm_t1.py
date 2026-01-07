@@ -10,11 +10,8 @@ of tools to properly execute the SfM algorithm with high accuracy and computatio
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-# image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
-# calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\Structure-from-Motion\\calibration_new.npz"
-# bal_path = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\scene_data\\bal_data.txt"
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_normal_lighting"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
+calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\Structure-from-Motion\\calibration_new.npz"
 
 # STEP 1: Read in Camera Data
 from modules.cameramanager import CameraDataManager
@@ -29,9 +26,9 @@ camera_data = CDM.get_camera_data()
 from modules.features import FeatureDetectionSIFT
 # Feature Module Initialization
 feature_detector = FeatureDetectionSIFT(cam_data=camera_data, 
-                                        max_keypoints=17000,
+                                        max_keypoints=15000,
                                         contrast_threshold=0.01,
-                                        edge_threshold=5)
+                                        edge_threshold=10)
 
 # Detect Features for all Images
 features = feature_detector()
@@ -80,23 +77,23 @@ sparse_reconstruction = Sparse3DReconstructionMono(cam_data=camera_data,
 sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
 
 # STEP 7: Run Optimization Algorithm
-# from modules.optimization import BundleAdjustmentOptimizerLeastSquares
-# # # Build Optimizer
-# optimizer = BundleAdjustmentOptimizerLeastSquares(cam_data=camera_data,
-#                                                   max_iterations=10, 
-#                                                   num_epochs=1, 
-#                                                   step_size=0.1,
-#                                                   optimizer_cls="GaussNewton")
+from modules.optimization import BundleAdjustmentOptimizerLeastSquares
+# # Build Optimizer
+optimizer = BundleAdjustmentOptimizerLeastSquares(cam_data=camera_data,
+                                                  max_iterations=10, 
+                                                  num_epochs=1, 
+                                                  step_size=0.1,
+                                                  optimizer_cls="GaussNewton")
 
-# # Run Optimizer
-# optimal_scene = optimizer(scene=sparse_scene)
+# Run Optimizer
+optimal_scene = optimizer(scene=sparse_scene)
 
 
 # Optional Visualization
 from modules.visualize import VisualizeScene
 visualizer = VisualizeScene()
 
-visualizer(sparse_scene)
+visualizer(optimal_scene)
 
 
 
