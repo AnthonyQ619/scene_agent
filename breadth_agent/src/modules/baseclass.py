@@ -14,10 +14,12 @@ from modules.DataTypes.datatype import (Scene,
                                 PointsMatched, 
                                 CameraPose, 
                                 Points3D,
-                                BundleAdjustmentData)
+                                BundleAdjustmentData,
+                                IncrementalSfMState)
 import glob
 from collections.abc import Callable
 import torch
+import open3d as o3d
 
 import copy
 import random
@@ -314,7 +316,7 @@ class ImageProcessorClass():
     def __call__(self):
         pass
 
-class SceneEstimation():
+class SparseSceneEstimation():
     def __init__(self, cam_data: CameraData):
         self.module_name = "..."
         self.description = "..."
@@ -323,7 +325,7 @@ class SceneEstimation():
         # Setting up Calibration Data
         self.cam_data = cam_data
         self.image_list = copy.copy(cam_data.image_list)
-        self.K_mat = cam_data.get_K(0)
+        self.K_mat = cam_data.get_K()
         self.dist = cam_data.get_distortion()
         self.stereo = cam_data.stereo
         self.multi_cam = cam_data.multi_cam
@@ -368,6 +370,7 @@ class SceneEstimation():
         num_observations = 0
         point_index = 0
 
+        observations_pix = []
         print(scale)
         print(img_width)
         print(point_maps[0].shape)
@@ -388,6 +391,8 @@ class SceneEstimation():
                     point_ind = np.array([point_index for _ in range(views.shape[0])]).reshape((views.shape[0],1))
                     norm_pts = self._normalize_points_for_BAL(views)#views[:, 1:])
                     observation = np.hstack((np.vstack(views[:,0]), point_ind, norm_pts))#views[:,1:]))
+                    observation_pix = np.hstack((np.vstack(views[:,0]), point_ind, views[:, 1:]))
+                    observations_pix.append(observation_pix)
                     observations.append(observation)
                     num_observations += views.shape[0] # Number of observations
 
@@ -421,9 +426,11 @@ class SceneEstimation():
 
 
         scene = Scene(points3D = points_3d,
-                      cam_poses = camera_poses,
+                      cam_poses = camera_poses.camera_pose,
+                      observations= np.vstack(observations_pix),
                       representation = "point cloud",
-                      bal_data=ba_data)
+                      bal_data=ba_data,
+                      sparse=True)
         return scene
     
     # Normalize for BAL data optimization
@@ -506,7 +513,69 @@ class SceneEstimation():
                 errors.append(pixel_error)
 
             return np.mean(errors)
+
+class DenseSceneEstimation():
+    def __init__(self, cam_data: CameraData):
+        self.module_name = "..."
+        self.description = "..."
+        self.example = "..."
+
+        # Setting up Calibration Data
+        self.cam_data = cam_data
+        self.image_list = copy.copy(cam_data.image_list)
+        self.K_mat = cam_data.get_K()
+        self.dist = cam_data.get_distortion()
+        self.stereo = cam_data.stereo
+        self.multi_cam = cam_data.multi_cam
+
+        # Setup Minimum Angle Check Function
+        # self.angle_check = TriangulationCheck(self.K_mat, self.dist)
+        
+        #self.image_path = sorted(glob.glob(image_path + "\\*"))[:10]
+
+    def __call__(self, sparse_scene: Scene | None = None,
+                 camera_poses: CameraPose | None = None) -> Scene:
+
+        return self.build_reconstruction(sparse_scene = sparse_scene, 
+                                         cam_poses = camera_poses)
     
+    def build_reconstruction(self, 
+                             sparse_scene: Scene | None = None,
+                             cam_poses: CameraPose | None = None) -> Scene:
+        """Implement Algorithm to reconstruct scene here."""
+        pass
+    
+    # For Point Map Reconstruction Models
+    def collect_PM_points(self,
+                          point_maps:np.ndarray,
+                          conf_maps: np.ndarray =None, 
+                          conf_thresh: float =0.5):
+        all_points = []
+
+        for i, pm in enumerate(point_maps):
+            H, W, _ = pm.shape
+
+            if conf_maps is not None:
+                mask = conf_maps[i] > conf_thresh
+            else:
+                # assume invalid points are NaN
+                mask = np.isfinite(pm).all(axis=-1)
+
+            pts = pm[mask]          # (N, 3)
+            all_points.append(pts)
+
+        return np.concatenate(all_points, axis=0)
+    
+    # Down sample voxels for better reconstruction
+    def voxel_downsample(self,
+                         points: np.ndarray, 
+                         voxel_size: float =0.01):
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(points)
+
+        pcd = pcd.voxel_down_sample(voxel_size)
+        return np.asarray(pcd.points)
+
 class CameraPoseEstimatorClass():
     def __init__(self, cam_data: CameraData):
         self.module_name = "..."
@@ -515,7 +584,7 @@ class CameraPoseEstimatorClass():
 
         self.cam_data = cam_data
         self.image_list = copy.copy(cam_data.image_list)
-        self.K_mat = cam_data.get_K(0)
+        self.K_mat = cam_data.get_K()
         self.dist = cam_data.get_distortion()
 
     # def _setup_calibration(self, image_scale: list[float] | None = None):
@@ -586,7 +655,6 @@ class FeatureClass():
 class FeatureMatching():
     def __init__(self, 
                  detector:str, 
-                 matcher: str,
                  cam_data:CameraData,
                  RANSAC_threshold: float,
                  RANSAC: bool,
@@ -599,10 +667,10 @@ class FeatureMatching():
         self.det_free = False
 
         self.cam_data = cam_data
-        self.K = cam_data.get_K(0)
+        self.K = cam_data.get_K()
         self.dist = cam_data.get_distortion()
 
-        self.DETECTORS = ["sift", "superpoint", "orb", "fast"]
+        self.DETECTORS = ["sift", "superpoint", "orb"]
 
         if self.detector not in self.DETECTORS:
             self.det_free = True
@@ -614,19 +682,6 @@ class FeatureMatching():
         self.ransac = RANSAC
         self.ransac_threshold = RANSAC_threshold
         self.ransac_conf = RANSAC_conf
-
-        if self.detector == "superpoint":
-            if matcher.lower() == "lightglue":
-                self.refiner = KeypointRefinement(detector="splg").get_refiner()
-            elif matcher.lower() == "superglue":
-                self.refiner = KeypointRefinement(detector="spsg").get_refiner()
-    # def __call__(self) -> PointsMatched:  
-    #     # Points Matched for Tracking -> data = N x [track_id, frame_num, x, y]
-    #     # Points Matched for Pairwise Matching -> 
-    #     matched_points = PointsMatched() 
-
-
-    #     return matched_points
     
     def __call__(self, features: list[Points2D]) -> PointsMatched:
         
@@ -634,13 +689,20 @@ class FeatureMatching():
 
         return matched_points
     
-    def outlier_reject(self, pts1: Points2D, pts2: Points2D, frame_id: int) -> tuple[Points2D, Points2D]: # Move to Base Class
+    def outlier_reject(self, 
+                       pts1: Points2D, 
+                       pts2: Points2D, 
+                       idx1: list,
+                       idx2: list,
+                       frame_id: int) -> tuple[Points2D, 
+                                               Points2D,
+                                               np.ndarray,
+                                               np.ndarray,
+                                               np.ndarray]: # Move to Base Class
         
         pts1_norm = self.normalize(pts1, frame_id)
         pts2_norm = self.normalize(pts2, frame_id+1)
 
-        # F, mask = cv2.findFundamentalMat(pts1.points2D, pts2.points2D, cv2.FM_LMEDS)
-        # F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, cv2.FM_LMEDS)
         if self.ransac:
             # F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, cv2.FM_RANSAC, 
             #                                  ransacReprojThreshold=self.ransac_threshold, 
@@ -653,8 +715,10 @@ class FeatureMatching():
         # Could update points2D to inlier points with Mask
         inlier_pts1 = Points2D(**pts1.set_inliers(mask))
         inlier_pts2 = Points2D(**pts2.set_inliers(mask))
+        idx1_inliers = np.array(idx1)[mask.ravel() == 1]
+        idx2_inliers = np.array(idx2)[mask.ravel() == 1]
 
-        return inlier_pts1, inlier_pts2, F
+        return inlier_pts1, inlier_pts2, idx1_inliers, idx2_inliers, F
     
     def match_full(self, features: list[Points2D]) -> PointsMatched:
         """Override for custom matching algorithm in here"""
@@ -717,7 +781,7 @@ class FeatureTracking():
         self.det_free = False
 
         self.cam_data = cam_data
-        self.K = cam_data.get_K(0)
+        self.K = cam_data.get_K()
         self.dist = cam_data.get_distortion()
 
         self.DETECTORS = ["sift", "superpoint", "orb", "fast"]
@@ -744,13 +808,36 @@ class FeatureTracking():
         return [], []
 
 class OptimizationClass():
-    def __init__(self, cam_data: CameraData):
+    def __init__(self, 
+                 cam_data: CameraData,
+                 refine_focal_length: bool = False,
+                 refine_principal_point: bool = False,
+                 refine_extra_params: bool = False,
+                 max_num_iterations: int = 50,
+                 use_gpu: bool = True,
+                 gpu_index: int = 0,
+                 robust_loss: bool = True,
+                 ):
         self.module_name = "..."
         self.description = "..."
         self.example = "..."
 
-        self.cal = cam_data.get_K(0)
+        # Set up Camera Data/Image Resolution
+        self.K = cam_data.get_K()
         self.dist = cam_data.get_distortion()
+        self.cam_data = cam_data
+        self.H, self.W = cam_data.image_list[0].shape[:2] 
+        self.multi_cam = cam_data.multi_cam
+
+        # Set up Bundle Adjustment Params
+        self.refine_focal_length = refine_focal_length
+        self.refine_principal_point = refine_principal_point
+        self.refine_extra_params = refine_extra_params
+        self.max_num_iterations = max_num_iterations
+        self.use_gpu = use_gpu
+        self.gpu_index = gpu_index
+        self.robust_loss = robust_loss
+
         # self.optimizer = ["BA"]
         # self.dataset = scene.bal_data.dataset
         
@@ -759,13 +846,19 @@ class OptimizationClass():
 
         # self.format = format
         
-    def __call__(self):
+    def __call__(self, current_scene: Scene) -> Scene:
+        """Fixed Function Call specifically for global bundle adjustment pipelines"""
+        return self.optimize(current_scene)
+
+    def optimize(self, current_scene: Scene | IncrementalSfMState):
+        """Edit Function Call for optimizer library and BA style (Global or Local)"""
         pass
     
-    def _prep_optimizer(self) -> None:
-        # Write Data here? Or have BALData class write data then..., and keep scene disjointed from BAL.
+    def _build_reconstruction(self, 
+                              current_scene: Scene | IncrementalSfMState):
+        """Edit Function Call specifically to set up state or optimization solver"""
         pass
-    
+ 
 class VisualizeClass():
     def __init__(self, path:str):
         self.module_name = "..."

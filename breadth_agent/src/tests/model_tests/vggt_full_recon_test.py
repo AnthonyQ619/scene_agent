@@ -22,6 +22,11 @@ import argparse
 from pathlib import Path
 import trimesh
 # import pycolmap
+import os
+os.add_dll_directory(r"C:\\Users\\Anthony\\Desktop\\VCPKG\\vcpkg\\installed\\x64-windows\\bin")
+os.add_dll_directory(r"C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4\\bin")
+os.add_dll_directory(r"C:\\Program Files\\NVIDIA cuDSS\\v0.7\\bin\\12")
+import pycolmap
 
 
 from modules.models.sfm_models.vggt.models.vggt import VGGT
@@ -121,9 +126,10 @@ def demo_fn():
 
     # Get image paths and preprocess them
     SCENE_DIR = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan_10_images"
-    # SCENE_DIR = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH3D\\ETH_10_image_test"
+    SCENE_DTU = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan_10_images"
+    # SCENE_DIR_ETH = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\door_dslr_undistorted\\door\\images\\dslr_images_undistorted"
     image_dir = SCENE_DIR
-    image_path_list = glob.glob(os.path.join(image_dir, "*"))
+    image_path_list = glob.glob(os.path.join(image_dir, "*"))[:5]
     # random.shuffle(image_path_list)
     if len(image_path_list) == 0:
         raise ValueError(f"No images found in {image_dir}")
@@ -173,21 +179,50 @@ def demo_fn():
 
     # rescale the intrinsic matrix from 518 to 1024
     intrinsic[:, :2, :] *= scale
-    track_mask = pred_vis_scores > 0.2
-    print(track_mask.shape)
-    print(pred_tracks.shape)
-    print(points_3d.shape)
+    print(track_mask)
+    track_mask = pred_vis_scores > 0.1
 
-    proj_error = calculate_reproj_error(points_3d,
+    print("POINTS", points_3d.shape)
+    print(track_mask)
+    # TODO: radial distortion, iterative BA, masks
+    reconstruction, valid_track_mask = batch_np_matrix_to_pycolmap(
+        points_3d,
         extrinsic,
         intrinsic,
-        pred_tracks)
-    
-    print(proj_error)
+        pred_tracks,
+        image_size,
+        masks=track_mask,
+        max_reproj_error=8.0,
+        shared_camera=shared_camera,
+        camera_type="SIMPLE_PINHOLE",
+        points_rgb=points_rgb,
+    )
 
-    # Visualization
-    visualizer = VisualizeScene()
-    visualizer(points_3d)
+    if reconstruction is None:
+        raise ValueError("No reconstruction can be built with BA")
+
+    # Bundle Adjustment
+    ba_options = pycolmap.BundleAdjustmentOptions()
+    pycolmap.bundle_adjustment(reconstruction, ba_options)
+
+
+    # # rescale the intrinsic matrix from 518 to 1024
+    # intrinsic[:, :2, :] *= scale
+    # track_mask = pred_vis_scores > 0.2
+    # print(track_mask.shape)
+    # print(pred_tracks.shape)
+    # print(points_3d.shape)
+
+    # proj_error = calculate_reproj_error(points_3d,
+    #     extrinsic,
+    #     intrinsic,
+    #     pred_tracks)
+    
+    # print(proj_error)
+
+    # # Visualization
+    # visualizer = VisualizeScene()
+    # visualizer(points_3d)
 
     # TODO: radial distortion, iterative BA, masks
     # reconstruction, valid_track_mask = batch_np_matrix_to_pycolmap(

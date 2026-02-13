@@ -15,11 +15,23 @@ Use this module in the case a faster feature matcher is needed for tracking feat
 this module utilizes a nearest neighbor method for fast matching.
 
 Initialization Parameters: 
+- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
 - detector: String representing the name of the feature detector used for the features provided.
     - Default (str): SIFT
-    
+- k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing with lowes threshold.
+    - Default (int): 2
+- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
+     is considered an outlier and is not used for computing the final fundamental matrix.
+    - Default (float): 1.0
+    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
+    - Default (float): 0.99
+- lowes_thresh: Threshold for Lowe's Ratio Test, accepting a match only if the ratio of the distance to the best match to the distance of the second-best match is 
+     below a specific threshold
+    - Default (float): 0.75
+
 Function Call Parameters:
-- features: list of features detected per scene estimated from the feature detection module
+- features list[Points2D]: list of features detected per scene estimated from the feature detection module
 
 
 Tool Example: 
@@ -27,13 +39,13 @@ Initialization:
 # Determine the detector that was used previously and initialize module with said detector
 
 # Feature Tracker Module initialized with the SIFT detector
-feature_tracker = FeatureMatchFlannTracking(detector='sift') # Initialized with detector 'sift' for proper matching
+feature_tracker = FeatureMatchFlannTracking(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
 
 # Feature Tracker Module initialized with the ORB detector 
-feature_tracker = FeatureMatchFlannTracking(detector='orb') # Initialized with detector 'orb' for proper matching
+feature_tracker = FeatureMatchFlannTracking(cam_data = camera_data, detector='orb') # Initialized with detector 'orb' for proper matching
 
 # Feature Tracker Module intialized with the FAST detector
-feature_tracker = FeatureMatchFlannTracking(detector='fast') # Initialized with detector 'orb' for proper matching
+feature_tracker = FeatureMatchFlannTracking(cam_data = camera_data, detector='fast') # Initialized with detector 'orb' for proper matching
 
 Example Usage in Script:  
 features = feature_detector() # Call Feature Detector Module on image frames
@@ -57,29 +69,34 @@ and faster run time is REQUIRED, or when specified directly in this scenario.
 Other supported detectors are: SIFT and SuperPoint
 
 Initialization Parameters:
-
+- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+- detector (str): Name of Feature Detector that was used to estimate the features provided.
+    - Default (str): SIFT
 - n_layers: Number of stacked self+cross attention layers. Reduce this value for faster inference 
 at the cost of accuracy (continuous red line in the plot above). 
     - Default (int): 9 (all layers).
-
 - flash: Enable FlashAttention. Significantly increases the speed and reduces the memory consumption 
 without any impact on accuracy. 
     - Default (bool): True (LightGlue automatically detects if FlashAttention is available).
-
 - mp: Enable mixed precision inference. 
     - Default (bool): False (off)
-
 - depth_confidence: Controls the early stopping. A lower values stops more often at earlier layers. 
     - Default (float): 0.95, disable with -1.
-
 - width_confidence: Controls the iterative point pruning. A lower value prunes more points earlier. 
     - Default (float): 0.99, disable with -1.
-
 - filter_threshold: Match confidence. Increase this value to obtain less, but stronger matches. 
     - Default (float): 0.1
+- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
+     is considered an outlier and is not used for computing the final fundamental matrix.
+    - Default (float): 1.0
+    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
+    - Default (float): 0.99
+Other supported detectors are: SIFT and SuperPoint
 
 Function Call Parameters:
-- features: list of features detected per scene estimated from the feature detection module
+
+- features list[Points2D]: list of features detected per scene estimated from the feature detection module
 
 
 Tool Example: 
@@ -87,10 +104,10 @@ Initialization:
 # Determine the detector that was used previously and initialize module with said detector
 
 # Feature Matcher Module initialized with the SIFT detector
-feature_tracker = FeatureMatchLightGlueTracking(detector='sift') # Initialized with detector 'sift' for proper matching
+feature_tracker = FeatureMatchLightGlueTracking(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
 
 # Feature Matcher Module intialized with the SuperPoint detector
-feature_tracker = FeatureMatchLightGlueTracking(detector='SuperPoint') # Initialized with detector 'orb' for proper matching
+feature_tracker = FeatureMatchLightGlueTracking(cam_data = camera_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
 
 
 Example Usage in Script:  
@@ -103,9 +120,61 @@ tracked_features = feature_tracker(features=features) # Features used from Featu
 
 Tool Name: FeatureMatchBFTracking
 
-Tool Description: ...
+Tool Description: 
+Detects point correspondance between multiple frames to track any matching 
+features across the set of images. The feature matching algorithm used is the Brute-Force 
+feature detector. Unless specified directly, assume the features are detected using the SIFT 
+algorithm and initialize through the detector parameter. 
+Other supported detectors are: SIFT, ORB, SuperPoint, and FAST. 
 
-Tool Example: ...
+Use this Feature Matching Module when fast, real time, feature matching needs to be 
+conducted. This is less accurate than Flann and the ML models, but is much faster.
+
+Initalization Parameters:
+- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+- detector: String representing the name of the feature detector used for the features provided.
+    - Default (str): SIFT
+- k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing with lowes threshold.
+    - Default (int): 2
+- cross_check: If it is false, this is will be default BFMatcher behaviour when it finds the k nearest neighbors for each query descriptor. If True
+     then the nearest neighbor method with k=1 will only return pairs (i,j) such that for i-th query descriptor the j-th descriptor in the matcher's 
+     collection is the nearest and vice versa, i.e. the BFMatcher will only return consistent pairs. Such technique usually produces best results with 
+     minimal number of outliers when there are enough matches. i.e only use when there's are lot of feature points
+    - Default (bool): False
+- RANSAC: Determines whether to use RANSAC for outlier rejection of matched feature points. If False, uses FM_LMEDS, or the Least-Median-of-Squares (LMedS) algorithm.
+    - Default (bool): True
+- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
+     is considered an outlier and is not used for computing the final fundamental matrix.
+    - Default (float): 1.0
+    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
+    - Default (float): 0.99
+- lowes_thresh: Threshold for Lowe's Ratio Test, accepting a match only if the ratio of the distance to the best match to the distance of the second-best match is 
+     below a specific threshold
+    - Default (float): 0.75
+
+Function Call Parameters:
+- features list[Points2D]: list of features detected per scene estimated from the feature detection module
+
+
+Tool Example: 
+Initialization: 
+# Determine the detector that was used previously and initialize module with said detector
+
+# Feature Matcher Module initialized with the SIFT detector
+feature_tracker = FeatureMatchBFTracking(cam_data=cam_data, detector='sift') # Initialized with detector 'sift' for proper matching
+
+# Feature Matcher Module initialized with the ORB detector 
+feature_tracker = FeatureMatchBFTracking(cam_data=cam_data, detector='orb') # Initialized with detector 'orb' for proper matching
+
+# Feature Matcher Module intialized with the SuperPoint detector
+feature_tracker = FeatureMatchBFTracking(cam_data=cam_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
+
+Example Usage in Script:  
+features = feature_detector() # Call Feature Detector Module on image frames
+
+tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
+
 
 ===+&+===
 
@@ -128,7 +197,9 @@ setting to properly initialize the model.
 Other supported detectors are: SIFT and SuperPoint
 
 Initialization Parameters:
+- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
 - detector (str): Name of Feature Detector that was used to estimate the features provided.
+    - default (str): superpoint
 - sinkhorn_iterations: number iterations for running the Sinkhorn Algorithm in the model for optimal
 partial assignment of detected feature matches
     - default (int): 20
@@ -139,9 +210,15 @@ stage
     - default (int): 256
 - setting: the string to determine if the images are "indoor" or "outdoor"
     - default (str): indoor
+- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
+     is considered an outlier and is not used for computing the final fundamental matrix.
+    - Default (float): 1.0
+    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
+    - Default (float): 0.99
 
 Function Call Parameters:
-- features: list of features detected per scene estimated from the feature detection module
+- features (list[Points2D]): list of features detected per scene estimated from the feature detection module
 
 
 Tool Example: 
@@ -149,10 +226,10 @@ Initialization:
 # Determine the detector that was used previously and initialize module with said detector
 
 # Feature Matcher Module initialized with the SIFT detector
-feature_tracker = FeatureMatchSuperGlueTracking(detector='sift') # Initialized with detector 'sift' for proper matching
+feature_tracker = FeatureMatchSuperGlueTracking(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
 
 # Feature Matcher Module intialized with the SuperPoint detector
-feature_tracker = FeatureMatchSuperGlueTracking(detector='SuperPoint') # Initialized with detector 'orb' for proper matching
+feature_tracker = FeatureMatchSuperGlueTracking(cam_data = camera_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
 
 Example Usage in Script:  
 features = feature_detector() # Call Feature Detector Module on image frames

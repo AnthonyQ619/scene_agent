@@ -7,7 +7,8 @@ import torch.nn.functional as F
 from torchvision import transforms as TF
 
 from modules.baseclass import CameraPoseEstimatorClass
-from modules.DataTypes.datatype import Points2D, Calibration, Points3D, CameraPose, PointsMatched, CameraData
+from modules.optimization import BundleAdjustmentOptimizerLocal
+from modules.DataTypes.datatype import Points2D, Calibration, Points3D, CameraPose, PointsMatched, CameraData, IncrementalSfMState
 from modules.models.sfm_models.vggt.utils.pose_enc import pose_encoding_to_extri_intri
 from modules.models.sfm_models.vggt.utils.geometry import unproject_depth_map_to_point_map
 from modules.models.sfm_models.vggt.models.vggt import VGGT
@@ -34,7 +35,8 @@ only utilizes the pose estimation feature with intrinsic estimation. This module
 the camera poses from just images alone, without features needing to be detected prior.
 
 Utilize this module in cases where images do not have extreme overlap, scale is needed for a 
-monocular camera setup, or runtime is not extremely necessary for computation.
+monocular camera setup, GPU memory is accessible, or calibration is not provided, and we need 
+to estimate camera pose and calibration parameters to reconstruct the scene.
 
 Initialization Parameters:
 - cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
@@ -138,7 +140,9 @@ class CamPoseEstimatorEssentialToPnP(CameraPoseEstimatorClass):
                  cam_data: CameraData,
                  iteration_count: int = 200,
                  reprojection_error: float = 3.0,
-                 confidence: float = 0.99):
+                 confidence: float = 0.99,
+                 optimizer: BundleAdjustmentOptimizerLocal | None = None
+                 ):
         super().__init__(cam_data = cam_data)
 
         self.module_name = "CamPoseEstimatorEssentialToPnP"
@@ -148,7 +152,15 @@ process of this module is to estimate the essential matrix for the first pair of
 of the image set, recover the camera pose that's up-to-scale, then use the PnP algorithm
 to estimate the rest of the camera's pose for each following images so each trajectory is 
 in scale to the first pose estimation. Use this module for Monocular cameras that are 
-calibrated for a given image set.
+calibrated for a given image set. USE THIS MODULE when image sets have ONLY INCREMENTAL 
+camera movement. Any large view changes, this module will not be robust to. In case of those
+failures, be sure to utilize VGGT instead. Otherwise, this module is good for incremental, 
+consistent camera movement.
+
+If intial pose estimates lead to poor 3D reprojection results, or are using a less accurate feature
+detector (Such as ORB or SuperPoint), then you MUST use the Optimizer option. The optimizer option
+utilizes a local bundle adjustment procedure for more robust pose estimation. Could use with SIFT 
+in image cases where lighting is not the best but texture is good enough for SIFT features.
 
 Initialization Parameters:
 - cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
@@ -158,9 +170,12 @@ Initialization Parameters:
     - Default (float): 3.0
 - confidence: The probability that the algorithm produces a useful result. 
     - Default (float): 0.99
+- optimizer: Optimization parameter to pass in, where in cases of initial poses will lead to poor results, and need more robust
+pose estimates for more accurate initial sparse reconstruction estimates.
+    - Default (BundleAdjustmentOptimizerLocal): None (Pass BundleAdjustmentOptimizerLocal object that is initialized to activate local optimization.)
 
 Function Call Parameters:
-- features_pairs (PointsMatched): Data Type containing the detected feature correspondences of image pairs
+- feature_pairs (PointsMatched): Data Type containing the detected feature correspondences of image pairs
 estimated from the feature matcher modules.
 
 Module Input:
@@ -191,13 +206,24 @@ camera_pose = pose_estimator(feature_pairs=feature_pairs) # Features used from F
         self.reproj_error = reprojection_error
         self.iteration_ct = iteration_count
         self.confidence = confidence
+        self.optimizer = optimizer
         
-
     def _estimate_camera_poses(self,
                                camera_poses: CameraPose,
-                               feature_pairs: PointsMatched) -> CameraPose:
+                               feature_pairs: PointsMatched,
+                               ba_per_frame: int = 4) -> CameraPose:
         assert(feature_pairs.multi_view == False), "Features passed must be two view correspondences. Ensure to invoke Feature Matching Two View tools prior to this call."
-       
+
+        if self.optimizer is not None:
+            state = IncrementalSfMState(self.K_mat, self.dist,
+                                        width=self.cam_data.image_list[0].shape[1], 
+                                        height=self.cam_data.image_list[0].shape[0],
+                                        )
+            for i in range(len(feature_pairs.img_features)):
+                state.keypoints[i] = feature_pairs.img_features[i]
+        else:
+            state = None
+
         # Get First set of camera poses (Initial and 2nd Camera)
         pts1, pts2 = feature_pairs.access_matching_pair(0)
 
@@ -205,33 +231,301 @@ camera_pose = pose_estimator(feature_pairs=feature_pairs) # Features used from F
         # self.cam_poses = cam_poses
         self.estimate_first_pair(pts1, pts2, camera_poses) # First two poses defined here
 
-        cloud = self.two_view_triangulation(camera_poses.camera_pose[0], camera_poses.camera_pose[1], pts1, pts2)
+        # cloud = self.two_view_triangulation(camera_poses.camera_pose[0], camera_poses.camera_pose[1], pts1, pts2)
+        
+        if state is not None:
+            state.poses = camera_poses.camera_pose
 
-        # for i in tqdm(range(len(features) - 2)):
-        for i in tqdm(range(1, len(feature_pairs.pairwise_matches)), 
-                      desc='Estimating Camera Poses'):
-            
-            if i > 1:
-                cloud = self.two_view_triangulation(pose1, pose2, pts1, pts2)
+            # Set up First Tracks
+            first_matches = feature_pairs.pairwise_indices[0]
+            for m in first_matches:
+                kp0, kp1 = int(m[0]), int(m[1])
+                tid = len(state.tracks)
+                state.tracks[tid] = [(0, kp0), (1, kp1)]
 
-            # pts3_t = features[i+2]
-            # pts2_3, pts3 = self.match_pairs(features[i + 1], pts3_t)
-            pts2_3, pts3 = feature_pairs.access_matching_pair(i)
+            # triangulate initial structure from those tracks
+            # self.update_structure_from_tracks(state, min_len=2, frame_id=1)
 
-            index, pts2_3_com, pts3_com, pts2_3_new, pts3_new = self.three_view_tracking(pts2, pts2_3, pts3)
+            for i in tqdm(range(1, len(feature_pairs.pairwise_matches)), 
+                        desc='Estimating Camera Poses'):
+                new_img_id = i + 1
+                curr_img_id = i
 
-            # print("Prev PAIR", pts2_3_com.shape)
-            # print("Current POINTS", pts3_com.shape)
-            new_pose = self.estimate_pose_pnp(cloud[index], pts2_3_com, pts3_com, camera_poses.camera_pose[-1])
+                # 1) Update tracks (requires pairwise_indices!)
+                matches_prev_curr = feature_pairs.pairwise_indices[i - 1]  # (i-1 -> i)
+                matches_curr_next = feature_pairs.pairwise_indices[i]      # (i -> i+1)
+                self.three_view_tracking_indices(matches_prev_curr, matches_curr_next, curr_img_id, new_img_id, state)
 
-            pose1 = camera_poses.camera_pose[-1]
-            pose2 = new_pose
-            pts1 = pts2_3
-            pts2 = pts3
+                # 2) Update / create 3D points from tracks
+                self.update_structure_from_tracks(state, min_len=2, frame_id=curr_img_id)
 
-            camera_poses.camera_pose.append(new_pose)
+                # 3) Try track-based PnP
+                obj_pts, img_pts = self.build_pnp_correspondences(state=state, image_id=new_img_id)
+
+                if obj_pts is not None and len(obj_pts) >= 20:
+                    # Track-based PnP
+                    new_pose = self.estimate_pose_pnp(
+                        point_cloud=obj_pts.reshape(-1, 1, 3),
+                        # pts1=None,
+                        pts2=img_pts.reshape(-1, 1, 2),
+                        # prev_pose=camera_poses.camera_pose[-1],
+                    )
+                else:
+                    # 4) Fallback (self-contained)
+                    # Ensure camera_poses already has pose for curr_img_id before using fallback
+                    # camera_poses currently has poses up to curr_img_id
+                    new_pose = self.estimate_pose_pairwise_fallback(
+                        pair_index=i,
+                        feature_pairs=feature_pairs,
+                        camera_poses=camera_poses,
+                    )
+
+                # 5) Append pose to BOTH state and camera_poses (keep in sync)
+                # state.poses.append(new_pose)
+                camera_poses.camera_pose.append(new_pose)
+                
+                # state.poses.append(new_pose)
+                # print(state.poses)
+
+                # 6) Local BA every ba_per_frame frames
+                if ((new_img_id) % ba_per_frame) == 0:
+                    state = self.optimizer.optimize(state, new_image_id=new_img_id)
+
+                    # copy refined poses back
+                    camera_poses.camera_pose = state.poses
+
+                    # refresh structure after pose changes (important!)
+                    self.update_structure_from_tracks(state, min_len=2, refresh_every=1, frame_id=new_img_id)
+
+        else: 
+
+            cloud = self.two_view_triangulation(camera_poses.camera_pose[0], camera_poses.camera_pose[1], pts1, pts2)
+
+            # for i in tqdm(range(len(features) - 2)):
+            for i in tqdm(range(1, len(feature_pairs.pairwise_matches)), 
+                        desc='Estimating Camera Poses'):
+                
+                if i > 1:
+                    cloud = self.two_view_triangulation(pose1, pose2, pts1, pts2)
+
+                # pts3_t = features[i+2]
+                # pts2_3, pts3 = self.match_pairs(features[i + 1], pts3_t)
+                pts2_3, pts3 = feature_pairs.access_matching_pair(i)
+
+                index, pts2_3_com, pts3_com, pts2_3_new, pts3_new = self.three_view_tracking(pts2, pts2_3, pts3)
+
+                # print("Prev PAIR", pts2_3_com.shape)
+                # print("Current POINTS", pts3_com.shape)
+                # new_pose = self.estimate_pose_pnp(cloud[index], pts2_3_com, pts3_com, camera_poses.camera_pose[-1])
+                new_pose = self.estimate_pose_pnp(cloud[index], pts3_com)
+
+                pose1 = camera_poses.camera_pose[-1]
+                pose2 = new_pose
+                pts1 = pts2_3
+                pts2 = pts3
+
+                camera_poses.camera_pose.append(new_pose)
+
+                # if state is not None:
+                #     state.poses.append(new_pose)
+
+                # # Local BA refinement hook w/ updating poses in window!
+                # if optimizer is not None and state is not None and ((i + 1) % ba_per_frame) == 0:
+                #     state = optimizer.optimize(state, new_image_id=i + 1)
+                #     camera_poses.camera_pose = list(state.poses)
 
         return camera_poses
+
+    def triangulate_track_best_pair(self, 
+                                    track_obs: list[tuple], 
+                                    state: IncrementalSfMState, 
+                                    cur_img_id: int):
+        """
+        track_obs: list[(image_id, kp_idx)] with >=2 entries
+        returns xyz (3,) or None
+        """
+        # Choose pair with largest baseline / angle proxy
+        # Simple baseline proxy: ||C_i - C_j|| in world coordinates (from poses)
+        best = None
+        best_score = -1.0
+
+        # Precompute camera centers in world: C = -R^T t  (pose is cam_from_world)
+        centers = {}
+        for (im, _) in track_obs:
+            if im > cur_img_id:
+                continue
+            P = state.poses[im]                 # 3x4 cam_from_world
+            R = P[:, :3]
+            t = P[:, 3]
+            C = -R.T @ t
+            centers[im] = C
+
+        obs_list = track_obs
+        # print(len(obs_list))
+        # print(obs_list)
+        for a in range(len(obs_list) - 1):
+            for b in range(a + 1, len(obs_list) - 1):
+                i, _ = obs_list[a]
+                j, _ = obs_list[b]
+                score = np.linalg.norm(centers[i] - centers[j])
+                if score > best_score:
+                    best_score = score
+                    best = (obs_list[a], obs_list[b])
+
+        if best is None or best_score < 1e-6:
+            return None
+
+        (i1, kp1), (i2, kp2) = best
+
+        x1 = state.keypoints[i1][kp1].reshape(2, 1)
+        x2 = state.keypoints[i2][kp2].reshape(2, 1)
+
+        # Use pixel projection matrices
+        # Normalize Points
+        pt1 = cv2.undistortPoints(x1, self.K_mat, self.dist)
+        pt2 = cv2.undistortPoints(x2, self.K_mat, self.dist)
+        
+        P1mtx = np.eye(3) @ state.poses[i1]
+        P2mtx = np.eye(3) @ state.poses[i2]
+
+        # P1 = state.K @ state.poses[i1]
+        # P2 = state.K @ state.poses[i2]
+
+        X_h = cv2.triangulatePoints(P1mtx, P2mtx, pt1, pt2)
+        X = (X_h[:3] / X_h[3]).reshape(3,)
+
+        # Basic sanity checks
+        if not np.all(np.isfinite(X)):
+            return None
+
+        return X
+
+    def three_view_tracking_indices(
+                                    self,
+                                    matches_prev_curr: np.ndarray,  # (M1,2): kp_{k-1} -> kp_k
+                                    matches_curr_next: np.ndarray,  # (M2,2): kp_k -> kp_{k+1}
+                                    frame_k: int,
+                                    frame_k1: int,
+                                    state: IncrementalSfMState,
+                                    ):
+        
+        """
+        Updates state.tracks in-place.
+
+        matches_prev_curr[:,0] = kp idx in frame k-1
+        matches_prev_curr[:,1] = kp idx in frame k
+
+        matches_curr_next[:,0] = kp idx in frame k
+        matches_curr_next[:,1] = kp idx in frame k+1
+        """
+
+        # Build fast lookup: kp_k -> kp_{k+1}
+        curr_to_next = {}
+        for kp_k, kp_k1 in matches_curr_next:
+            curr_to_next[int(kp_k)] = int(kp_k1)
+
+        # Map from (frame, kp_idx) to track_id
+        kp_to_track = {}
+        for track_id, obs in state.tracks.items():
+            for (f, kp) in obs:
+                kp_to_track[(f, kp)] = track_id
+
+        used_next_kps = set()
+
+        # 1) Extend existing tracks
+        for kp_prev, kp_curr in matches_prev_curr:
+            kp_prev = int(kp_prev)
+            kp_curr = int(kp_curr)
+
+            # Is kp_curr observed again in next frame?
+            if kp_curr not in curr_to_next:
+                continue
+
+            kp_next = curr_to_next[kp_curr]
+
+            # Does this correspondence belong to an existing track?
+            key = (frame_k, kp_curr)
+            if key in kp_to_track:
+                track_id = kp_to_track[key]
+
+                # Append next observation if not already present
+                obs = state.tracks[track_id]
+                if (frame_k1, kp_next) not in obs:
+                    obs.append((frame_k1, kp_next))
+                    used_next_kps.add(kp_next)
+
+        # 2) Start new tracks for unmatched correspondences
+        for kp_curr, kp_next in matches_curr_next:
+            kp_curr = int(kp_curr)
+            kp_next = int(kp_next)
+
+            if kp_next in used_next_kps:
+                continue
+
+            # If kp_curr not already tracked, start a new track
+            if (frame_k, kp_curr) not in kp_to_track:
+                new_track_id = len(state.tracks)
+                state.tracks[new_track_id] = [
+                    (frame_k, kp_curr),
+                    (frame_k1, kp_next),
+                ]
+
+    def update_structure_from_tracks(self,
+                                     state: IncrementalSfMState, 
+                                     min_len: int = 2, 
+                                     refresh_every: int = 5, 
+                                     frame_id: int | None =None):
+        """
+        Triangulate tracks that have become eligible.
+        Optionally refresh points occasionally using best pair if poses changed.
+        """
+        for track_id, obs in state.tracks.items():
+            if len(obs) < min_len:
+                continue
+
+            if track_id not in state.points3D:
+                # print(obs)
+                # print(state.poses)  
+                X = self.triangulate_track_best_pair(obs, state, frame_id)
+                if X is not None:
+                    state.points3D[track_id] = X
+            else:
+                # optional refresh: if BA updated poses, re-triangulate sometimes
+                if frame_id is not None and (frame_id % refresh_every) == 0:
+                    X = self.triangulate_track_best_pair(obs, state, frame_id)
+                    if X is not None:
+                        state.points3D[track_id] = X
+
+    def build_pnp_correspondences(self, 
+                                  state: IncrementalSfMState, 
+                                  image_id: int, 
+                                  max_points: int = 2000):
+        obj = []
+        img = []
+        for track_id, obs in state.tracks.items():
+            if track_id not in state.points3D:
+                continue
+            # find if this track is observed in this image
+            for (im, kp) in obs:
+                if im == image_id:
+                    obj.append(state.points3D[track_id])
+                    img.append(state.keypoints[im][kp])
+                    break
+
+        if len(obj) == 0:
+            return None, None
+
+        obj = np.asarray(obj, dtype=np.float64).reshape(-1, 3)
+        img = np.asarray(img, dtype=np.float64).reshape(-1, 2)
+
+        # Optional: subsample for speed
+        if obj.shape[0] > max_points:
+            idx = np.random.choice(obj.shape[0], max_points, replace=False)
+            obj, img = obj[idx], img[idx]
+
+        return obj, img
+
+    # Simple Pair View Pose Estimation
 
     def three_view_tracking(self, pts2: np.ndarray, pts2_3: np.ndarray, pts3: np.ndarray):
         #pts2 is the set of keypoints obtained from image(n-1) and image(n)
@@ -285,7 +579,8 @@ camera_pose = pose_estimator(feature_pairs=feature_pairs) # Features used from F
 
         # return cam_poses
 
-    def estimate_pose_pnp(self, point_cloud: np.ndarray, pts1: np.ndarray, pts2: np.ndarray, prev_pose: np.ndarray) -> np.ndarray:
+    # def estimate_pose_pnp(self, point_cloud: np.ndarray, pts1: np.ndarray, pts2: np.ndarray, prev_pose: np.ndarray) -> np.ndarray:
+    def estimate_pose_pnp(self, point_cloud: np.ndarray, pts2: np.ndarray) -> np.ndarray:
         #cv2.solvePnPRansac(point_cloud, pts2, self.K1, self.dist1, cv2.SOLVEPNP_ITERATIVE)
         _,rot,trans,_= cv2.solvePnPRansac(objectPoints=point_cloud, 
                                           imagePoints=pts2, 
@@ -310,7 +605,11 @@ camera_pose = pose_estimator(feature_pairs=feature_pairs) # Features used from F
         return new_pose
         
 
-    def two_view_triangulation(self, pose_1: np.ndarray, pose_2: np.ndarray, pts1: np.ndarray, pts2: np.ndarray) -> np.ndarray:
+    def two_view_triangulation(self, 
+                               pose_1: np.ndarray, 
+                               pose_2: np.ndarray, 
+                               pts1: np.ndarray, 
+                               pts2: np.ndarray) -> np.ndarray:
 
         # Normalize Points
         pt1 = cv2.undistortPoints(pts1.T, self.K_mat, self.dist)
@@ -326,3 +625,29 @@ camera_pose = pose_estimator(feature_pairs=feature_pairs) # Features used from F
         cloud=cv2.convertPointsFromHomogeneous(cloud.T)
         
         return cloud
+    
+    def estimate_pose_pairwise_fallback(self, pair_index: int, feature_pairs: PointsMatched, camera_poses: CameraPose) -> np.ndarray:
+        """
+        Estimate pose for image (pair_index+1) using only pairwise geometry.
+        Requires that poses up to pair_index are already in camera_poses.
+        """
+
+        # We want pose for image j = pair_index+1 using (pair_index-1 -> pair_index) to triangulate
+        if pair_index == 0:
+            # shouldn't happen inside the loop (you already initialized first pair)
+            raise ValueError("pair_index must be >= 1 for fallback")
+
+        # Triangulate from (pair_index-1, pair_index)
+        pts_im1, pts_i = feature_pairs.access_matching_pair(pair_index - 1)
+        cloud = self.two_view_triangulation(
+            camera_poses.camera_pose[pair_index - 1],
+            camera_poses.camera_pose[pair_index],
+            pts_im1, pts_i
+        )
+
+        # Use correspondences between i and i+1 and find common points with i
+        pts_i2, pts_ip1 = feature_pairs.access_matching_pair(pair_index)
+        idx, pts_i_common, pts_ip1_common, _, _ = self.three_view_tracking(pts_i, pts_i2, pts_ip1)
+
+        # Call your existing PnP function
+        return self.estimate_pose_pnp(cloud[idx], pts_ip1_common)

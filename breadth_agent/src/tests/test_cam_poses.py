@@ -25,10 +25,12 @@ import matplotlib.pyplot as plt
 # Construct Modules with Initialized Arguments
 # image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
 # Construct Modules with Initialized Arguments
-# image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan22_normal_lighting"
-# calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\images\\dslr_images_undistorted"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\dslr_calibration_undistorted\\calibration_new.npz"
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_low_lighting"
+calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
+# image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
+# calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\Structure-from-Motion\\calibration_new.npz"
+# image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\images\\dslr_images_undistorted"
+# calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\dslr_calibration_undistorted\\calibration_new.npz"
 
 # # Read Camera Data
 # CDM = CameraDataManager(image_path=image_path,
@@ -60,7 +62,7 @@ from modules.features import FeatureDetectionORB
 #                                         contrast_threshold=0.02,
 #                                         edge_threshold=50)
 feature_detector = FeatureDetectionSP(cam_data=camera_data,
-                                      max_keypoints=10000)
+                                      max_keypoints=5000)
 # Detect Features for all Images
 features = feature_detector()
 
@@ -79,7 +81,7 @@ from modules.featurematching import FeatureMatchBFPair
 #                                      RANSAC_threshold
 #                                      =0.05,
 #                                      lowes_thresh=0.8)
-# feature_matcher = FeatureMatchFlannPair(detector="orb", 
+# feature_matcher = FeatureMatchFlannPair(detector="sift", 
 #                                      cam_data=camera_data,
 #                                      RANSAC_threshold=0.03)
 feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
@@ -89,12 +91,22 @@ feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
 feature_pairs = feature_matcher(features=features)
 
 # STEP 4: Estimate Camera Poses of Scene with Feature Pairs
+from modules.optimization import BundleAdjustmentOptimizerLocal
+
+# Build Optimizer
+optimizer = BundleAdjustmentOptimizerLocal(max_num_iterations=20)
+
+# Run Optimizer
+# optimal_scene, _ = optimizer.optimize(sparse_scene, 
+#                                       cam_data=camera_data)
+
 from modules.camerapose import CamPoseEstimatorEssentialToPnP
 # Camera Pose Module Initialization
 pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data,
-                                                reprojection_error=7.0,
+                                                reprojection_error=3.0,
                                                 iteration_count=300,
-                                                confidence=0.995)
+                                                confidence=0.995,
+                                                optimizer=optimizer)
 
 # From estimated features, estimate the camera poses for all image frames
 cam_poses = pose_estimator(feature_pairs=feature_pairs)

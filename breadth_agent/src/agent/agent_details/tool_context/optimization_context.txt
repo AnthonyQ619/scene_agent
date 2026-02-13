@@ -1,0 +1,127 @@
+This is a file containing the Optimization Module modules.
+===+&+===
+
+Tool Name: BundleAdjustmentOptimizerLocal
+
+Tool Description: 
+Local Optimization tool using the bundle adjustment optimization algorithm to optimize the reconstructed sparse 
+scene using the 3D estimated points, 2D feature tracks for each 3D estimated point, and estimated camera poses of the 
+monocular camera scene to optimize the reprojection error loss of each estimated 3D point WITH the PURPOSE to CORRECT DRIFT
+in the estimate camera pose of the scene. USE THIS MODULE in cases where SIFT, ORB, and SuperPoint features will be less accurate
+either through usage, or environmental factors where initial feature detection will be geometrically incorrect despite outlier rejection.
+The output of the module is the optimized poses within the local estimated frame to correct drift in pose esimtation. 
+The algorithm optimizes the 3D points, camera poses, and intrinsic parameters of the calibrated camera (If permitted to). 
+
+Initialization Parameters:
+- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+    - default (CameraData): MUST BE INCLUDED in initialization for usage
+- refine_focal_length: Whether to refine the focal length parameter group. 
+    - default (bool): False
+- refine_principal_point: Whether to refine the principal point parameter group. (bool, )
+    - default (bool): False
+- refine_extra_params: Whether to refine the extra parameter group.
+    - default (bool): False
+- max_num_iterations: maximum number of iterations to run the Levenberg-Marquardt algorithm for bundle adjustment
+    - default (int): 50
+- use_gpu: Whether to use Ceres CUDA linear algebra library, if available. 
+    - default (bool): True
+- gpu_index: Which GPU to use for solving the problem.
+    - default (int): 0 
+- robust_loss: Determins whether to use one of the loss function types
+    Loss function types: Trivial (non-robust, robust = False) and Cauchy (robust, robust = True) loss
+    - default (bool): True
+- window_size: the number of total frames (N) used in the local bundle adjustment optimizer (Current frame and N - 1 previous frames)
+    - default (int): 8
+- min_track_len: minimum length of features tracked across images to consider the 3D point to be used for pose optimization
+    - default (int): 3
+
+Function Calls:
+- Function: Module call (Python __call__ function)
+   - Default: NOT used for this module.
+
+
+Tool Example: 
+Initialization: 
+from modules.optimization import BundleAdjustmentOptimizerLocal
+
+# Build Optimizer
+optimizer = BundleAdjustmentOptimizerLocal(max_num_iterations=20,
+                                           window_size=5)
+
+NO FUNCTION CALL:     
+
+USAGE (Alongside of CameraPose Estimation Module):
+# Initiialized Module
+from modules.camerapose import CamPoseEstimatorEssentialToPnP
+
+# Camera Pose Module Initialization (APPLY OPTIMIZER IN INITIALIZATION)
+pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data,
+                                                reprojection_error=3.0,
+                                                iteration_count=300,
+                                                confidence=0.995,
+                                                optimizer=optimizer)
+
+# From estimated features, estimate the camera poses for all image frames (With Local Bundle Adjustment Activated)
+cam_poses = pose_estimator(feature_pairs=feature_pairs)
+
+
+
+===+&+===
+
+Tool Name: BundleAdjustmentOptimizerGlobal
+
+Tool Description: 
+Global Optimization tool using the bundle adjustment optimization algorithm to optimize the reconstructed sparse 
+scene using the 3D estimated points, 2D feature tracks for each 3D estimated point, and estimated camera poses of the 
+monocular camera scene to optimize the reprojection error loss of each estimated 3D point. The output is a newly 
+optimize sparse 3D reconstructed scene. The algorithm optimizes the 3D points, camera poses, and intrinsic parameters 
+of the calibrated camera (If permitted to). ALWAYS USE THIS MODULE AT THE END OF A SPARSE RECONSTRUCTION PIPELINE, AND 
+PRIOR TO ESTIMATING DENSE RECONSTRUCTION!
+
+Initialization Parameters:
+- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+    - default (CameraData): MUST BE INCLUDED in initialization for usage
+- refine_focal_length: Whether to refine the focal length parameter group. 
+    - default (bool): False
+- refine_principal_point: Whether to refine the principal point parameter group. (bool, )
+    - default (bool): False
+- refine_extra_params: Whether to refine the extra parameter group.
+    - default (bool): False
+- max_num_iterations: maximum number of iterations to run the Levenberg-Marquardt algorithm for bundle adjustment
+    - default (int): 50
+- use_gpu: Whether to use Ceres CUDA linear algebra library, if available. 
+    - default (bool): True
+- gpu_index: Which GPU to use for solving the problem.
+    - default (int): 0 
+- robust_loss: Determins whether to use one of the loss function types
+    Loss function types: Trivial (non-robust, robust = False) and Cauchy (robust, robust = True) loss
+    - default (bool): True
+
+
+Function Calls:
+- Function: Module call (Python __call__ function)
+    - Parameters:
+        - scene: Data type that stores the camera pose and 3D point information of the reconstructed scene.
+            - default (Scene): Stores information of the reconstructed scene, typically sparse when the function is called
+                - Important items stored:
+                    - points3D: Points3D              # Set of 3D points
+                    - cam_poses: list[np.ndarray]     # Should be formatted as a 3x4 matrix
+                    - observations: np.ndarray        # Mx4 matrices for each point observation where M=num_of_observations, and each row = [frame, 3d_point_ind, pix_x, pix_y]
+                    - sparse: bool                    # Used to determine if current scene is sparse or dense (Sparse=True)
+        - Output: scene (Optimized)
+
+
+Tool Example: 
+Initialization: 
+from modules.optimization import BundleAdjustmentOptimizerGlobal
+
+# Build Optimizer
+optimizer = BundleAdjustmentOptimizerGlobal(max_num_iterations=40,
+                                            cam_data=camera_data)
+
+Function Call:                                      
+# Run Optimizer
+optimal_scene = optimizer(sparse_scene)
+
+
+===+&+===

@@ -1,13 +1,5 @@
-"""
-A controlled indoor tabletop/studio scene featuring a miniature block of buildings with richly textured façades, brickwork, 
-shingles, windows, and yellow awnings. The camera views the subject from oblique, slightly top‑down angles with small rotational and 
-translational changes around a persistent building corner. Lighting is soft and uniform, producing stable appearances without specular 
-artifacts. The subject is set against a largely white, low‑texture background, ensuring most reliable features originate on the model itself.
-"""
+Example Process:
 
-# ==#$#==
-
-"""
 GOAL RECONSTRUCTION: Dense Reconstruction
 
 STEP 1: Read in Camera data
@@ -17,7 +9,6 @@ STEP 1: Read in Camera data
 - Finally, call get_camera_data() function to have access to the camera data of images and calibration
 
 STEP 2: 
-- Scene: Highly-Textured (Righly Textured Buildings) USE SIFT
 - Select the SIFT module since the scene featuring the object is well lit, in an indoor setting, and the object is of a brick house that is 
   well textured for using SIFT reliably.
     - Set max features to detect to 19000, to ensure we detect as much features as possible since we also want to detect corners due to the 
@@ -64,9 +55,9 @@ STEP 8:
       the minimum triangulation angle to just 1.0.
     - Set num_iterations=3, to speed up computation time, we set the number of coordinate descent iterations to just 3 since our build is already
       geometrically optimal at this point.
-"""
 
-# ==#$#==
+Example Code:
+
 
 # Construct Modules with Initialized Arguments
 image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan14_normal_lighting"
@@ -164,6 +155,3 @@ from modules.visualize import VisualizeScene
 visualizer = VisualizeScene()
 
 visualizer(dense_scene)
-
-
-

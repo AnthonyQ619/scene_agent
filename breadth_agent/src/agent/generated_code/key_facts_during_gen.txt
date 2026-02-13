@@ -1,0 +1,25 @@
+SCENE DESCRIPTION:
+
+Scene Setting: Indoors (tabletop miniature city block on a white background).
+Scene Lighting Effects: Consistent, diffuse lighting across all three images; no noticeable illumination changes.
+Scene Object Textures: Buildings and roofs are highly textured (shingles, windows, brick details). Background is largely low-textured white, so overall a mix with high-textured objects against a smooth backdrop.
+Scene Key Features: Top-down/oblique views of a small block of connected buildings; the same object set is present in all frames. The data effectively orbits/translates slightly around the corner building. Surfaces show fine detail; lighting is soft and diffuse with minimal shadows.
+Scene Camera Movement: Gradual, small viewpoint changes—slight lateral/rotational movement between frames; no extreme viewpoint shifts.
+Camera Calibration Path: C:\Users\Anthony\Documents\Projects\datasets\sfm_dataset\DTU\calibration_DTU_new.npz
+Reconstruction Type: Sparse Reconstruction
+Hardware Memory: 12gb
+
+PROBLEM STATEMENT:
+
+Scene Summary: Indoor tabletop miniature city block on a white background with consistent, diffuse lighting. Buildings exhibit rich textures (windows, bricks, shingles) against a largely low-texture backdrop. Views are top-down/oblique with small orbital/translation changes around a corner building; the same objects appear across views, with minimal shadows and stable illumination.
+Problem Statement: Recover camera poses and a sparse 3D structure of a tabletop miniature city block from a small set of oblique/top-down images under consistent diffuse lighting. Formulate this as a calibrated, feature-based Structure-from-Motion problem with incremental initialization and multi-view geometric consistency, emphasizing robust feature correspondences on the textured façades and roofs while de-emphasizing the low-texture white background. Final poses and points are refined with global optimization; no dense modeling is required.
+Reconstruction Type: Sparse 3D reconstruction via calibrated, feature-based (incremental) SfM yielding camera poses and a sparse point cloud.
+Calibration path: Calibration path provided; assume intrinsics (and distortion) are pre-calibrated from the given file—no autocalibration needed.
+Memory Usage: 12 GB VRAM is moderate; prefer classical feature-based SfM or lightweight learned matchers. Large transformer models (e.g., VGGT) may be constrained unless images are downsampled and batches kept small.
+Use Image Path in Code: C:\Users\Anthony\Documents\Projects\datasets\sfm_dataset\DTU\scan22_normal_lighting
+Use Calibration Path in Code: C:\Users\Anthony\Documents\Projects\datasets\sfm_dataset\DTU\calibration_DTU_new.npz
+
+TIMING OF FIRST AGENT BLOCK (PROBLEM/IMAGE ANALYSIS):
+69.75622010231018
+TIMING OF SECOND AGENT BLOCK (CODE GENERATION):
+127.6196231842041

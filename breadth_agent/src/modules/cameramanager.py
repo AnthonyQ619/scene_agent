@@ -14,6 +14,8 @@ from modules.DataTypes.datatype import (CameraData,
 import glob
 import random
 from tqdm import tqdm
+import os
+import shutil
 # from baseclass import ImageProcessorClass
 
 
@@ -23,7 +25,19 @@ class CameraDataManager():
                  calibration_path: str | None = None,
                  target_resolution: Tuple[int, int] | None = None):
         
-        image_files = sorted(glob.glob(image_path + "\\*"))[:5]
+        image_files = sorted(glob.glob(image_path + "\\*"))[:20]
+
+        self.directory_path = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace"
+        if os.path.exists(self.directory_path):
+            # Delete the directory and all its contents
+            shutil.rmtree(self.directory_path)
+            # print(f"Existing directory '{directory_path}' removed.")
+
+        # Recreate an empty directory
+        os.makedirs(self.directory_path)
+        self.image_dir = self.directory_path + "\\images"
+        # Recreate an empty image directory
+        os.makedirs(self.image_dir)
 
         #self.camera_data = CameraData()    
         if calibration_path is None:
@@ -133,9 +147,13 @@ class CameraDataManager():
 
                 # Resize to target size
                 square_img = square_img.resize((target_res, target_res), Image.Resampling.BICUBIC)
-                square_img = np.asarray(square_img)
+                square_img_np = np.asarray(square_img)
 
-                image_list.append(square_img)
+                image_list.append(square_img_np)
+                
+                # Write Image to Colmap Workspace
+                square_img.save(f"{self.image_dir}\\{i:06d}.png")
+
             image_scale = (scale, scale)
             image_shape_old = (width, height)
         else:
@@ -176,9 +194,12 @@ class CameraDataManager():
                 image = image.convert("RGB") # Confirm image is in RGB
 
                 image = image.resize(target_res, Image.Resampling.BICUBIC)
-                image = np.asarray(image)
+                image_np = np.asarray(image)
 
-                image_list.append(image)
+                image_list.append(image_np)
+
+                # Write Image to Colmap Workspace
+                image.save(f"{self.image_dir}\\{i:06d}.png")
 
         return image_list, image_scale, image_shape_old
             

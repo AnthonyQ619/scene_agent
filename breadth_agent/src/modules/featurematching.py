@@ -3,6 +3,7 @@ sys.path.append("C:\\Users\\Anthony\\Documents\\Projects\\Matchers\\RoMa\\romatc
 ############ TEMP SOLUTION FOR NOW #################
 import json
 import cv2
+import copy
 # from cv2.xfeatures2d import matchGMS
 import numpy as np
 import glob
@@ -20,88 +21,6 @@ from PIL import Image, ImageOps
 import piexif
 
 
-############################################## HELPER CLASS ##############################################
-
-# class EpipoleChecker():
-#     def __init__(self, frac: float = 0.02, pxl_min: int = 12):
-#         self.frac = frac
-#         self.pxl_min = pxl_min
-
-#     def __call__(self, 
-#                  points1: Points2D, 
-#                  points2: Points2D, 
-#                  F_mat: np.ndarray,
-#                  normalize_func: Normalization
-#                  ) -> tuple[Points2D, Points2D]:
-#         h, w = points1.image_size[:]
-
-#         # F_mat, _ = cv2.findFundamentalMat(points1=points1.points2D,
-#         #                                points2=points2.points2D,
-#         #                                method=cv2.FM_8POINT)
-#         pts_norm1 = normalize_func(points1)
-#         pts_norm2 = normalize_func(points2)
-        
-#         e1, e2 = self.compute_epipoles(F_mat)
-
-#         d1, d2 = self.distances_to_epipoles(points1=points1.points2D,
-#                                             points2=points2.points2D,
-#                                             e1 = e1, e2 = e2)
-
-#         # d1, d2 = self.distances_to_epipoles(points1=pts_norm1,
-#         #                                     points2=pts_norm2,
-#         #                                     e1 = e1, e2 = e2)
-
-#         inliers = self.determine_thresh(d1, d2, w, h)
-
-#         inlier_pts1 = Points2D(**points1.set_inliers(inliers))
-#         inlier_pts2 = Points2D(**points2.set_inliers(inliers))
-
-#         return inlier_pts1, inlier_pts2
-
-#     def compute_epipoles(self, F: np.ndarray) -> tuple[np.ndarray]:
-#         # Normalize F matrix!
-
-
-#         # Epipole in image 2
-#         U, S, Vt = np.linalg.svd(F)
-#         e2 = Vt[-1]
-#         e2 = e2[:2] / e2[2]
-
-#         # Epipole in image 1
-#         U, S, Vt = np.linalg.svd(F.T)
-#         e1 = Vt[-1]
-#         e1 = e1[:2] / e1[2]
-
-#         return np.array(e1).reshape((2,1)), np.array(e2).reshape((2,1))
-
-#     def distances_to_epipoles(self, points1: np.ndarray, points2: np.ndarray, 
-#                               e1: np.ndarray, e2: np.ndarray) -> tuple[np.ndarray]:
-#         points1_t = points1.T
-#         points2_t = points2.T
-
-#         print("EPIPOLE")
-#         print(e1)
-#         print("POINTS")
-#         print(points1_t)
-#         print("END OF POINTS")
-#         d1 = np.linalg.norm(points1_t - e1, axis=0)
-#         d2 = np.linalg.norm(points2_t - e2, axis=0)
-#         return d1, d2
-    
-#     def determine_thresh(self, d1: np.ndarray, d2: np.ndarray, img_w: int, img_h: int):
-
-#         diag = np.hypot(img_w, img_h)
-#         thr = max(self.pxl_min, self.frac * diag)
-
-#         print(thr)
-#         print(d1)
-#         thr_d1 = d1 <= thr
-#         thr_d2 = d2 <= thr
-
-#         inliers = thr_d1 + thr_d2
-#         return inliers
-
-##########################################################################################################
 
 ##########################################################################################################
 ############################################ TRACKING MODULES ############################################
@@ -712,7 +631,7 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
 
         self.img_shape = cv2.imread(self.image_path[0]).shape[:2] #HxWxC -> HxW
 
-        self.ep_check = EpipoleChecker(pxl_min=25)
+        # self.ep_check = EpipoleChecker(pxl_min=25)
     
     def __call__(self):
         matched_points = PointsMatched(pairwise_matches=[], 
@@ -922,7 +841,6 @@ class FeatureMatchSuperGluePair(FeatureMatching):
             raise Exception(message)
         
         super().__init__(detector=detector.lower(), 
-                         matcher="superglue",
                          cam_data=cam_data,
                          RANSAC_conf=RANSAC_conf,
                          RANSAC=RANSAC,
@@ -1018,8 +936,10 @@ matched_features = feature_matcher(features=features) # Features used from Featu
         img_size = features[0].image_size
         img_scale = features[0].reshape_scale
         matched_points = PointsMatched(pairwise_matches=[], 
+                                       pairwise_indices=[],
                                        image_size=img_size,
-                                       image_scale=img_scale)
+                                       image_scale=img_scale,
+                                       img_features=[])
 
         for scene in tqdm(range(0, len(features) - 1), desc="Detecting Correspondences"):
             pt1 = features[scene]
@@ -1037,16 +957,30 @@ matched_features = feature_matcher(features=features) # Features used from Featu
 
             # print(torch.from_numpy(pt2.points2D).unsqueeze(0).cuda().shape)
             idx1, idx2 = self.matcher_parser({**feats0, **feats1})
+            inlier_idx1 = np.where(idx1)[0].tolist()
+            # inlier_idx2 = np.where(idx2)[0].tolist()
 
             # print(idx1.shape)
-            new_pt1 = Points2D(**pt1.splice_2D_points(idx1))
+            new_pt1 = Points2D(**pt1.splice_2D_points(inlier_idx1)) # Previously just idx1 as input
             new_pt2 = Points2D(**pt2.splice_2D_points(idx2))
+            # print()
+            # print(len(idx1))
+            # print(len(inlier_idx1))
+            # print(len(idx2))
+            # print(len(inlier_idx2))
+            # print(new_pt1.points2D.shape)
+            # print(new_pt2.points2D.shape)
+            # matched_points.set_matching_pair(np.hstack((inlier_pts1.points2D, inlier_pts2.points2D)))
+            inlier_pts1, inlier_pts2, idx1_inliers, idx2_inliers, F = self.outlier_reject(new_pt1, new_pt2, inlier_idx1, idx2, scene)
+            
+            feat_pair = np.hstack((inlier_pts1.points2D, inlier_pts2.points2D))
+            idx_pair = np.hstack((np.vstack(idx1_inliers), np.vstack(idx2_inliers)))
 
-            inlier_pts1, inlier_pts2, _ = self.outlier_reject(new_pt1, new_pt2, scene)
+            matched_points.set_matching_pair(feat_pair, idx_pair)
+            matched_points.img_features.append(pt1.points2D)
 
-            # inlier_pts1, inlier_pts2 = self.ep_check(inlier_pts1, inlier_pts2)
-
-            matched_points.set_matching_pair(np.hstack((inlier_pts1.points2D, inlier_pts2.points2D)))
+        # Get the last image feature set
+        matched_points.img_features.append(features[-1].points2D)
 
         avg_outliers, mean_ct, min_ct, max_ct = self._metric_calculation(matched_points) 
 
@@ -1073,7 +1007,8 @@ matched_features = feature_matcher(features=features) # Features used from Featu
         matches = pred["matches0"].detach().cpu().numpy()
 
         valid_idx1 = matches > -1
-        valid_idx2 = matches[valid_idx1]
+        valid_idx2 = copy.copy(matches[valid_idx1])
+        # copy.copy()
         # print(valid_idx1)
         # print(valid_idx2)
         return valid_idx1[0].tolist(), valid_idx2.tolist()
@@ -1099,7 +1034,6 @@ class FeatureMatchLightGluePair(FeatureMatching):
             raise Exception(message)
 
         super().__init__(detector=detector.lower(), 
-                         matcher="lightglue",
                          cam_data=cam_data,
                          RANSAC_conf=RANSAC_conf,
                          RANSAC=RANSAC,
@@ -1191,8 +1125,10 @@ matched_features = feature_matcher(features=features) # Features used from Featu
         img_size = features[0].image_size
         img_scale = features[0].reshape_scale
         matched_points = PointsMatched(pairwise_matches=[], 
+                                       pairwise_indices=[],
                                        image_size=img_size,
-                                       image_scale=img_scale)
+                                       image_scale=img_scale,
+                                       img_features=[])
 
         for scene in tqdm(range(0, len(features) - 1), desc="Detecting Correspondences"):
             pt1 = features[scene]
@@ -1210,6 +1146,7 @@ matched_features = feature_matcher(features=features) # Features used from Featu
                         "scales": torch.from_numpy(pt2.scale).cuda(),
                         "oris": torch.from_numpy(pt2.orientation).cuda(),
                         "image_size": torch.from_numpy(pt2.image_size).unsqueeze(0).cuda()}
+                # kp1 = torch.from_numpy(pt1.points2D).unsqueeze(0).cuda()
             else:
                 feats0 = {"keypoints": torch.from_numpy(pt1.points2D).unsqueeze(0).cuda(),
                         "descriptors": torch.from_numpy(pt1.descriptors).unsqueeze(0).cuda(),
@@ -1218,6 +1155,7 @@ matched_features = feature_matcher(features=features) # Features used from Featu
                 feats1 = {"keypoints": torch.from_numpy(pt2.points2D).unsqueeze(0).cuda(),
                         "descriptors": torch.from_numpy(pt2.descriptors).unsqueeze(0).cuda(),
                         "image_size": torch.from_numpy(pt2.image_size).unsqueeze(0).cuda()}
+                # kp1 = torch.from_numpy(pt1.points2D).unsqueeze(0).cuda()
 
             idx1, idx2 = self.matcher_parser({"image0": feats0, "image1": feats1})
 
@@ -1236,12 +1174,24 @@ matched_features = feature_matcher(features=features) # Features used from Featu
             #                                         img1, img2, 
             #                                         torch.from_numpy(new_pt1.descriptors), 
             #                                         torch.from_numpy(new_pt2.descriptors))
+            print(len(idx1))
+            print(new_pt1.points2D.shape)
+            # inlier_pts1, inlier_pts2, F_mat = self.outlier_reject(new_pt1, new_pt2, scene)
+            inlier_pts1, inlier_pts2, idx1_inliers, idx2_inliers, F = self.outlier_reject(new_pt1, new_pt2, idx1, idx2, scene)
+            
 
-            inlier_pts1, inlier_pts2, F_mat = self.outlier_reject(new_pt1, new_pt2, scene)
-            # inlier_pts1, inlier_pts2 = self.ep_check(inlier_pts1, inlier_pts2, F_mat)
-            #inlier_pts1, inlier_pts2 = self.ep_check(new_pt1, new_pt2)
+            # matched_points.set_matching_pair(np.hstack((inlier_pts1.points2D, inlier_pts2.points2D)))
+            feat_pair = np.hstack((inlier_pts1.points2D, inlier_pts2.points2D))
+            idx_pair = np.hstack((np.vstack(idx1_inliers), np.vstack(idx2_inliers)))
+            # print("INDEX SHAPE:", idx_pair.shape)
+            # print("INDEX Data:", idx_pair[:10])
+            # print("FEAT SHAPE:", feat_pair.shape)
+            matched_points.set_matching_pair(feat_pair, idx_pair)
+            matched_points.img_features.append(pt1.points2D)
+            # matched_points.set_matching_pair(np.hstack((inlier_pts1, inlier_pts2)))
 
-            matched_points.set_matching_pair(np.hstack((inlier_pts1.points2D, inlier_pts2.points2D)))
+        # Get the last image feature set
+        matched_points.img_features.append(features[-1].points2D)
 
         avg_outliers, mean_ct, min_ct, max_ct = self._metric_calculation(matched_points) 
 
@@ -1296,7 +1246,6 @@ class FeatureMatchFlannPair(FeatureMatching):
                  lowes_thresh: float = 0.75):
 
         super().__init__(detector=detector.lower(), 
-                         matcher="flann",
                          cam_data=cam_data,
                          RANSAC_conf=RANSAC_conf,
                          RANSAC=RANSAC,
@@ -1389,8 +1338,10 @@ detected_features = feature_matcher(features=features) # Features used from Feat
         img_size = features[0].image_size
         img_scale = features[0].reshape_scale
         matched_points = PointsMatched(pairwise_matches=[], 
+                                       pairwise_indices=[],
                                        image_size=img_size,
-                                       image_scale=img_scale)
+                                       image_scale=img_scale,
+                                       img_features=[])
 
         for scene in tqdm(range(0, len(features) - 1), desc="Detecting Correspondences"):
             pt1 = features[scene]
@@ -1401,15 +1352,23 @@ detected_features = feature_matcher(features=features) # Features used from Feat
             new_pt1 = Points2D(**pt1.splice_2D_points(idx1))
             new_pt2 = Points2D(**pt2.splice_2D_points(idx2))
 
-            inlier_pts1, inlier_pts2, F = self.outlier_reject(new_pt1, new_pt2, scene)
+            inlier_pts1, inlier_pts2, idx1_inliers, idx2_inliers, F = self.outlier_reject(new_pt1, new_pt2, idx1, idx2, scene)
             # inlier_pts1, inlier_pts2 = self.ep_check(inlier_pts1, inlier_pts2, F, self.normalize)
 
-            feat_pair = np.hstack((inlier_pts1.points2D, inlier_pts2.points2D))
+            # print("CHECK SIZE:", inlier_pts1.points2D.shape, idx1_inliers.shape)
 
-            matched_points.set_matching_pair(feat_pair)
+            feat_pair = np.hstack((inlier_pts1.points2D, inlier_pts2.points2D))
+            idx_pair = np.hstack((np.vstack(idx1_inliers), np.vstack(idx2_inliers)))
+            # print("INDEX SHAPE:", idx_pair.shape)
+            # print("INDEX Data:", idx_pair[:10])
+            # print("FEAT SHAPE:", feat_pair.shape)
+            matched_points.set_matching_pair(feat_pair, idx_pair)
+            matched_points.img_features.append(pt1.points2D)
             # matched_points.set_matching_pair(np.hstack((inlier_pts1, inlier_pts2)))
 
-        
+        # Get the last image feature set
+        matched_points.img_features.append(features[-1].points2D)
+
         avg_outliers, mean_ct, min_ct, max_ct = self._metric_calculation(matched_points) 
 
         event_msg = {"avg_outlier": avg_outliers, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
@@ -1467,7 +1426,6 @@ class FeatureMatchBFPair(FeatureMatching):
                  lowes_thresh: float = 0.75):
 
         super().__init__(detector=detector.lower(), 
-                         matcher="bruteforce",
                          cam_data=cam_data,
                          RANSAC_threshold=RANSAC_threshold,
                          RANSAC=RANSAC,
@@ -1558,8 +1516,10 @@ tracked_features = feature_matcher(features=features) # Features used from Featu
         img_size = features[0].image_size
         img_scale = features[0].reshape_scale
         matched_points = PointsMatched(pairwise_matches=[], 
+                                       pairwise_indices=[],
                                        image_size=img_size,
-                                       image_scale=img_scale)
+                                       image_scale=img_scale,
+                                       img_features=[])
 
         for scene in tqdm(range(0, len(features) - 1), desc="Detecting Correspondences"):
             pt1 = features[scene]
@@ -1570,9 +1530,17 @@ tracked_features = feature_matcher(features=features) # Features used from Featu
             new_pt1 = Points2D(**pt1.splice_2D_points(idx1))
             new_pt2 = Points2D(**pt2.splice_2D_points(idx2))
 
-            inlier_pts1, inlier_pts2, _ = self.outlier_reject(new_pt1, new_pt2, scene)
+            # inlier_pts1, inlier_pts2, _ = self.outlier_reject(new_pt1, new_pt2, scene)
+            inlier_pts1, inlier_pts2, idx1_inliers, idx2_inliers, F = self.outlier_reject(new_pt1, new_pt2, idx1, idx2, scene)
 
-            matched_points.set_matching_pair(np.hstack((inlier_pts1.points2D, inlier_pts2.points2D)))
+            # matched_points.set_matching_pair(np.hstack((inlier_pts1.points2D, inlier_pts2.points2D)))
+            feat_pair = np.hstack((inlier_pts1.points2D, inlier_pts2.points2D))
+            idx_pair = np.hstack((np.vstack(idx1_inliers), np.vstack(idx2_inliers)))
+
+            matched_points.set_matching_pair(feat_pair, idx_pair)
+            matched_points.img_features.append(pt1.points2D)
+        # Get the last image feature set
+        matched_points.img_features.append(features[-1].points2D)
 
         avg_outliers, mean_ct, min_ct, max_ct = self._metric_calculation(matched_points) 
 

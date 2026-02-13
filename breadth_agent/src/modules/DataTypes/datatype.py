@@ -7,8 +7,28 @@ import theseus.utils.examples as theg
 from theseus.utils.examples.bundle_adjustment.data import Camera, Observation
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, Dict
 
+Obs = Tuple[int, int]  # (image_id, kp_idx)
+
+@dataclass
+class IncrementalSfMState:
+    K: np.ndarray
+    dist: Optional[np.ndarray]
+    width: int
+    height: int
+
+    # poses in cam-from-world 3x4
+    poses: List[np.ndarray] = field(default_factory=list)
+
+    # per image keypoints (Nx2), must align with kp indices used in tracks
+    keypoints: Dict[int, np.ndarray] = field(default_factory=dict)
+
+    # track database: track_id -> list of observations (image_id, kp_idx)
+    tracks: Dict[int, List[Obs]] = field(default_factory=dict)
+
+    # structure: track_id -> point3D (xyz)
+    points3D: Dict[int, np.ndarray] = field(default_factory=dict)  # xyz shape (3,)
 
 @dataclass
 class CameraData:
@@ -63,7 +83,7 @@ class CameraData:
             self.intrinsics = intrinsics[0]
             self.distortions = distortion[0]
 
-    def get_K(self, cam_idx: int):
+    def get_K(self):
         #assert(self.intrinsics is not None), "Calibration Data is not properly loaded. Ensure necessary steps are taken to generate calibration through VGGT tools or calibration is properly read with CameraDataManager."
         if self.intrinsics is None:
             return None
@@ -142,45 +162,58 @@ class Points2D:
 
 @dataclass
 class PointsMatched:
-    data_matrix: np.ndarray             # Data Structure to store corresponding points. In the form of Nx4 -> [track_id, frame_num, x, y]
-    pairwise_matches: list[np.ndarray]  # Data Structure to store Pairwise feature matches. Form of Nx4 -> [x1, y1, x2, y2]
-    track_map: dict                     # Used to aid in the feature matching process.
-    point_count: int                    # Based on track_id max count -> tells us how many 3D points exist
-    multi_view: bool                    # Determine if Pairwise/Feature Matching
+    # General Data Information for Feature Matches
     image_size: np.ndarray              # 1x2 [np.int64] (Simply Image Shape: (W, H))
     image_scale: list[float]            # [W_scale, H_scale] if image is resized
+    multi_view: bool                    # Determine if Pairwise/Feature Matching
     stereo_cam: bool                    # Deterine if the camera utilized is a stereo camera for feature matching/tracking
+
+    # Tracked Data Features
+    data_matrix: np.ndarray             # Data Structure to store corresponding points. In the form of Nx4 -> [track_id, frame_num, x, y]
+    track_map: dict                     # Used to aid in the feature matching process.
+    point_count: int                    # Based on track_id max count -> tells us how many 3D points exist
+    
+    # Image Pair Data Features
+    pairwise_matches: list[np.ndarray]  # Data Structure to store Pairwise feature matches. Form of Nx4 -> [x1, y1, x2, y2]
+    pairwise_indices: list[np.ndarray]  # Data Structure to store Pairwise feature matches by Index. Form of Nx2 -> [feature_idx1, feature_idx2]
+    img_features: list[np.ndarray]      # Data Structure to store the detected features per image
+
 
     def __init__(self,  data_matrix: np.ndarray | None = None, 
                         pairwise_matches: list[np.ndarray] | None = None,
+                        pairwise_indices: list[np.ndarray] | None = None,
                         multi_view: bool = False,
                         track_map: dict = {},
                         point_count: int = 0,
                         image_size: np.ndarray | None = None,
-                        image_scale: list[float] = [1.0, 1.0]):
+                        image_scale: list[float] = [1.0, 1.0],
+                        img_features: list[np.ndarray] | None = None):
         self.data_matrix = data_matrix
         self.pairwise_matches = pairwise_matches
+        self.pairwise_indices = pairwise_indices
         self.track_map = track_map
         self.point_count = point_count
         self.image_size = image_size
         self.image_scale = image_scale
 
         self.multi_view = multi_view
+        self.img_features = img_features
 
     # Feature Tracking Functions (Multi-View)
     def set_matched_matrix(self, data: list[list]) -> None:
         self.data_matrix = np.array(data)
         self.multi_view = True
 
+    # Feature Matching (Two-View)
+    def set_matching_pair(self, data:np.ndarray, idx_data: np.ndarray) -> None:
+        assert (data.shape[1] == 4), "Not enough data stored in column. Each row must contain: [x1, y1, x2, y2] of matching feature pair."
+        self.pairwise_matches.append(data)
+        self.pairwise_indices.append(idx_data)
+        self.multi_view = False
+
     def access_point3D(self, track_id: int) -> np.ndarray: # 3D point returns a Nx3 Matrix of (Cam, x, y)
         indicies = np.where(self.data_matrix[:, 0] == track_id)[0]
         return self.data_matrix[indicies, 1:] 
-
-    # Feature Matching (Two-View)
-    def set_matching_pair(self, data:np.ndarray) -> None:
-        assert (data.shape[1] == 4), "Not enough data stored in column. Each row must contain: [x1, y1, x2, y2] of matching feature pair."
-        self.pairwise_matches.append(data)
-        self.multi_view = False
 
     def access_matching_pair(self, pair_index: int) -> tuple[np.ndarray, np.ndarray]:
         data = self.pairwise_matches[pair_index]
@@ -189,6 +222,15 @@ class PointsMatched:
         pts2 = data[:, 2:]
 
         return pts1, pts2
+    
+    def access_matching_pair_with_indices(self, pair_index: int) -> tuple[np.ndarray]:
+        pts = self.pairwise_matches[pair_index]
+        idx = self.pairwise_indices[pair_index]
+        return pts[:, :2], pts[:, 2:], idx[:, 0], idx[:, 1]
+    
+    def access_matching_indices(self, pair_index: int) -> tuple[np.ndarray]:
+        idx = self.pairwise_indices[pair_index]
+        return idx[:, 0], idx[:, 1]
 
 @dataclass
 class Points3D:
@@ -204,7 +246,9 @@ class Points3D:
 
         self.color = np.array(color)
 
-    def update_points(self, points: list[np.ndarray], color: list[np.ndarray] | None = None) -> None:
+    def update_points(self, 
+                      points: list[np.ndarray], 
+                      color: list[np.ndarray] | None = None) -> None:
         if self.points3D is None:
             if isinstance(points, list):
                 self.points3D = np.array(points)
@@ -217,6 +261,12 @@ class Points3D:
             self.points3D = np.vstack((self.points3D, new_points))
             if color is not None:
                 self.color = np.vstack((self.color,np.array(color)))
+    
+    def set_all_points(self, 
+                       points: np.ndarray, 
+                       color: np.ndarray | None = None) -> None:
+        self.points3D = points
+        self.color = color
 
 @dataclass
 class CameraPose:
@@ -492,24 +542,31 @@ class BundleAdjustmentData:
 
 @dataclass
 class Scene:
-    points3D: Points3D        # Set of 3D points
-    cam_poses: list[np.ndarray] # Should be formatted as a 3x4 matrix
-    point_to_pose: np.ndarray   # List of corresponding camera poses to 3D points
-    representation: str         # Represnetation of the scene (Future use cases here)
-    bal_data: BundleAdjustmentData # Data stored in the BAL format, and write file to reconstructed scene
+    points3D: Points3D              # Set of 3D points
+    cam_poses: list[np.ndarray]     # Should be formatted as a 3x4 matrix
+    observations: np.ndarray        # Mx4 matrices for each point observation where M=num_of_observations, and each row = [frame, 3d_point_ind, pix_x, pix_y]
+    representation: str             # Represnetation of the scene (Future use cases here)
+    bal_data: BundleAdjustmentData  # Data stored in the BAL format, and write file to reconstructed scene (REFACTOR TO REMOVE)
+    depth_maps: list[np.ndarray]    # Depth Maps per frame, formated as HeightxWidth of image shape
+    sparse: bool                    # Used to determine if current scene is sparse or dense (Sparse=True)
+    
 
     def __init__(self, points3D: Points3D | None = Points3D(), 
                  cam_poses: list[np.ndarray] = [], 
-                 point_to_pose: np.ndarray | None = None, 
+                 observations: np.ndarray | None = None, 
                  representation: str = "point cloud",
-                 bal_data : BundleAdjustmentData | None = None):
+                 sparse: bool = True,
+                 bal_data : BundleAdjustmentData | None = None,
+                 depth_maps: np.ndarray | None = None):
         self.SceneRepresentation = ["point cloud", "mesh", 'NeRF']
 
         
         self.points3D = points3D
         self.cam_poses = cam_poses
-        self.point_to_pose = point_to_pose
+        self.observations = observations
         self.representation = representation
+        self.depth_maps = depth_maps
+        self.sparse = sparse
 
         assert(self.representation in self.SceneRepresentation)
 

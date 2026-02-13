@@ -1,11 +1,15 @@
 import cv2
 import numpy as np
-from modules.baseclass import SceneEstimation
+from modules.baseclass import SparseSceneEstimation, DenseSceneEstimation
 from tqdm import tqdm
 import torch
 import torch.nn.functional as F
 from torchvision import transforms as TF
 import os
+import shutil
+import struct
+import open3d as o3d
+import glob
 from modules.models.sfm_models.vggt.utils.pose_enc import pose_encoding_to_extri_intri
 from modules.models.sfm_models.vggt.utils.geometry import unproject_depth_map_to_point_map
 from modules.models.sfm_models.vggt.models.vggt import VGGT
@@ -23,10 +27,17 @@ from modules.DataTypes.datatype import (Points2D,
                                         BundleAdjustmentData)
 
 
+
+# Import Pycolmap
+os.add_dll_directory(r"C:\\Users\\Anthony\\Desktop\\VCPKG\\vcpkg\\installed\\x64-windows\\bin")
+os.add_dll_directory(r"C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4\\bin")
+os.add_dll_directory(r"C:\\Program Files\\NVIDIA cuDSS\\v0.7\\bin\\12")
+import pycolmap
+
 ##########################################################################################################
 ############################################### ML MODULES ###############################################
 
-class Sparse3DReconstructionMapAnything(SceneEstimation):
+class Sparse3DReconstructionMapAnything(SparseSceneEstimation):
     def __init__(self,
                  cam_data: CameraData,
                  min_observe: int = 3,
@@ -196,7 +207,7 @@ class Sparse3DReconstructionMapAnything(SceneEstimation):
 
         if self.update_intrinsics:
             self.cam_data.apply_new_calibration(intrinsics=all_intrinsics)
-            self.K_mat = self.cam_data.get_K(0)
+            self.K_mat = self.cam_data.get_K()
             self.dist = self.cam_data.get_distortion()
             self.multi_cam = self.cam_data.multi_cam
         # Here we use the ext, int, depth_map, and point_map (points3D) to initialize the sparse reconstruction with tracked feature points
@@ -211,7 +222,7 @@ class Sparse3DReconstructionMapAnything(SceneEstimation):
         
         return scene
 
-class Sparse3DReconstructionVGGT(SceneEstimation):
+class Sparse3DReconstructionVGGT(SparseSceneEstimation):
     def __init__(self,
                  cam_data: CameraData,
                  min_observe: int = 3):
@@ -238,7 +249,7 @@ point estimation. Note: this must be greater than 2
     - Default (int): 3 
 
 Function Call Parameters:
-- camera_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
+- cam_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
 specifically from the CameraPoseEstimation modules. 
 - tracked_features (PointsMatched): Feature points tracked across multiple frames to allow Multi-View 3D point estimation. Feature Tracks are 
 estimated from the FeatureTracking modules.
@@ -365,7 +376,7 @@ sparse_scene = sparse_reconstruction(camera_poses=cam_poses)
 ###########################################################################################################
 ############################################ CLASSICAL MODULES ############################################
 
-class Sparse3DReconstructionStereo(SceneEstimation):
+class Sparse3DReconstructionStereo(SparseSceneEstimation):
     def __init__(self,
                  cam_data: CameraData):
         super().__init__(cam_data=cam_data)
@@ -563,8 +574,9 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
 
     #     return X
     
+# Mono Camera Reconstruction
 
-class Sparse3DReconstructionMono(SceneEstimation):
+class Sparse3DReconstructionMono(SparseSceneEstimation):
     def __init__(self, cam_data: CameraData, 
                  view: str = "multi",
                  reproj_error: float = 3.0,
@@ -598,7 +610,8 @@ Initialization Parameters:
 point estimation. Note: this must be greater than 2
     - Default (int): 3 
 - min_angle: The minimum angle required between bearing rays from paired 2D feature point to accept a 3D point 
-estimation from the set of corresponding 2D feature points. Used for the Triangulation Angle Test.
+estimation from the set of corresponding 2D feature points. Used for the Triangulation Angle Test. The larger the angle
+the more accurate the 3D point (Maximum of 4.0)
     - Default (float): 1.0 (Typically 1.0 - 3.0 [Number represents angle degree])
 - reproj_error: Maximum reprojection error accepted for a potential 3D point estimation to keep in a point cloud. Error is measured in pixel coordinates.
     - Default (float): 3.0
@@ -606,15 +619,21 @@ estimation from the set of corresponding 2D feature points. Used for the Triangu
 Function Call Parameters:
 - cam_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
 specifically from the CameraPoseEstimation modules. 
-- tracked_points (PointsMatched): Feature points tracked across multiple frames to allow Multi-View 3D point estimation. Feature Tracks are 
+- tracked_features (PointsMatched): Feature points tracked across multiple frames to allow Multi-View 3D point estimation. Feature Tracks are 
 estimated from the FeatureTracking modules.
 
 Module Input:
     PointsMatched (Matched Features across image pairs)
-        pairwise_matches: list[np.ndarray]  [N x 4] -> [x1, y1, x2, y2]. Data Structure to store Pairwise feature matches.
-        multi_view: bool                    Determine if Pairwise/Multi-View Feature Matching (Should be False for Pairwise in this function)
+        # General Data Information for Feature Matches
         image_size: np.ndarray              [1 x 2] [np.int64] (Simply Image Shape: (W, H))
         image_scale: list[float]            [W_scale, H_scale] if image is resized
+        multi_view: bool                    Determine if Pairwise/Feature Matching
+        stereo_cam: bool                    Deterine if the camera utilized is a stereo camera for feature matching/tracking
+
+        # Tracked Data Features
+        data_matrix: np.ndarray             [N x 4] Data Structure to store corresponding points. In the form of Nx4 -> [track_id, frame_num, x, y]
+        track_map: dict                     Used to aid in the feature matching process.
+        point_count: int                    Based on track_id max count -> tells us how many 3D points exist
     
     CameraPose:
         camera_pose: list[np.ndarray]   [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
@@ -628,7 +647,9 @@ Module Output:
                 - points3D: np.ndarray      [N x 3] Point position in 3D space [x, y, z]
                 - color: np.ndarray         [N x 3] Point Color [r, g, b]               
         cam_poses: list[np.ndarray]         [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
-        point_to_pose: np.ndarray           [N x 2] List of corresponding camera poses to 3D points [cam_frame, point_index]
+        observations: np.ndarray            [M x 4] matrix for each point observation where M=num_of_observations, and each row = [frame, 3d_point_ind, pix_x, pix_y]
+        depth_maps: list[np.ndarray]        List[[H x W]] List of Depth Maps per frame, formated as HeightxWidth of image shape
+        sparse: bool                        Used to determine if current scene is sparse or dense
         bal_data: BundleAdjustmentData      Data stored in the BAL format, and write file to reconstructed scene
             BundleAdjustmentData
                 - num_cameras: int                Number of cameras in the scene (Not number of observerations)
@@ -668,6 +689,8 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
         self.minimum_observation = min_observe # N-view functionality only
         self.min_angle = min_angle
         self.reproj_error_min = reproj_error
+
+        print("Image Shape:", cam_data.image_list[0].shape)
         # self.angle_check = TriangulationCheck(calibration=calibration, min_angle=min_angle)
 
     # tracked_features: PointsMatched, cam_poses: CameraPose
@@ -686,6 +709,7 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
         num_observations = 0 
         num_cameras = len(camera_poses.camera_pose)
         observations = []
+        observations_pix = []
 
         if self.view == self.VIEWS[0]: # Multi-view
             if not points.multi_view:
@@ -721,6 +745,8 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
                     point_ind = np.array([point_index for _ in range(views.shape[0])]).reshape((views.shape[0],1))
                     norm_pts = self._normalize_points_for_BAL(views)#views[:, 1:])
                     observation = np.hstack((np.vstack(views[:,0]), point_ind, norm_pts))#views[:,1:]))
+                    observation_pix = np.hstack((np.vstack(views[:,0]), point_ind, views[:, 1:]))
+                    observations_pix.append(observation_pix)
                     observations.append(observation)
                     num_observations += views.shape[0] # Number of observations
 
@@ -729,20 +755,30 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
 
                     point_index += 1 # Successfully Estimated Point
 
-            # Build BAL data
-            ba_data = BundleAdjustmentData(num_cameras=num_cameras, 
-                                           num_points=points_3d.points3D.shape[0],
-                                           num_observations=num_observations,
-                                           observations=observations,
-                                           cameras=camera_poses,
-                                           points=points_3d.points3D,
-                                           dist=[self.dist],
-                                           mono=True)
+            # # Build BAL data
+            # ba_data = BundleAdjustmentData(num_cameras=num_cameras, 
+            #                                num_points=points_3d.points3D.shape[0],
+            #                                num_observations=num_observations,
+            #                                observations=observations,
+            #                                cameras=camera_poses,
+            #                                points=points_3d.points3D,
+            #                                dist=[self.dist],
+            #                                mono=True)
+            try:
+                count_of_points = points_3d.points3D.shape[0]
+            except:
+                message = 'Error: no 3D points are calculated. Try reducing min_observe to 3 (Default). If its already set to 3, set min_angle to 1.0. If its already set to 1.0, use VGGT pipeline for robustness.'
+                raise Exception(message)
 
             scene = Scene(points3D = points_3d,
-                          cam_poses = camera_poses, 
+                          cam_poses = camera_poses.camera_pose, 
+                          observations = np.vstack(observations_pix),
                           representation = "point cloud",
-                          bal_data=ba_data) 
+                        #   bal_data=ba_data,
+                          sparse=True)
+            print(np.vstack(observations_pix).shape)
+            print(points.data_matrix.shape)
+            print(point_index)
             return scene
         elif self.view == self.VIEWS[1]: # Two-View
             if points.multi_view:
@@ -841,3 +877,365 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
         X = (X[:-1]/X[-1]).T
 
         return X
+    
+
+###########################################################################################################
+###################################### DENSE RECONSTRUCTION MODULES #######################################
+
+class Dense3DReconstructionVGGT(DenseSceneEstimation):
+    def __init__(self,
+                 cam_data: CameraData,
+                 min_observe: int = 3):
+        super().__init__(cam_data = cam_data)
+
+        self.module_name = "Dense3DReconstructionVGGT"
+        self.description = f"""
+Densely reconstructs a 3D scene utilizing pre-processed information of camera poses and
+images of the scene (SKIP SPARSE RECONSTRUCTION - DO NOT USE SPARSE VGGT AND INSTEAD REPLACE WITH THIS MODULE). 
+Camera Poses are estimated prior to thie module through the camera pose estimation  module, specifically from VGGT 
+pose estimation. Features do NOT need to be tracked or matched between frames.
+This module can reconstruct dense 3D scenes specifically using a monocular camera. 
+This module can reconstruct dense 3D scenes either through single view or multi-view scenes.
+This is determined by the how many images exist in the scene and how many poses were estimated from the previous
+module using the VGGT pose estimation tool specifically.
+Use this module when specified for dense reconstruction and the scene doesn't allow for many features to be detected
+from classical feature detectors (SIFT or ORB), or ML Detectors. Utilize this module in conjuction with the VGGT pose 
+estimation module in these cases where feature detection is low. This module is for reconstructing the scene using 
+the deep learning approach. 
+Computation time should matter when invoking this tool, KEEP IN MIND of system constraints such as GPU memory prior
+to USING THIS TOOL.
+
+Initialization Parameters:
+- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+- min_observe: The minimum number of observations (number of tracked feature points) needed to conduct a 3D 
+point estimation. Note: this must be greater than 2
+    - Default (int): 3 
+
+Function Call Parameters:
+- camera_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
+specifically from the CameraPoseEstimation modules. 
+- Ignore parameter (sparse_scene: Scene): Not needed for VGGT module, as we skip sparse reconstruction for this module.
+
+Module Input:
+    sparse_scene (Scene):
+        points3D: Points3D 
+            Points3D
+                - points3D: np.ndarray      [N x 3] Point position in 3D space [x, y, z]
+                - color: np.ndarray         [N x 3] Point Color [r, g, b]               
+        cam_poses: list[np.ndarray]         [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
+        point_to_pose: np.ndarray           [N x 2] List of corresponding camera poses to 3D points [cam_frame, point_index]
+        depth_maps: list[np.ndarray]        list[H x W] Depth Maps per frame, formated as HeightxWidth of image shape
+    cam_poses (CameraPose):
+        camera_pose: list[np.ndarray]   [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
+        rotations: list[np.ndarray]     [3 x 3] (np.float) Rotation matrices for each corresponding frame (Derived from camera_pose)
+        translations: list[np.ndarray]  [3 x 1] (np.float) Translation matrices for each corresponding frame (Derived from camera_pose)
+
+Module Output: Scene
+"""
+        self.example = f"""
+Initialization:
+# Import Module 
+from modules.scenereconstruction import Dense3DReconstructionVGGT
+
+# Scene Reconstruction Module Initialization
+dense_reconstruction = Dense3DReconstructionVGGT(cam_data=camera_data)
+
+Function Call:
+# Estimate dense 3D scene from camera poses only (Sparse Scene estimation is skipped)
+dense_scene = dense_reconstruction(sparse_scene=None,
+                                   camera_poses=cam_poses)
+"""
+
+        # Initialize Model
+        WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        # bfloat16 is supported on Ampere GPUs (Compute Capability 8.0+) 
+        self.dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
+
+        self.model = VGGT().to(self.device)
+        self.model.load_state_dict(torch.load(WEIGHT_MODULE, weights_only=True))
+
+        self.height, self.width = self.image_list[0].shape[:2]
+        # Load Images in correct format for VGGT inference
+        to_tensor = TF.ToTensor()
+        tensor_img_list = []
+        for ind in range(len(self.image_list)):
+            tensor_img_list.append(to_tensor(self.image_list[ind]))
+        self.images = torch.stack(tensor_img_list).to(self.device) 
+
+        self.minimum_observation = min_observe
+
+    def point_density(self, points):
+            mins = points.min(axis=0)
+            maxs = points.max(axis=0)
+            volume = np.prod(maxs - mins)
+            return len(points) / volume
+        
+    def coverage(self, points, voxel=0.05):
+        voxels = np.floor(points / voxel).astype(int)
+        return len(np.unique(voxels, axis=0))
+    
+
+    def depth_consistency(self, depth_maps):
+        """
+        depth_maps: list of (H, W) depth arrays
+        """
+        diffs = []
+        for i in range(depth_maps.shape[0] - 1):
+            d1, d2 = depth_maps[i], depth_maps[i+1]
+            mask = np.isfinite(d1) & np.isfinite(d2)
+            diffs.append(np.abs(d1[mask] - d2[mask]))
+
+        return np.mean(np.concatenate(diffs))
+
+    def build_reconstruction(self, 
+                             sparse_scene: Scene | None = None,
+                             cam_poses: CameraPose | None = None) -> Scene:
+        torch.cuda.empty_cache() #Empty GPU cache
+
+        ext_torch = torch.from_numpy(np.array(cam_poses.camera_pose)).to(self.device)
+        int_torch = torch.from_numpy(np.array(self.K_mat)).to(self.device)
+        int_torch[:, :2, :] *= (518/self.width) # Bring back to fixed VGGT Resolution
+
+        # VGGT Fixed Resolution to 518 for Inference
+        images = F.interpolate(self.images, size=(518, 518), mode="bilinear", align_corners=False)
+        
+        with torch.no_grad():
+            with torch.amp.autocast('cuda', dtype=self.dtype):
+                images = images[None]  # add batch dimension
+                aggregated_tokens_list, ps_idx = self.model.aggregator(images)
+
+            # Predict Depth Maps
+            depth_map, depth_conf = self.model.depth_head(aggregated_tokens_list, images, ps_idx)
+            torch.cuda.empty_cache() #Empty GPU cache
+
+            point_map = unproject_depth_map_to_point_map(depth_map.squeeze(0), 
+                                                                ext_torch, 
+                                                                int_torch)
+        
+        num_cameras = len(cam_poses.camera_pose)
+
+        depth_conf = depth_conf.squeeze(0).detach().cpu().numpy()
+        depth_map = depth_map.squeeze(0).detach().cpu().numpy() 
+        print(point_map.shape)
+        print(depth_conf.shape) 
+        points_3d = self.collect_PM_points(point_maps=point_map, 
+                                           conf_maps=depth_conf)
+        
+        # points_3d = self.voxel_downsample(points=points_3d)
+        
+        torch.cuda.empty_cache() #Empty GPU cache
+        pts = Points3D()
+        pts.set_all_points(points = points_3d)
+        scene = Scene(points3D=pts,
+                      cam_poses = cam_poses.camera_pose,
+                      depth_maps=depth_map)
+        print(points_3d.shape)
+
+        val = self.point_density(points=points_3d)
+        print("POINT DENSITY", val)
+        val = self.coverage(points = points_3d)
+        print("OCCUPANCY GRID", val)
+        val = self.depth_consistency(depth_maps=depth_map)
+        print("DEPTH CONSISTENCY", val)
+        return scene
+    
+class Dense3DReconstructionMono(DenseSceneEstimation):
+    def __init__(self, 
+                 cam_data: CameraData,
+                 use_gpu: bool = True,
+                 reproj_error: float = 3.0,
+                 min_triangulation_angle: float = 1.0,
+                 num_samples: int = 15,
+                 num_iterations: int = 5):
+        super().__init__(cam_data = cam_data)
+
+        self.module_name = "Dense3DReconstructionMono"
+        self.description = f"""
+Densely reconstructs a 3D scene utilizing pre-processed information of the sparsely reconstructed scene
+(Depends on Sparse Reconstruction Module). Camera Poses are estimated prior to thie module through the camera 
+pose estimation  module. The sparse scene is reconstructed using the Sparse Reconstruction Modules, with the inclusion
+of Feature Tracking and Pose estimation data being processed prior to full scene reconstruction.
+Use this module when specified for dense reconstruction. Utilize this module in conjuction with the Camera Pose estimation
+module, feature tracking module, and sparse scene reconstruction modules.
+Computation time should partially matter when invoking this tool, KEEP IN MIND of system constraints such as GPU memory prior
+to USING THIS TOOL (Less GPU memory is not a constraint here). USE THIS MODULE IF TAKING THE CLASSICAL 
+APPROACH AND USING FEATURES TO ESTIMATE SCENE RECONSTRUCTION.
+
+Initialization Parameters:
+- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+- use_gpu: Whether to use GPU or not.
+    - default (bool): True,
+- reproj_error: Maximum geometric consistency cost in terms of the forward-backward reprojection 
+error in pixels.
+    - default (float): 3.0,
+- min_triangulation_angle: Minimum triangulation angle in degrees for usable 3D points. 
+    - default (float): 1.0,
+- num_samples: Number of random samples to draw in Monte Carlo sampling (Patch Match Stereo - Colmap).
+    - default (int): 15,
+- num_iterations: Number of coordinate descent iterations.
+    - default (int): 5
+
+Function Call Parameters:
+- camera_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
+specifically from the CameraPoseEstimation modules. 
+- sparse_scene (Scene): Estimated scene containing information of the sparsely reconstructed scene. Estimated prior to this 
+function call specifically from the SparseReconstruction modules.
+
+Module Input:
+    sparse_scene (Scene):
+        points3D: Points3D 
+            Points3D
+                - points3D: np.ndarray      [N x 3] Point position in 3D space [x, y, z]
+                - color: np.ndarray         [N x 3] Point Color [r, g, b]               
+        cam_poses: list[np.ndarray]         [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
+        point_to_pose: np.ndarray           [N x 2] List of corresponding camera poses to 3D points [cam_frame, point_index]
+        depth_maps: list[np.ndarray]        list[H x W] Depth Maps per frame, formated as HeightxWidth of image shape
+    cam_poses (CameraPose):
+        camera_pose: list[np.ndarray]   [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
+        rotations: list[np.ndarray]     [3 x 3] (np.float) Rotation matrices for each corresponding frame (Derived from camera_pose)
+        translations: list[np.ndarray]  [3 x 1] (np.float) Translation matrices for each corresponding frame (Derived from camera_pose)
+
+Module Output: Scene (Densely reconstructed scene)
+"""
+        self.example = f"""
+Initialization:
+(APPLY BA Prior to Dense Reconstruction)
+from modules.optimization import BundleAdjustmentOptimizerGlobal
+# Build Optimizer
+optimizer = BundleAdjustmentOptimizerGlobal(max_num_iterations=30,
+                                            cam_data=camera_data)
+
+# Run Optimizer
+optimal_scene = optimizer(sparse_scene)
+
+# Import Dense Module 
+from modules.scenereconstruction import Dense3DReconstructionMono
+
+# Conduct Dense Reconstruction
+dense_reconstruction = Dense3DReconstructionMono(cam_data=camera_data,
+                                                  reproj_error=3.0,
+                                                  min_triangulation_angle=1.0,
+                                                  num_samples=15,
+                                                  num_iterations=3)
+
+# Estimate Dense 3D scene from tracked features and camera poses
+dense_scene = dense_reconstruction(sparse_scene=optimal_scene)
+"""
+
+        self.opts = pycolmap.PatchMatchOptions()
+        if use_gpu:
+            self.opts.gpu_index = "0"
+        self.opts.geom_consistency_max_cost = reproj_error
+        self.opts.min_triangulation_angle = min_triangulation_angle
+        self.opts.num_samples = num_samples
+        self.opts.num_iterations = num_iterations
+
+        self.workspace_path = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace"
+
+        # Create Dense Directory
+        dense_path = f"{self.workspace_path}\\dense"
+        fused_path = f"{self.workspace_path}\\dense_fused"
+        if os.path.exists(dense_path):
+            # Delete the directory and all its contents
+            shutil.rmtree(dense_path)
+            
+        if os.path.exists(fused_path):
+            # Delete the directory and all its contents
+            shutil.rmtree(fused_path)
+
+        # Recreate an empty directory
+        os.makedirs(dense_path)
+        os.makedirs(fused_path)
+
+    def build_reconstruction(self,
+                             sparse_scene: Scene | None = None,
+                             cam_poses: CameraPose | None = None):
+        
+        # Step 1: Undistort Images
+        pycolmap.undistort_images(
+            output_path=f"{self.workspace_path}\\dense",
+            input_path=f"{self.workspace_path}\\sparse",
+            image_path=f"{self.workspace_path}\\images",
+            output_type="COLMAP",
+        )
+        
+        # Step 2: Run Patch Match Stereo to create per-image depth maps
+        pycolmap.patch_match_stereo(
+            workspace_path=f"{self.workspace_path}\\dense",
+            options=self.opts
+        )
+
+        # Step 3: Fuse the Depth Maps
+        pycolmap.stereo_fusion(
+            workspace_path=f"{self.workspace_path}\\dense",
+            output_path=f"{self.workspace_path}\\dense_fused"
+        )
+
+        # Grab 
+        dense_model_path = os.path.join(self.workspace_path, "dense_fused")
+        recon = pycolmap.Reconstruction(dense_model_path)
+
+        points = np.array([p.xyz for p in recon.points3D.values()])
+        colors = np.array([p.color / 255.0 for p in recon.points3D.values()])
+        # pcd = o3d.io.read_point_cloud(f"{self.workspace_path}\\dense\\fused.ply")
+
+        # points = np.asarray(pcd.points)      # (N, 3)
+        print("NUMBER OF POINTS", points.shape)
+
+        depth_maps = self.read_colmap_depth()
+        print("Number of maps", len(depth_maps))
+        print("Depth Map Shape", depth_maps[0].shape)
+        return None #super().build_reconstruction(sparse_scene)
+    
+    def read_colmap_depth(self) -> list[np.ndarray]:
+        depth_dir = os.path.join(
+            self.workspace_path, "dense", "stereo", "depth_maps"
+        )
+        depth_files = sorted(glob.glob(os.path.join(depth_dir, "*.photometric.bin")))
+        # print(depth_files)
+        depth_maps = []
+        for file in depth_files:
+            with open(file, "rb") as f:
+                # Read until newline (end of the ASCII header)
+                # ---- Read the text header ----
+                header_bytes = b""
+                count = 0
+                while True:
+                    byte = f.read(1)
+                    if not byte:
+                        raise IOError(f"EOF before header finished")
+                    header_bytes += byte
+                    if byte == b"&":
+                        count += 1
+                        if count == 3:
+                            # The header ends with an extra ampersand
+                            # after channels, e.g. "1600&1200&1&"
+                            break
+
+                header_str = header_bytes.decode("ascii")
+                parts = header_str.strip("&").split("&")
+
+                # Now read the numeric values that follow
+                if len(parts) != 3:
+                    raise ValueError(f"Unexpected header format: {header_str}")
+
+                width = int(parts[0])
+                height = int(parts[1])
+                channels = int(parts[2])
+
+                # ---- Read the float32 depth data ----
+                num_values = width * height
+                depth_data = np.fromfile(f, dtype=np.float32, count=num_values)
+
+                if depth_data.size != num_values:
+                    raise ValueError(
+                        f"Depth size mismatch, "
+                        f"expected {num_values}, got {depth_data.size}"
+                    )
+                
+                depth = depth_data.reshape((height, width))
+                depth_maps.append(depth)
+
+        return depth_maps #data.reshape((height, width))

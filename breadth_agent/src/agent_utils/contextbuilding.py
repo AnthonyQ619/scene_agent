@@ -21,7 +21,12 @@ from modules.featurematching import (FeatureMatchFlannTracking,
                                      FeatureMatchRoMAPair)
 from modules.camerapose import (CamPoseEstimatorEssentialToPnP, 
                                 CamPoseEstimatorVGGTModel)
-from modules.scenereconstruction import Sparse3DReconstructionMono, Sparse3DReconstructionVGGT
+from modules.scenereconstruction import (Sparse3DReconstructionMono, 
+                                         Sparse3DReconstructionVGGT,
+                                         Dense3DReconstructionVGGT,
+                                         Dense3DReconstructionMono)
+from modules.optimization import (BundleAdjustmentOptimizerLocal, 
+                                  BundleAdjustmentOptimizerGlobal)
 from modules.visualize import VisualizeScene
 import numpy as np
 
@@ -91,6 +96,50 @@ def build_full_length_context_file(filename: str, context_file_path: str, num = 
 
     file_to_write.close()
 
+def build_full_length_context_files(context_file_path: str, num = 1):
+    special_breaker = "\n===$&$===\n"
+    if not os.path.isdir(CURRENT_PATH + "\\script_context"):
+        os.mkdir(CURRENT_PATH + "\\script_context")
+
+    file_to_write_s_to_p = open(CURRENT_PATH + "\\script_context\\scene_to_process.txt", 'w')
+    file_to_write_p_to_c = open(CURRENT_PATH + "\\script_context\\process_to_scripts.txt", 'w')
+
+    context_files = sorted(glob.glob(context_file_path + "\\test_sfm_t*"))[:num]
+    print(context_files)
+    # for i in range(len(context_files)):
+
+    #     file = context_files[i]
+    #     script = open(file, 'r')
+
+    #     content = script.read()
+        
+    #     if i == 0: 
+    #         full_string = special_breaker + content + special_breaker
+    #     else:
+    #         full_string = content + special_breaker
+    #     file_to_write.write(full_string)
+
+    #     script.close()
+    for i in range(len(context_files)):
+        file = context_files[i]
+        script = open(file, 'r')
+        content = script.read()
+
+        split_text = content.split("# ==#$#==")
+        scene_desc = split_text[0].lstrip().rstrip().replace('"""','').replace("\n", "")
+        process_desc = split_text[1].lstrip().rstrip().replace('"""','')#.replace("\n", "")
+        code_desc = split_text[2]
+
+        file_to_write_s_to_p.writelines(["Example Scene:\n" + scene_desc + "\n", 
+                                         "==#$#==\nExample Process:\n" + process_desc + "\n==$#$==\n"])
+        file_to_write_p_to_c.writelines(["Example Process:\n" + process_desc + "\n",
+                                         "==#$#==\nExample Code:\n" + code_desc + "\n==$#$==\n"])
+                                         
+
+
+    file_to_write_s_to_p.close()
+    file_to_write_p_to_c.close()
+
 def build_embedded_description_db(file_path: str):
     assert os.path.exists(file_path)
     client = OpenAI()
@@ -153,12 +202,15 @@ def tool_building():
     scene_estimators = [Sparse3DReconstructionMono(cam_data=camera_data),
                         Sparse3DReconstructionVGGT(cam_data=camera_data)
                         ]
+    optimizers = [BundleAdjustmentOptimizerLocal(cam_data = camera_data), 
+                  BundleAdjustmentOptimizerGlobal(cam_data = camera_data)]
 
     build_tool_context_file('feature_context.txt', features, "Features")
     build_tool_context_file('feature_matching_context.txt', matchers, "Feature Matcher")
     build_tool_context_file('camera_pose_context.txt', camera_pose_est, "Pose Estimation")
     build_tool_context_file('scene_const_context.txt', scene_estimators, "Scene Reconstruction")
     build_tool_context_file('feature_tracking_context.txt', trackers, "Feature Tracker")
+    build_tool_context_file('optimization_context.txt', optimizers, "Optimization Module")
 
 
 if __name__ == "__main__":
@@ -172,6 +224,9 @@ if __name__ == "__main__":
     elif arg == "embed" or arg =="embedding":
         path_to_file = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent\\agent_details\\script_context\\full_context_scripts.txt"
         build_embedded_description_db(path_to_file)
+    elif arg == "full_script":
+        path_to_files = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\tests\\context_tests"
+        build_full_length_context_files(path_to_files, num=6)
     elif arg == "test" or arg == "t":
         path_to_file = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent_utils\\script_context\\embed_description_list.txt"
 

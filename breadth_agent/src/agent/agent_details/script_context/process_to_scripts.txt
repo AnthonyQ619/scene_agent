@@ -1,0 +1,892 @@
+Example Process:
+
+GOAL RECONSTRUCTION: Dense Reconstruction
+
+STEP 1: Read in Camera data
+- Set the image path to the provided directory of images to the CameraDataManager to read, resize, and pre-process images for reconstruction
+- Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
+  activate the parameter
+- Finally, call get_camera_data() function to have access to the camera data of images and calibration
+
+STEP 2: 
+- Scene: Highly-Textured (Righly Textured Buildings) USE SIFT
+- Select the SIFT module since the scene featuring the object is well lit, in an indoor setting, and the object is of a brick house that is 
+  well textured for using SIFT reliably.
+    - Set max features to detect to 19000, to ensure we detect as much features as possible since we also want to detect corners due to the 
+      object having many set shapes (house) that involves corners and edges.
+    - Set contrast threshold to 0.005, with default being 0.04, the lower the threshold, more features are produced, which is what we desire 
+      for this scenario.
+    - Set edge_threshold to 12, the higher the threshold, the more edge-like features are produced, which we need for this scene.
+
+STEP 3: 
+- Select the Flann feature matcher to utilize a nearest neighbor matcher, as we do not have a constraint of time to enforce the brute force 
+  algorithm
+    - Set RANSAC_threshold to 0.3, for more loosely outlier rejection since we have an abundance of points in a well-lit scene
+    - Set lowes_threshold to 0.75, to enable more matching pairs to pass since any higher threshold will remove usable inliers for matches
+
+STEP 4:
+- Estimate the camera pose using matching feature pairs of the scene
+    - Set reprojection_error=3.0, since we are including corner points as well to ensure as many 3D points are included as possible for a 
+      and more accurate bundle adjustment
+    - Set iteration_count=200, default setting for iteration count of the Levenberg-Marquardt algorithm during pose estimation. Enough for 
+      a well-lit and textured scene for optimal initial pose estimation
+    - Set confidence=0.995, Since the scene is well-lit and textured, we have a higher confidence of the proposed solutions 
+
+STEP 5:
+- Track Features across multiple images using the same feature matching tool
+    - Set RANSAC_threshold to 0.2, as we want to be more strict on the feature tracks for more accurate estimate of 3D points in the scene
+      and remove the chance for any outliers.
+
+STEP 6:
+- Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
+    - Set min_observe=5, to increase the minimum number of observations needed to estimate a 3D point of 5 features, since this scene has 
+      minimal camera movement, we need a wide baseline. 
+    - Set min_angle=3.0, utilize a larger minimum angle to ensure 3D point estimates are more acccurate.
+    - Set view="multi", we are tracking features, so the estimation method is multi-view
+
+STEP 7:
+- Apply Global Bundle Adjustment to the scene for optimal reconstruction
+    - Set max_num_iterations=80, since initial 2D points will not be as accurate due to leniency in constraints in previous methods despite
+      optimal scene lighting and texture being for SIFT features.
+      
+STEP 8:
+- Apply Dense Reconstruction Module for dense scene reconstruction. Since we have a Mono camera, and not using VGGT, we opt for the traditonal approach
+    - Set reproj_error=3.0, Default setting to ensure the maximum reprojection error of a given 3D point is only 3.0 pixels
+    - Set min_triangulation_angle=1.0, After bundle adjustment of the sparse scene, we can be less cautious and enable more 3D points by lowering the 
+      the minimum triangulation angle to just 1.0.
+    - Set num_iterations=3, to speed up computation time, we set the number of coordinate descent iterations to just 3 since our build is already
+      geometrically optimal at this point.
+
+==#$#==
+Example Code:
+
+
+# Construct Modules with Initialized Arguments
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan14_normal_lighting"
+calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
+
+# STEP 1: Read in Camera Data
+from modules.cameramanager import CameraDataManager
+
+CDM = CameraDataManager(image_path=image_path,
+                        calibration_path=calibration_path)
+
+# Get Camera Data
+camera_data = CDM.get_camera_data()
+
+# STEP 2: Estimate Features per Image
+from modules.features import FeatureDetectionSIFT
+# Feature Module Initialization
+feature_detector = FeatureDetectionSIFT(cam_data=camera_data, 
+                                        max_keypoints=19000,
+                                        contrast_threshold=0.005,
+                                        edge_threshold=10)
+
+# Detect Features for all Images
+features = feature_detector()
+
+# STEP 3: Match Features Per Image 
+from modules.featurematching import FeatureMatchFlannPair
+# Pairwise Feature Matching Module Initialization
+feature_matcher = FeatureMatchFlannPair(detector='sift', 
+                                        cam_data=camera_data,
+                                        RANSAC_threshold=0.3,
+                                        lowes_thresh=0.75)
+
+# Detect Image Pair Correspondences for Pose Estimation
+feature_pairs = feature_matcher(features=features)
+
+# STEP 4: Estimate Camera Poses of Scene with Feature Pairs
+from modules.camerapose import CamPoseEstimatorEssentialToPnP
+
+# Camera Pose Module Initialization
+pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data,
+                                                reprojection_error=3.0,
+                                                iteration_count=200,
+                                                confidence=0.995)
+
+# From estimated features, estimate the camera poses for all image frames
+cam_poses = pose_estimator(feature_pairs=feature_pairs)
+
+# STEP 5: Estimate Feature Tracks:
+from modules.featurematching import FeatureMatchFlannTracking
+# Feature Tracking Module Initialization
+feature_tracker = FeatureMatchFlannTracking(detector='sift', 
+                                            cam_data=camera_data,
+                                            RANSAC_threshold=0.2)
+
+# From estimated features, tracked features across multiple images
+tracked_features = feature_tracker(features=features)
+
+# STEP 6: Reconstruct Scene in Full
+from modules.scenereconstruction import Sparse3DReconstructionMono
+# Scene Reconstruction Module Initialization
+sparse_reconstruction = Sparse3DReconstructionMono(cam_data=camera_data,
+                                                   min_observe=5,
+                                                   min_angle=3.0,
+                                                   view="multi")
+
+# Estimate sparse 3D scene from tracked features and camera poses
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
+
+# STEP 7: Run Optimization Algorithm
+from modules.optimization import BundleAdjustmentOptimizerGlobal
+
+# Build Optimizer
+optimizer = BundleAdjustmentOptimizerGlobal(max_num_iterations=80,
+                                            cam_data=camera_data)
+
+# Run Optimizer
+optimal_scene = optimizer(sparse_scene)
+
+# STEP 8: Run Rense Reconstruction Algorithm
+from modules.scenereconstruction import Dense3DReconstructionMono
+
+# Conduct Dense Reconstruction Module
+sparse_reconstruction = Dense3DReconstructionMono(cam_data=camera_data,
+                                                  reproj_error=3.0,
+                                                  min_triangulation_angle=1.0,
+                                                  num_samples=15,
+                                                  num_iterations=3)
+
+# Estimate sparse 3D scene from tracked features and camera poses
+dense_scene = sparse_reconstruction(sparse_scene=optimal_scene)
+
+# Optional Visualization
+from modules.visualize import VisualizeScene
+visualizer = VisualizeScene()
+
+visualizer(dense_scene)
+
+
+
+
+==$#$==
+Example Process:
+
+GOAL RECONSTRUCTION: Sparse Reconstruction
+
+STEP 1: Read in Camera data
+- Set the image path to the provided directory of images to the CameraDataManager to read, resize, and pre-process images for reconstruction
+- Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
+  activate the parameter
+- Finally, call get_camera_data() function to have access to the camera data of images and calibration
+
+STEP 2: 
+- Scene: Highly-Textured (high textured regions) and consistent lighting with high textured objects (USE ORB)
+- Select the ORB module since the scene featuring the object is well lit, in an indoor setting, and the object is of a brick house that is 
+  will contain many corner and edge points, resulting in less points needed for an accurate sparse reconstruction.
+    - Set max features to detect to 6000, to ensure we detect as much features as possible since we also want to detect corners due to the 
+      object having many set shapes (house) that involves corners and edges.
+    - Since the scene is very desirable for ORB usage, an object with many corner and edges while also being well-lit, we don't need to tune 
+      any of the other parameters. Main goal is that max points is equivalent to the detected features. 
+
+STEP 3: 
+- Select the Brute Force feature matcher to utilize as a quick matcher for ORB, since we don't have complex descriptors, we can get away with
+a more greedy approach as long as outlier rejection is tighter.
+    - Set RANSAC_threshold to 0.01, for much more strict outlier rejection since we have an abundance of points in a well-lit scene
+    - Set lowes_threshold to 0.6, since our ransac algorithm is strict, we want to enable more matching pairs to pass since any higher 
+      threshold will remove usable inliers for matches, even if they are slightly incorrect.
+
+STEP 4:
+- Estimate the camera pose using matching feature pairs of the scene
+    - Since we are using a more inaccurate feature detector (One of SuperPoint or ORB), we must add an extra layer of optimization
+    - Initialize the Local Optimization module "BundleAdjustmentOptimizerLocal"
+        - Set iteration count for Bundle Adjustment to only 20
+        - Set window size to 8 (Default) since camera movement is minimal and better pose correction.
+    - Set reprojection_error=3.0, since we are including corner points as well to ensure as many 3D points are included as possible for a 
+      and more accurate bundle adjustment
+    - Set iteration_count=300, higher setting for iteration count of the Levenberg-Marquardt algorithm during pose estimation. Since ORB is 
+      inherently inaccurate compared to other detectors, the increased iteration count for optimization will improve initial poses for 
+      a well-lit and textured scene for optimal initial pose estimation
+    - Set confidence=0.995, Since the scene is well-lit and textured, we have a higher confidence of the proposed solutions 
+
+STEP 5:
+- Track Features across multiple images using the same feature matching tool
+    - Set RANSAC_threshold to 0.008, as we want to be more strict on the feature tracks for more accurate estimate of 3D points in the scene
+      and remove the chance for any outliers.
+    - Set cross_check to False to enable nearest neighbor search with the default k value of 2 (choose best of 2 matches being more accurate)
+
+STEP 6:
+- Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
+    - Set min_observe=3, since we are using ORB, the feature tracks will naturally be shorter since we have much stricter outlier rejection. 
+    - Set min_angle=3.0, to offset the smaller observation count and utilize a larger minimum angle to ensure 3D point estimates are more acccurate.
+    - Set view="multi", we are tracking features, so the estimation method is multi-view (Should be default)
+
+STEP 7:
+- Apply Global Bundle Adjustment to the scene for optimal reconstruction
+    - Set max_num_iterations=80, since initial 2D points will not be as accurate due to leniency in constraints in previous methods despite
+      optimal scene lighting and texture being for SIFT features.
+
+==#$#==
+Example Code:
+
+
+# Construct Modules with Initialized Arguments
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan21_normal_lighting"
+calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
+
+# STEP 1: Read in Camera Data
+from modules.cameramanager import CameraDataManager
+
+CDM = CameraDataManager(image_path=image_path,
+                        calibration_path=calibration_path)
+
+# Get Camera Data
+camera_data = CDM.get_camera_data()
+
+# STEP 2: Estimate Features per Image
+from modules.features import FeatureDetectionORB
+# Feature Module Initialization
+feature_detector = FeatureDetectionORB(cam_data=camera_data, 
+                                        max_keypoints=6000)
+
+# Detect Features for all Images
+features = feature_detector()
+
+# STEP 3: Match Features Per Image 
+from modules.featurematching import FeatureMatchBFPair
+# Pairwise Feature Matching Module Initialization
+feature_matcher = FeatureMatchBFPair(detector='orb', 
+                                     cam_data=camera_data,
+                                     RANSAC_threshold=0.01,
+                                     lowes_thresh=0.6)
+
+# Detect Image Pair Correspondences for Pose Estimation
+feature_pairs = feature_matcher(features=features)
+
+# STEP 4: Estimate Camera Poses of Scene with Feature Pairs with Local Bundle Adjustment Activated
+from modules.optimization import BundleAdjustmentOptimizerLocal
+
+# Build Optimizer
+optimizer_local = BundleAdjustmentOptimizerLocal(max_num_iterations=20,
+                                                 window_size=8,
+                                                 cam_data=camera_data)
+
+from modules.camerapose import CamPoseEstimatorEssentialToPnP
+# Camera Pose Module Initialization
+pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data,
+                                                reprojection_error=3.0,
+                                                iteration_count=300,
+                                                confidence=0.995,
+                                                optimizer=optimizer_local)
+
+# From estimated features, estimate the camera poses for all image frames
+cam_poses = pose_estimator(feature_pairs=feature_pairs)
+
+# STEP 5: Estimate Feature Tracks:
+from modules.featurematching import FeatureMatchBFTracking
+# Feature Tracking Module Initialization
+feature_tracker = FeatureMatchBFTracking(detector='orb', 
+                                         cam_data=camera_data,
+                                         RANSAC_threshold=0.008,
+                                         cross_check=False)
+
+# From estimated features, tracked features across multiple images
+tracked_features = feature_tracker(features=features)
+
+# STEP 6: Reconstruct Scene in Full
+from modules.scenereconstruction import Sparse3DReconstructionMono
+# Scene Reconstruction Module Initialization
+sparse_reconstruction = Sparse3DReconstructionMono(cam_data=camera_data,
+                                                   min_observe=3,
+                                                   min_angle=3.0,
+                                                   view="multi")
+
+# Estimate sparse 3D scene from tracked features and camera poses
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
+
+# STEP 7: Run Optimization Algorithm
+from modules.optimization import BundleAdjustmentOptimizerGlobal
+
+# Build Optimizer
+optimizer = BundleAdjustmentOptimizerGlobal(max_num_iterations=70,
+                                            cam_data=camera_data)
+
+# Run Optimizer
+optimal_scene = optimizer(sparse_scene)
+
+# Optional Visualization
+from modules.visualize import VisualizeScene
+visualizer = VisualizeScene()
+
+visualizer(optimal_scene)
+
+==$#$==
+Example Process:
+
+GOAL RECONSTRUCTION: Sparse Reconstruction
+
+STEP 1: Read in Camera data
+- Set the image path to the provided directory of images to the CameraDataManager to read, resize, and pre-process images for reconstruction
+- Since no calibration path is provided, we ignore this parameter (This is a strong indication to utilize a tool that does calibration simultaneously)
+- Since no calibration calls for the VGGT pipeline, resize images into a square format for better VGGT optimization, and convert the size to (1024,1024)
+- Finally, call get_camera_data() function to have access to the camera data of images and calibration
+
+STEP 2: 
+- Scene: stronger shadows, but subsequent images are brighter (Illumination changes) with diffuse lighting. Predominantly high-textured but low texture areas 
+  (MIXED TEXTURED). USE SUPERPOINT DUE TO LIGHTING CHANGES AND MIXED TEXTURE.
+- Select the SuerPoint module since the scene featuring the object is causing illumination changes across the set of images, and even though it is in an 
+  indoor setting, and the object is of a brick house that is well textured, the illumination changes causes weak correspondence in traditional detectors.
+  Thus, we opt for SuperPoint, and ML detector robust to illumination or dull lighting enviornments.
+    - Set max features to detect to 5000, to ensure we detect as much features as possible for SuperPoint.
+
+STEP 3: 
+- Since we are using the VGGT pipeline, we don't need feature points to be matcher pairwise as VGGT estimates pose with images directly.
+
+STEP 4:
+- Estimate the camera pose using using the VGGT pipeline as we have no camera calibration,
+    - Set the cam_data parameter to the camera_data variable holding our pre-processed image set.
+
+STEP 5:
+- Track Features across multiple images using the SuperGlue Feature Tracking tool
+    - Set RANSAC_threshold to 0.3, default setting as we want to build longer feature tracks for more accurate estimate of 3D points optimization in the scene
+    - Set the detector to "superpoint" as that is the detector we are using.
+    - Set the setting to "Indoor" to utilize the indoor weights of the model ("Outdoor" is for outdoor scenes)
+
+STEP 6:
+- Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
+    - Set min_observe=3, since we are using SuperPoint, the feature tracks might be shorter since we have less points due to the inconsistent lighting. 
+    - Since VGGT estimates 3D points just using the camera pose, we don't need other features besides image data from cam_data
+
+STEP 7:
+- Apply Global Bundle Adjustment to the scene for optimal reconstruction
+    - Set max_num_iterations=50, since initial 2D points will not be as accurate due to leniency in 3D point to point map matching from VGGT calculation
+      in previous methods despite superpoint being more robust to illumination changing environments.
+
+==#$#==
+Example Code:
+
+
+# Construct Modules with Initialized Arguments
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_illumination_change"
+
+# STEP 1: Read in Camera Data
+from modules.cameramanager import CameraDataManager
+
+CDM = CameraDataManager(image_path=image_path,
+                        target_resolution=[1024, 1024])
+
+# Get Camera Data
+camera_data = CDM.get_camera_data()
+
+# STEP 2: Estimate Features per Image
+from modules.features import FeatureDetectionSP
+# Feature Module Initialization
+feature_detector = FeatureDetectionSP(cam_data=camera_data,
+                                        max_keypoints=5000)
+
+# Detect Features for all Images
+features = feature_detector()
+
+# STEP 3: Match Features Per Image 
+# Ignore since pose estimation is using VGGT as the backbone structure
+
+# STEP 4: Estimate Camera Poses of Scene with Feature Pairs
+from modules.camerapose import CamPoseEstimatorVGGTModel
+# Camera Pose Module Initialization
+pose_estimator = CamPoseEstimatorVGGTModel(cam_data=camera_data)
+
+# From estimated features, estimate the camera poses for all image frames
+cam_poses = pose_estimator()
+
+# STEP 5: Estimate Feature Tracks:
+from modules.featurematching import FeatureMatchSuperGlueTracking
+# Feature Tracking Module Initialization
+feature_tracker = FeatureMatchSuperGlueTracking(detector='superpoint', 
+                                            cam_data=camera_data,
+                                            RANSAC_threshold=0.3,
+                                            setting="indoor")
+
+
+# From estimated features, tracked features across multiple images
+tracked_features = feature_tracker(features=features)
+
+# STEP 6: Reconstruct Scene in Full
+from modules.scenereconstruction import Sparse3DReconstructionVGGT
+# Scene Reconstruction Module Initialization
+sparse_reconstruction = Sparse3DReconstructionVGGT(cam_data=camera_data,
+                                                   min_observe=3)
+
+# Estimate sparse 3D scene from tracked features and camera poses
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
+
+# STEP 7: Run Optimization Algorithm
+from modules.optimization import BundleAdjustmentOptimizerGlobal
+# Build Optimizer
+optimizer = BundleAdjustmentOptimizerGlobal(max_num_iterations=60,
+                                            cam_data=camera_data)
+
+# Run Optimizer
+optimal_scene = optimizer(sparse_scene)
+
+
+# Optional Visualization
+from modules.visualize import VisualizeScene
+visualizer = VisualizeScene()
+
+visualizer(optimal_scene)
+
+
+
+==$#$==
+Example Process:
+
+GOAL RECONSTRUCTION: Sparse Reconstruction
+- Scene: the stone-like statue is highly textured; the background surface is mostly low-textured/uniform (MIXED TEXTURED). and 
+  soft, diffuse lighting with similar shadows. USE SUPERPOINT DUE TO LIGHTING CHANGES AND MIXED TEXTURE.
+STEP 1: Read in Camera data
+- Set the image path to the provided directory of images to the CameraDataManager to read, resize, and pre-process images for reconstruction
+- Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
+  activate the parameter
+- Finally, call get_camera_data() function to have access to the camera data of images and calibration
+
+STEP 2: 
+- Scene: stronger shadows, but subsequent images are brighter (Illumination changes) with diffuse lighting. Predominantly high-textured but low texture areas 
+  (MIXED TEXTURED). USE SUPERPOINT DUE TO LIGHTING CHANGES AND MIXED TEXTURE.
+- Select the SuerPoint module since the scene featuring the object creates shadows with diffuse lighting, and even though it is in an 
+  indoor setting with good texture, the illumination changes on the object causes weak correspondence in traditional detectors for tracking, which is crucial in pose
+  estimation and scene reconstruction.
+  Thus, we opt for SuperPoint, and ML detector robust to illumination or dull lighting enviornments.
+    - Set max features to detect to 5000, to ensure we detect as much features as possible for SuperPoint.
+
+STEP 3: 
+- Select the LightGlue feature matcher for image pair matching to utilize as a quick matcher for SuperPoint for simple pair wise matching, where 
+  we can be less strict in extremely accurate matches for more optimized computation speed.
+    - Set RANSAC_threshold to 0.03, for much more strict outlier rejection since we need to ensure we remove all outlier correspondences
+
+STEP 4:
+- Estimate the camera pose using matching feature pairs of the scene
+    - Since we are using a more inaccurate feature detector (One of SuperPoint or ORB), we must add an extra layer of optimization
+    - Initialize the Local Optimization module "BundleAdjustmentOptimizerLocal"
+        - Set iteration count for Bundle Adjustment to 30 since we are utilizing an ML detector, which is inherently less geometrically correct.
+        - Set window size to 8 (Default) since camera movement is minimal and better pose correction.
+    - Set reprojection_error=3.0, since we are including corner points as well to ensure as many 3D points are included as possible for a 
+      and more accurate bundle adjustment
+    - Set iteration_count=300, higher setting for iteration count of the Levenberg-Marquardt algorithm during pose estimation. Since ORB is 
+      inherently inaccurate compared to other detectors, the increased iteration count for optimization will improve initial poses for 
+      a well-lit and textured scene for optimal initial pose estimation
+    - Set confidence=0.995, Since the scene is well-lit and textured, we have a higher confidence of the proposed solutions 
+
+STEP 5:
+- Track Features across multiple images using the SuperGlue Feature Tracking tool
+    - Set RANSAC_threshold to 0.4, less strict since we are using SuperGlue, which is more accurate and  we want to build longer feature tracks 
+      for more accurate estimate of 3D points optimization in the scene
+    - Set the detector to "superpoint" as that is the detector we are using.
+    - Set the setting to "Indoor" to utilize the indoor weights of the model ("Outdoor" is for outdoor scenes)
+
+STEP 6:
+- Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
+    - Set min_observe=4, since we are using SuperPoint with SuperGlue, we have accessibility to large tracks as the lighting changes are not extreme.
+    - Set min_angle=3.0, to utilize a larger minimum angle to ensure 3D point estimates are more acccurate.
+    - Set view="multi", we are tracking features, so the estimation method is multi-view (Should be default)
+
+STEP 7:
+- Apply Global Bundle Adjustment to the scene for optimal reconstruction
+    - Set max_num_iterations=80, since initial 2D points will not be as accurate due to leniency in constraints in previous methods despite
+      optimal scene lighting and texture being for SIFT features.
+
+==#$#==
+Example Code:
+
+
+# Construct Modules with Initialized Arguments
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan118_normal_lighting"
+calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
+
+
+# STEP 1: Read in Camera Data
+from modules.cameramanager import CameraDataManager
+
+CDM = CameraDataManager(image_path=image_path,
+                        calibration_path=calibration_path)
+
+# Get Camera Data
+camera_data = CDM.get_camera_data()
+
+# STEP 2: Estimate Features per Image
+from modules.features import FeatureDetectionSP
+# Feature Module Initialization
+feature_detector = FeatureDetectionSP(cam_data=camera_data,
+                                      max_keypoints=5000)
+# Detect Features for all Images
+features = feature_detector()
+
+# STEP 3: Match Features Per Image 
+from modules.featurematching import FeatureMatchLightGluePair
+# Pairwise Feature Matching Module Initialization
+feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
+                                            RANSAC_threshold=0.03)
+
+# Detect Image Pair Correspondences for Pose Estimation
+feature_pairs = feature_matcher(features=features)
+
+# STEP 4: Estimate Camera Poses of Scene with Feature Pairs with Local Bundle Adjustment Activated
+from modules.optimization import BundleAdjustmentOptimizerLocal
+
+# Build Optimizer
+optimizer_local = BundleAdjustmentOptimizerLocal(max_num_iterations=30,
+                                                 cam_data=camera_data)
+
+from modules.camerapose import CamPoseEstimatorEssentialToPnP
+# Camera Pose Module Initialization
+pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data,
+                                                reprojection_error=3.0,
+                                                iteration_count=300,
+                                                confidence=0.995,
+                                                optimizer=optimizer_local)
+
+# From estimated features, estimate the camera poses for all image frames
+cam_poses = pose_estimator(feature_pairs=feature_pairs)
+
+# STEP 5: Estimate Feature Tracks:
+from modules.featurematching import FeatureMatchSuperGlueTracking
+# Feature Tracking Module Initialization
+feature_tracker = FeatureMatchSuperGlueTracking(detector='superpoint', 
+                                            cam_data=camera_data,
+                                            RANSAC_threshold=0.4)
+
+
+# From estimated features, tracked features across multiple images
+tracked_features = feature_tracker(features=features)
+
+# STEP 6: Reconstruct Scene in Full
+from modules.scenereconstruction import Sparse3DReconstructionMono
+# Scene Reconstruction Module Initialization
+sparse_reconstruction = Sparse3DReconstructionMono(cam_data=camera_data,
+                                                   min_observe=4,
+                                                   min_angle=3.0,
+                                                   view="multi")
+
+# Estimate sparse 3D scene from tracked features and camera poses
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
+
+# STEP 7: Run Optimization Algorithm
+from modules.optimization import BundleAdjustmentOptimizerGlobal
+
+# Build Optimizer
+optimizer = BundleAdjustmentOptimizerGlobal(max_num_iterations=60,
+                                            cam_data=camera_data)
+
+# Run Optimizer
+optimal_scene = optimizer(sparse_scene)
+
+# Optional Visualization
+from modules.visualize import VisualizeScene
+visualizer = VisualizeScene()
+
+visualizer(optimal_scene)
+==$#$==
+Example Process:
+
+GOAL RECONSTRUCTION: Dense Reconstruction
+
+STEP 1: Read in Camera data
+- Set the image path to the provided directory of images to the CameraDataManager to read, resize, and pre-process images for reconstruction
+- Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
+  activate the parameter
+- Finally, call get_camera_data() function to have access to the camera data of images and calibration
+
+STEP 2: 
+- Mixture of textures as the stone statue and carved fruit details are highly textured; surrounding walls, pillars, steps and floor are 
+  mostly smooth/low-textured. For more points, USE SUPERPOINT DUE TO MIXTURE OF TEXTURE.
+- Select the SuerPoint module since the scene featuring the scene contains a mixture of textures despite having consistent lighting, the 
+  production of a mostly matte appearance on the stone leaves overall less texture.
+    - Set max features to detect to 5000, to ensure we detect as much features as possible for SuperPoint.
+
+STEP 3: 
+- Select the LightGlue feature matcher for image pair matching to utilize as a quick matcher for SuperPoint for simple pair wise matching, where 
+  we can be less strict in extremely accurate matches for more optimized computation speed.
+    - Set RANSAC_threshold to 0.03, for much more strict outlier rejection since we need to ensure we remove all outlier correspondences
+
+STEP 4:
+- Estimate the camera pose using matching feature pairs of the scene
+    - Since we are using a more inaccurate feature detector (One of SuperPoint or ORB), we must add an extra layer of optimization
+    - Initialize the Local Optimization module "BundleAdjustmentOptimizerLocal"
+        - Set iteration count for Bundle Adjustment to 30 since we are utilizing an ML detector, which is inherently less geometrically correct.
+        - Set window size to 5 (Default) since we are using super point, we will need better correction due to drift and better pose correction.
+    - Set reprojection_error=3.0, since we are including corner points as well to ensure as many 3D points are included as possible for a 
+      and more accurate bundle adjustment
+    - Set iteration_count=300, higher setting for iteration count of the Levenberg-Marquardt algorithm during pose estimation. Since ORB is 
+      inherently inaccurate compared to other detectors, the increased iteration count for optimization will improve initial poses for 
+      a well-lit and textured scene for optimal initial pose estimation
+    - Set confidence=0.995, Since the scene is well-lit and textured, we have a higher confidence of the proposed solutions 
+
+STEP 5:
+- Track Features across multiple images using the SuperGlue Feature Tracking tool
+    - Set RANSAC_threshold to 0.4, less strict since we are using SuperGlue, which is more accurate and  we want to build longer feature tracks 
+      for more accurate estimate of 3D points optimization in the scene
+    - Set the detector to "superpoint" as that is the detector we are using.
+    - Set the setting to "Indoor" to utilize the indoor weights of the model ("Outdoor" is for outdoor scenes)
+
+STEP 6:
+- Reconstruct the Sparse Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
+    - Set min_observe=4, since we are using SuperPoint with SuperGlue, we have accessibility to large tracks as the lighting changes are not extreme.
+    - Set min_angle=3.0, to utilize a larger minimum angle to ensure 3D point estimates are more acccurate.
+    - Set view="multi", we are tracking features, so the estimation method is multi-view (Should be default)
+
+STEP 7:
+- Apply Global Bundle Adjustment to the scene for optimal reconstruction
+    - Set max_num_iterations=80, since initial 2D points will not be as accurate due to leniency in constraints in previous methods despite
+      optimal scene lighting and texture being for SIFT features.
+
+STEP 8:
+- Apply Dense Reconstruction Module for dense scene reconstruction. Since we have a Mono camera, and not using VGGT, we opt for the traditonal approach
+    - Set reproj_error=3.0, Default setting to ensure the maximum reprojection error of a given 3D point is only 3.0 pixels
+    - Set min_triangulation_angle=1.0, After bundle adjustment of the sparse scene, we can be less cautious and enable more 3D points by lowering the 
+      the minimum triangulation angle to just 1.0.
+    - Set num_iterations=3, to speed up computation time, we set the number of coordinate descent iterations to just 3 since our build is already
+      geometrically optimal at this point.
+
+==#$#==
+Example Code:
+
+
+# Construct Modules with Initialized Arguments
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\images\\dslr_images_undistorted"
+calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\dslr_calibration_undistorted\\calibration_new.npz"
+
+
+# STEP 1: Read in Camera Data
+from modules.cameramanager import CameraDataManager
+
+CDM = CameraDataManager(image_path=image_path,
+                        calibration_path=calibration_path)
+
+# Get Camera Data
+camera_data = CDM.get_camera_data()
+
+# STEP 2: Estimate Features per Image
+from modules.features import FeatureDetectionSP
+# Feature Module Initialization
+feature_detector = FeatureDetectionSP(cam_data=camera_data,
+                                      max_keypoints=5000)
+# Detect Features for all Images
+features = feature_detector()
+
+# STEP 3: Match Features Per Image 
+from modules.featurematching import FeatureMatchLightGluePair
+# Pairwise Feature Matching Module Initialization
+feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
+                                            detector='superpoint',
+                                            RANSAC_threshold=0.03)
+
+# Detect Image Pair Correspondences for Pose Estimation
+feature_pairs = feature_matcher(features=features)
+
+# STEP 4: Estimate Camera Poses of Scene with Feature Pairs with Local Bundle Adjustment Activated
+from modules.optimization import BundleAdjustmentOptimizerLocal
+
+# Build Optimizer
+optimizer_local = BundleAdjustmentOptimizerLocal(max_num_iterations=30,
+                                                 cam_data=camera_data,
+                                                 window_size=5)
+
+from modules.camerapose import CamPoseEstimatorEssentialToPnP
+# Camera Pose Module Initialization
+pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data,
+                                                reprojection_error=3.0,
+                                                iteration_count=300,
+                                                confidence=0.995,
+                                                optimizer=optimizer_local)
+
+# From estimated features, estimate the camera poses for all image frames
+cam_poses = pose_estimator(feature_pairs=feature_pairs)
+
+# STEP 5: Estimate Feature Tracks:
+from modules.featurematching import FeatureMatchSuperGlueTracking
+# Feature Tracking Module Initialization
+feature_tracker = FeatureMatchSuperGlueTracking(detector='superpoint', 
+                                            cam_data=camera_data,
+                                            RANSAC_threshold=0.4)
+
+
+# From estimated features, tracked features across multiple images
+tracked_features = feature_tracker(features=features)
+
+# STEP 6: Reconstruct Sparse Scene in Full
+from modules.scenereconstruction import Sparse3DReconstructionMono
+# Scene Reconstruction Module Initialization
+sparse_reconstruction = Sparse3DReconstructionMono(cam_data=camera_data,
+                                                   min_observe=4,
+                                                   min_angle=3.0,
+                                                   view="multi")
+
+# Estimate sparse 3D scene from tracked features and camera poses
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
+
+# STEP 7: Run Optimization Algorithm
+from modules.optimization import BundleAdjustmentOptimizerGlobal
+
+# Build Optimizer
+optimizer = BundleAdjustmentOptimizerGlobal(max_num_iterations=80,
+                                            cam_data=camera_data)
+
+# Run Optimizer
+optimal_scene = optimizer(sparse_scene)
+
+# STEP 8: Run Rense Reconstruction Algorithm
+from modules.scenereconstruction import Dense3DReconstructionMono
+
+# Conduct Dense Reconstruction Module
+dense_reconstruction = Dense3DReconstructionMono(cam_data=camera_data,
+                                                  reproj_error=3.0,
+                                                  min_triangulation_angle=1.0,
+                                                  num_samples=15,
+                                                  num_iterations=3)
+
+# Estimate sparse 3D scene from tracked features and camera poses
+dense_scene = dense_reconstruction(sparse_scene=optimal_scene)
+
+==$#$==
+Example Process:
+
+GOAL RECONSTRUCTION: Sparse Reconstruction
+
+STEP 1: Read in Camera data
+- Set the image path to the provided directory of images to the CameraDataManager to read, resize, and pre-process images for reconstruction
+- Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
+  activate the parameter
+- Finally, call get_camera_data() function to have access to the camera data of images and calibration
+
+STEP 2: 
+- Primary object is High-textured primary object with brick paving with scene having consistent lighting. USE SIFT FEATURES.
+- Select the SIFT module since the scene featuring the object is well lit, in an indoor setting, and the object is of a brick house that is 
+  well textured for using SIFT reliably.
+    - Set max features to detect to 15000, to ensure we detect as much features as possible since we also want to detect corners due to the 
+      object having many set shapes (house)
+    - Set contrast threshold to 0.01, with default being 0.04, the lower the threshold, more features are produced
+    - Set edge_threshold to 10, the higher the threshold, the more edge-like features are produced, which we need for this scene.
+
+STEP 3: 
+- Select the Flann feature matcher to utilize a nearest neighbor matcher, as we do not have a constraint of time to enforce the brute force 
+  algorithm
+    - Set RANSAC_threshold to 0.3, for default behavior in outlier rejection since we have a well-lit scene for SIFT
+    - Set lowes_threshold to 0.75, to enable slightly more strict rejection in matching pairs to pass since any higher threshold to remove any 
+      stray outliers in the scene.
+
+STEP 4:
+- Estimate the camera pose using matching feature pairs of the scene
+    - Since we are using SIFT feature detector in a more difficult and less ideal setting (Outdoor but highly textured), we need further refinment
+      in pose estimation for more accurate scene reconsturction
+        - Initialize the Local Optimization module "BundleAdjustmentOptimizerLocal"
+            - Set iteration count for Bundle Adjustment to only 20
+            - Set window size to 8 (Default) since camera movement is minimal and better pose correction.
+    - Set reprojection_error= 3.0, since we are including corner points as well to ensure as the 3D points that are included are more 
+      more accurate for better optimized scene after bundle adjustment.
+    - Set iteration_count=300, higher setting for iteration count of the Levenberg-Marquardt algorithm during pose estimation as the setting
+      is outdoors, requiring for better pose estimation.
+    - Set confidence=0.995, Since the scene is well-lit and textured, we have a higher confidence of the proposed solutions 
+
+STEP 5:
+- Track Features across multiple images using the same feature matching tool
+    - Set RANSAC_threshold to 0.2, as we want to be more strict on the feature tracks for more accurate estimate of 3D points in the scene
+
+STEP 6:
+- Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
+    - Set min_observe=5, to increase the minimum number of observations needed to estimate a 3D point of 4 features, since this scene has 
+      minimal camera movement
+    - Set min_angle=3.0, utilize a larger minimum angle to ensure 3D point estimates are more acccurate.
+    - Set view="multi", we are tracking features, so the estimation method is multi-view
+
+STEP 7:
+- Apply Global Bundle Adjustment to the scene for optimal reconstruction
+    - Set max_num_iterations=80, since initial scene is not optimal geometrically despite the scene lighting and texture being optimal for SIFT features.
+
+==#$#==
+Example Code:
+
+
+# Construct Modules with Initialized Arguments
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\Family"
+calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\calibration_new_2048.npz"
+
+# STEP 1: Read in Camera Data
+from modules.cameramanager import CameraDataManager
+
+CDM = CameraDataManager(image_path=image_path,
+                        calibration_path=calibration_path)
+
+# Get Camera Data
+camera_data = CDM.get_camera_data()
+
+# STEP 2: Estimate Features per Image
+from modules.features import FeatureDetectionSIFT
+# Feature Module Initialization
+feature_detector = FeatureDetectionSIFT(cam_data=camera_data, 
+                                        max_keypoints=15000,
+                                        contrast_threshold=0.01,
+                                        edge_threshold=10)
+
+# Detect Features for all Images
+features = feature_detector()
+
+# STEP 3: Match Features Per Image 
+from modules.featurematching import FeatureMatchFlannPair
+# Pairwise Feature Matching Module Initialization
+feature_matcher = FeatureMatchFlannPair(detector='sift', 
+                                        cam_data=camera_data,
+                                        RANSAC_threshold=0.3,
+                                        lowes_thresh=0.75)
+
+# Detect Image Pair Correspondences for Pose Estimation
+feature_pairs = feature_matcher(features=features)
+
+# STEP 4: Estimate Camera Poses of Scene with Feature Pairs
+# from modules.camerapose import CamPoseEstimatorEssentialToPnP
+
+from modules.optimization import BundleAdjustmentOptimizerLocal
+
+# Build Optimizer
+optimizer_local = BundleAdjustmentOptimizerLocal(max_num_iterations=30,
+                                                 cam_data=camera_data)
+
+from modules.camerapose import CamPoseEstimatorEssentialToPnP
+# Camera Pose Module Initialization
+pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data,
+                                                reprojection_error=3.0,
+                                                iteration_count=300,
+                                                confidence=0.995,
+                                                optimizer=optimizer_local)
+
+# From estimated features, estimate the camera poses for all image frames
+cam_poses = pose_estimator(feature_pairs=feature_pairs)
+
+# STEP 5: Estimate Feature Tracks:
+from modules.featurematching import FeatureMatchFlannTracking
+# Feature Tracking Module Initialization
+feature_tracker = FeatureMatchFlannTracking(detector='sift', 
+                                            cam_data=camera_data,
+                                            RANSAC_threshold=0.2)
+
+# From estimated features, tracked features across multiple images
+tracked_features = feature_tracker(features=features)
+
+# STEP 6: Reconstruct Scene in Full
+from modules.scenereconstruction import Sparse3DReconstructionMono
+# Scene Reconstruction Module Initialization
+sparse_reconstruction = Sparse3DReconstructionMono(cam_data=camera_data,
+                                                   min_observe=5,
+                                                   min_angle=3.0,
+                                                   view="multi")
+
+# Estimate sparse 3D scene from tracked features and camera poses
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
+
+# STEP 7: Run Optimization Algorithm
+from modules.optimization import BundleAdjustmentOptimizerGlobal
+
+# Build Optimizer
+optimizer = BundleAdjustmentOptimizerGlobal(max_num_iterations=80,
+                                            cam_data=camera_data)
+
+# Run Optimizer
+optimal_scene = optimizer(sparse_scene)
+
+
+# Optional Visualization
+from modules.visualize import VisualizeScene
+visualizer = VisualizeScene()
+
+visualizer(optimal_scene)
+==$#$==

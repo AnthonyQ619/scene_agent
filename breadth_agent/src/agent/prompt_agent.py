@@ -157,6 +157,7 @@ class ImageAnalysisLLM():
         if not os.path.exists(new_img_path):
             os.makedirs(new_img_path)
 
+        print(image_path)
         for i in range(len(image_path)):
             img = cv2.imread(image_path[i], cv2.IMREAD_COLOR)
             if img is None:
@@ -193,14 +194,19 @@ class ImageAnalysisLLM():
 
         image_paths = sorted(glob.glob(found_paths[0] + "\\*"))[:self.k]
 
-        new_img_path = sorted(glob.glob(self.resize_images(image_paths, max_size=512) + "\\*"))
+        new_img_path = sorted(glob.glob(self.resize_images(image_paths, max_size=256) + "\\*"))
 
         #return image_paths
         return new_img_path
     
     def __call__(self, query):
-        
-        image_paths = self.parse_prompt(query)
+
+        image_paths = sorted(glob.glob(query + "\\*"))[:self.k]
+        print("IMAGE PATH:", image_paths)
+        # print(image_paths)
+        image_paths = sorted(glob.glob(self.resize_images(image_paths, max_size=256) + "\\*"))
+        #self.parse_prompt(query)
+        print(image_paths)
 
         
         # Helper to encode image as base64 for LangChain
@@ -241,18 +247,23 @@ You are an agent instructed to breakdown the scene information that we want to b
 from.
 
 The goal is to, from the description of the scene, design a problem statement that summarizes the scene, and
-how we want to build a 3D reconstruction from that description. Structure the description as a problem statement 
-that designates the computer vision problem to solve, description of the scene, and how we want to solve said
-problem, i.e what algorithms we want to use.
+how we want to build a 3D reconstruction from that description. DO NOT LIST AN ENTIRE SOLUTION PIPELINE. 
+Structure the description as a problem statement that designates the computer vision problem to solve, 
+description of the scene, and how we want to solve said problem (Sparse, Dense, Visual Odometry, etc.).
 
-Avoid coding anything, or suggesting any libraries, such as OpenCV. The goal is to keep
-everything in a text description and as general as possible. Aim for a textbook description level.
-Then, discuss the problem solution. 
-
-Determine what steps are required to solve the specific computer vision problem such as 
-feature detection, feature matching, feature tracking, camera pose estimation, intrinsic estimation,
-3d point cloud reconstruction, dense reconsturction with multi-view stereo, etc.
+In the prompt, you will be given a potential path to calibration, reconstruction type, and gpu memory. Determine
+if a calibration path is provided, if the image set is calibrated, type of reconstruction we need to do (Dense or Sparse),
+and whether the GPU provided is large enough to utilize models like VGGT when necessary or if the approach should be 
+more memory conservative.
 """
+# Avoid coding anything, or suggesting any libraries, such as OpenCV. The goal is to keep
+# everything in a text description and as general as possible. Aim for a textbook description level.
+# Then, discuss the problem solution. 
+
+# Determine what steps are required to solve the specific computer vision problem such as 
+# feature detection, feature matching, feature tracking, camera pose estimation, intrinsic estimation,
+# 3d point cloud reconstruction, dense reconsturction with multi-view stereo, etc.
+
         
         # Hard code model for now
         self.model_name = "gpt-5-2025-08-07"
@@ -286,8 +297,10 @@ feature detection, feature matching, feature tracking, camera pose estimation, i
         # Structured Output
         class ProblemStatement(BaseModel):
             """Description of Scene with important details"""
-            statement: str = Field(..., description="Description of the problem statement constructed")
-            solution: str = Field(..., description=f"Description of the general solution to take for 3D reconstruction via Structure from Motion")
+            statement: str = Field(..., description="Description of the problem statement constructed. DO NOT LIST A SOLUTION PIPELINE. Just general description of an SfM pipeline")
+            reconstruction: str = Field(..., description=f"Description of whether we should reconstruct the scene in sparse or dense format")
+            calibration: str = Field(..., description=f"Description of if the image data set provided is calibrated or not")
+            memory: str = Field(..., description=f"Description of whether we have enough memory for VGGT to be used in specific cases, or we should use the classical approach of feature detection based solution")
             scene_summary: str = Field(..., description="Summary of the scene description of which we plan to reconstruct. Don't mention image count as description was only based on a subset of images")
             
         self.model = init_chat_model(model=self.model_name,
@@ -348,7 +361,9 @@ class PromptEnhancmentAgent():
             
     def __call__(self, query):
         print(query)
-        image_analysis_step = self.image_analysis(query=query)
+        image_path = query['images']
+
+        image_analysis_step = self.image_analysis(query=image_path)
 
         scene_description = f"""
 Scene Setting: {image_analysis_step.setting}
@@ -356,15 +371,29 @@ Scene Lighting Effects: {image_analysis_step.lighting}
 Scene Object Textures: {image_analysis_step.textured}
 Scene Key Features: {image_analysis_step.general_desc}
 Scene Camera Movement: {image_analysis_step.view_changes}
+Camera Calibration Path: {query['calibration']}
+Reconstruction Type: {query['recon_type']}
+Hardware Memory: {query['gpu_mem']}
 """
 
+#         print(f"""
+# Scene Setting: {image_analysis_step.setting}
+# Scene Lighting Effects: {image_analysis_step.lighting}
+# Scene Object Textures: {image_analysis_step.textured}
+# Scene Key Features: {image_analysis_step.general_desc}
+# Scene Camera Movement: {image_analysis_step.view_changes}"""
+# )
         # return scene_description
         prompt_analysis_step = self.prompt_analysis(query=scene_description)
 
         general_prompt = f"""
 Scene Summary: {prompt_analysis_step.scene_summary}
 Problem Statement: {prompt_analysis_step.statement}
-Problem Solution: {prompt_analysis_step.solution}
+Reconstruction Type: {prompt_analysis_step.reconstruction}
+Calibration path: {prompt_analysis_step.calibration}
+Memory Usage: {prompt_analysis_step.memory}
+Use Image Path in Code: {query['images']}
+Use Calibration Path in Code: {query['calibration']}
 """
         return scene_description, general_prompt 
     

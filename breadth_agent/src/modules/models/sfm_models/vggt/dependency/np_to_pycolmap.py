@@ -101,6 +101,10 @@ def batch_np_matrix_to_pycolmap(
         rgb = points_rgb[vidx] if points_rgb is not None else np.zeros(3)
         reconstruction.add_point3D(points3d[vidx], pycolmap.Track(), rgb)
 
+    # Create Camera rig for camera
+    rig = pycolmap.Rig()
+    rig.rig_id = 1
+
     num_points3D = len(valid_idx)
     camera = None
     # frame idx
@@ -116,15 +120,32 @@ def batch_np_matrix_to_pycolmap(
             # add camera
             reconstruction.add_camera(camera)
 
+            # Create Camera rig for single camera
+            sensor_t = pycolmap.sensor_t()
+            sensor_t.type = pycolmap.SensorType.CAMERA
+            sensor_t.id = camera.camera_id
+            rig.add_ref_sensor(sensor_t)
+            reconstruction.add_rig(rig)
+
+
         # set image
         cam_from_world = pycolmap.Rigid3d(
             pycolmap.Rotation3d(extrinsics[fidx][:3, :3]), extrinsics[fidx][:3, 3]
         )  # Rot and Trans
 
+        frame = pycolmap.Frame(frame_id = fidx + 1,
+                                   rig_id = rig.rig_id)
         image = pycolmap.Image(
-            image_id=fidx + 1, name=f"image_{fidx + 1}", camera_id=camera.camera_id
+            image_id=fidx + 1, name=f"image_{fidx + 1}", camera_id=camera.camera_id, frame_id=frame.frame_id
         )
-        image.cam_from_world = cam_from_world
+        frame.add_data_id(image.data_id)
+        reconstruction.add_frame(frame)
+        # recon.register_frame(frame_id)
+        reconstruction.frame(frame.frame_id).set_cam_from_world(camera_id=camera.camera_id, 
+                                                    cam_from_world=cam_from_world)
+        # reconstruction.register_frame(fidx + 1)
+        # reconstruction.add_image(image)
+        # image.cam_from_world = cam_from_world
 
         points2D_list = []
 
@@ -151,12 +172,14 @@ def batch_np_matrix_to_pycolmap(
 
         try:
             image.points2D = pycolmap.ListPoint2D(points2D_list)
-            image.registered = True
+            # image.registered = True
         except:
             print(f"frame {fidx + 1} is out of BA")
-            image.registered = False
+            # image.registered = False
 
         # add image
+        # reconstruction.add_image(image)
+        reconstruction.register_frame(fidx + 1)
         reconstruction.add_image(image)
 
     return reconstruction, valid_mask

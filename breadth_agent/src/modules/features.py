@@ -141,23 +141,26 @@ class FeatureDetectionSIFT(FeatureClass):
         self.description = f"""
 Detects existing keypoints(features) and descriptors in images using the feature detector 
 SIFT. This Feature Detector is used when accurate and robust feature detection with
-detailed description generation based algorithms are the priority. When specified directly 
-for SIFT or when classical based feature detection is called for with robust detection required
+detailed description generation based algorithms are the priority. USE THIS MODULE in cases
+where the environment is well-lit AND Highly-textured, and contains consistent lighting through the
+set of images for a descriptive classical detector. If scene is Moderately or Mixed textured, EVEN if object
+is highly textured, OPT to use SuperPoint instead. Only use in High-Textured scenes with Good Lighting,
+When specified directly for SIFT or when classical based feature detection is called for with robust detection required
 utilize the SIFT feature detector module. 
 
 Initialization Parameters: 
 - cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
 - max_keypoints: Maximum number of Keypoints to detect per image from the feature detector
     - Default (int): 1024
-- n_octave_threshold: The number of layers in each octave. The number of octaves is computed automatically 
+- n_octave_layers: The number of layers in each octave. The number of octaves is computed automatically 
 from the image resolution.
     - Default (int): 3 (NOTE: 3 is the value used in D. Lowe paper)
 - contrast_threshold: The contrast threshold used to filter out weak features in semi-uniform (low-contrast) regions. 
 The larger the threshold, the less features are produced by the detector. NOTE: The contrast threshold will be divided 
 by nOctaveLayers when the filtering is applied.
     - Default (flaot): 0.04
-- edgeThreshold: The threshold used to filter out edge-like features. Note that the its meaning is different from the 
-contrastThreshold, i.e. the larger the edgeThreshold, the less features are filtered out (more features are retained).
+- edge_threshold: The threshold used to filter out edge-like features. Note that the its meaning is different from the 
+contrastThreshold, i.e. the larger the edgeThreshold, the more features are produced.
     - Default (int): 10
 - sigma: The sigma of the Gaussian applied to the input image at the octave #0. If your image is captured with a weak 
 camera with soft lenses, you might want to reduce the number. 
@@ -332,7 +335,7 @@ class FeatureDetectionORB(FeatureClass):
                  edge_threshold: int = 31,
                  WTA_K: int = 2,
                  set_nms: bool = False,
-                 set_nms_allowed_points: int = 5000,
+                 set_nms_allowed_points: int = 3000,
                  set_nms_tolerance: float = 0.1):
         
         #super().__init__(image_path)
@@ -356,7 +359,8 @@ class FeatureDetectionORB(FeatureClass):
         self.description = f"""
 Detects existing keypoints(features) and descriptors in images using the feature detector 
 ORB. This Feature Detector is used when efficiency is the priority as ORB utilizes faster feature detection
-and description generation based algorithms. When specified directly for ORB or when quick/efficient 
+and description generation based algorithms. USE THIS MODULE when the image contains well textured objects with 
+many corners or edges, and we want a faster detectors. When specified directly for ORB or when quick/efficient 
 feature detection is necessary, and called for, utilize the ORB feature detector module. 
 
 Initialization Parameters: 
@@ -372,6 +376,10 @@ Initialization Parameters:
 - set_nms: Utilize Non-Maximum Supression on detected feature points to create a uniform distribution of points and avoid clusters. 
 Useful in cases of highly textured regions and need a larger distance between points, but significantly increases time complexity.
     - Default (bool): False
+- set_nms_allowed_points: number of points to search in algorithm. Ensure it is less that max_points to detect.
+    - Defauilt (int): 3000
+- set_nms_tolerance: adaptive nms tolerance value
+    - Default (float): 0.1
 
 Module Output: 
     list[Points2D]:
@@ -567,7 +575,14 @@ class FeatureDetectionSP(FeatureClass):
 Detects existing keypoints(features) and descriptors in images using a Deep Learning Model Feature
 Detector denoted as SuperPoint.
 This Feature Detector is utilized in cases where diffuse lighting materials exist in scenes, images of 
-environments that lack texture, or extreme view changes exist in scene video or images.
+environments that lack texture or not well-lit for traditional detectors, or extreme view changes exist 
+in scene video or images.
+WHEN TO USE THIS MODULE: where the environment is well-lit AND Mixed-textured or Moderately Textured, even
+if it contains consistent lighting through the set of images, most classical detectors WILL NOT work like SIFT. 
+If scene is Moderately or Mixed textured use this feature detector!
+
+Use in cases where SIFT and ORB may struggle in due to not well-lit settings, and cases where there is
+diffuse lighting in the object and we need a feature detector more robust to these environments.
 When specified directly to use the SuperPoint algorithm, mentioning to use a feature detector 
 to handle view changes or material that lack texture in a given scene, or accurate dense features 
 are necessary, use the SuperPoint detection Module.

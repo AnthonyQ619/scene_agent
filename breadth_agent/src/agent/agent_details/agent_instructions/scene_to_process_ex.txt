@@ -1,0 +1,59 @@
+Example Scene:
+A controlled indoor tabletop/studio scene featuring a miniature block of buildings with richly textured façades, brickwork, shingles, windows, and yellow awnings. The camera views the subject from oblique, slightly top‑down angles with small rotational and translational changes around a persistent building corner. Lighting is soft and uniform, producing stable appearances without specular artifacts. The subject is set against a largely white, low‑texture background, ensuring most reliable features originate on the model itself.
+Example Process (YOUR OUTPUT SHOULD BE LIKE THIS!):
+
+GOAL RECONSTRUCTION: Dense Reconstruction
+
+STEP 1: Read in Camera data
+- Set the image path to the provided directory of images to the CameraDataManager to read, resize, and pre-process images for reconstruction
+- Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
+  activate the parameter
+- Finally, call get_camera_data() function to have access to the camera data of images and calibration
+
+STEP 2: 
+- Select the SIFT module since the scene featuring the object is well lit, in an indoor setting, and the object is of a brick house that is 
+  well textured for using SIFT reliably.
+    - Set max features to detect to 19000, to ensure we detect as much features as possible since we also want to detect corners due to the 
+      object having many set shapes (house) that involves corners and edges.
+    - Set contrast threshold to 0.005, with default being 0.04, the lower the threshold, more features are produced, which is what we desire 
+      for this scenario.
+    - Set edge_threshold to 12, the higher the threshold, the more edge-like features are produced, which we need for this scene.
+
+STEP 3: 
+- Select the Flann feature matcher to utilize a nearest neighbor matcher, as we do not have a constraint of time to enforce the brute force 
+  algorithm
+    - Set RANSAC_threshold to 0.3, for more loosely outlier rejection since we have an abundance of points in a well-lit scene
+    - Set lowes_threshold to 0.75, to enable more matching pairs to pass since any higher threshold will remove usable inliers for matches
+
+STEP 4:
+- Estimate the camera pose using matching feature pairs of the scene
+    - Set reprojection_error=3.0, since we are including corner points as well to ensure as many 3D points are included as possible for a 
+      and more accurate bundle adjustment
+    - Set iteration_count=200, default setting for iteration count of the Levenberg-Marquardt algorithm during pose estimation. Enough for 
+      a well-lit and textured scene for optimal initial pose estimation
+    - Set confidence=0.995, Since the scene is well-lit and textured, we have a higher confidence of the proposed solutions 
+
+STEP 5:
+- Track Features across multiple images using the same feature matching tool
+    - Set RANSAC_threshold to 0.2, as we want to be more strict on the feature tracks for more accurate estimate of 3D points in the scene
+      and remove the chance for any outliers.
+
+STEP 6:
+- Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
+    - Set min_observe=5, to increase the minimum number of observations needed to estimate a 3D point of 5 features, since this scene has 
+      minimal camera movement, we need a wide baseline. 
+    - Set min_angle=3.0, utilize a larger minimum angle to ensure 3D point estimates are more acccurate.
+    - Set view="multi", we are tracking features, so the estimation method is multi-view
+
+STEP 7:
+- Apply Global Bundle Adjustment to the scene for optimal reconstruction
+    - Set max_num_iterations=80, since initial 2D points will not be as accurate due to leniency in constraints in previous methods despite
+      optimal scene lighting and texture being for SIFT features.
+      
+STEP 8:
+- Apply Dense Reconstruction Module for dense scene reconstruction. Since we have a Mono camera, and not using VGGT, we opt for the traditonal approach
+    - Set reproj_error=3.0, Default setting to ensure the maximum reprojection error of a given 3D point is only 3.0 pixels
+    - Set min_triangulation_angle=1.0, After bundle adjustment of the sparse scene, we can be less cautious and enable more 3D points by lowering the 
+      the minimum triangulation angle to just 1.0.
+    - Set num_iterations=3, to speed up computation time, we set the number of coordinate descent iterations to just 3 since our build is already
+      geometrically optimal at this point.

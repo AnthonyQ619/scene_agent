@@ -64,7 +64,8 @@ class Executor():
             os.remove(log_file_path)
 
 class CodeRefinementLLM():
-    def __init__(self, script_dir : str, 
+    def __init__(self, 
+                 script_dir : str, 
                  model: str | None = None, 
                  refine_desc: str | None = None,
                  debug_desc: str | None = None,
@@ -223,8 +224,8 @@ Example:
         
 
         # Initial Code Refinement for any hallucination or coding errors.
-        refined_code = self.model_refine.invoke([self.sys_msg_refine, message])
-
+        response_refine = self.model_refine.invoke([self.sys_msg_refine, message])
+        refined_code = response_refine.content
         print(refined_code)
         # Initial Code Running Stage
         output_trace, result = self.exec(script_file=script_file_name, script_code=refined_code)
@@ -254,7 +255,9 @@ Example:
             message = HumanMessage(content=[
             {"type": "text", "text": debug_prompt}])
 
-            refined_code = self.model_debugger([self.sys_msg_debug, debug_prompt])
+            response_debug = self.model_debugger.invoke([self.sys_msg_debug, debug_prompt])
+
+            refined_code = response_debug.content
 
             output_trace, result = self.exec(script_file=script_file_name, script_code=refined_code)
 

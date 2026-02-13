@@ -1,42 +1,68 @@
-from modules.utilities.utilities import CalibrationReader
-from modules.features import FeatureDetectionSIFT, FeatureDetectionSP, FeatureDetectionORB
-from modules.featurematching import (FeatureMatchFlannPair, 
-                                     FeatureMatchLoftrPair, 
-                                     FeatureMatchLightGluePair, 
-                                     FeatureMatchLightGlueTracking,
-                                     FeatureMatchSuperGluePair,
-                                     FeatureMatchRoMAPair)
-from modules.camerapose import CamPoseEstimatorEssentialToPnP, CamPoseEstimatorVGGTModel
-from modules.scenereconstruction import Sparse3DReconstructionVGGT
-from modules.visualize import VisualizeScene
-import glob
-import cv2
-# import matplotlib.pyplot as plt
-# from matplotlib.patches import Circle
-
-# import open3d as o3d
-# import open3d.visualization.gui as gui
-# import open3d.visualization.rendering as rendering
-# import numpy as np
-# import matplotlib.pyplot as plt
-
-
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\Structure-from-Motion\\calibration.npz"
-# image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_normal_lighting"
-# calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU.npz"
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\door_dslr_undistorted\\door\\images\\dslr_images_undistorted"
 
+# STEP 1: Read in Camera Data
+from modules.cameramanager import CameraDataManager
+
+CDM = CameraDataManager(image_path=image_path,
+                        target_resolution=[1024, 1024])
+
+# Get Camera Data
+camera_data = CDM.get_camera_data()
+
+# STEP 2: Estimate Features per Image
+from modules.features import FeatureDetectionSP
 # Feature Module Initialization
-calibration_data = CalibrationReader(calibration_path).get_calibration()
+feature_detector = FeatureDetectionSP(cam_data=camera_data,
+                                        max_keypoints=5000)
 
-pose_estimator = CamPoseEstimatorVGGTModel(image_path=image_path, calibration=calibration_data) #CamPoseEstimatorEssentialToPnP(calibration=calibration_data, image_path=image_path, detector="sift")
+# Detect Features for all Images
+features = feature_detector()
 
-scene_builder = Sparse3DReconstructionVGGT(calibration=calibration_data, image_path=image_path)
-# Solution Pipeline
+# STEP 3: Match Features Per Image 
+# Ignore since pose estimation is using VGGT as the backbone structure
 
-cam_poses = pose_estimator()#(matched_features) # (detected_features)
+# STEP 4: Estimate Camera Poses of Scene with Feature Pairs
+from modules.camerapose import CamPoseEstimatorVGGTModel
+# Camera Pose Module Initialization
+pose_estimator = CamPoseEstimatorVGGTModel(cam_data=camera_data)
 
-opt_scene = scene_builder(camera_poses=cam_poses)
+# From estimated features, estimate the camera poses for all image frames
+cam_poses = pose_estimator()
 
-print(opt_scene.points3D.points3D.shape)
+# STEP 5: Estimate Feature Tracks:
+from modules.featurematching import FeatureMatchSuperGlueTracking
+# Feature Tracking Module Initialization
+feature_tracker = FeatureMatchSuperGlueTracking(detector='superpoint', 
+                                            cam_data=camera_data,
+                                            RANSAC_threshold=0.3,
+                                            setting="indoor")
+
+
+# From estimated features, tracked features across multiple images
+tracked_features = feature_tracker(features=features)
+
+# STEP 6: Reconstruct Scene in Full
+from modules.scenereconstruction import Sparse3DReconstructionVGGT
+# Scene Reconstruction Module Initialization
+sparse_reconstruction = Sparse3DReconstructionVGGT(cam_data=camera_data,
+                                                   min_observe=3)
+
+# Estimate sparse 3D scene from tracked features and camera poses
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
+
+# STEP 7: Run Optimization Algorithm
+from modules.optimization import BundleAdjustmentOptimizerGlobal
+# Build Optimizer
+optimizer = BundleAdjustmentOptimizerGlobal(max_num_iterations=60,
+                                            cam_data=camera_data)
+
+# Run Optimizer
+optimal_scene = optimizer(sparse_scene)
+
+
+# Optional Visualization
+from modules.visualize import VisualizeScene
+visualizer = VisualizeScene()
+
+visualizer(optimal_scene)
