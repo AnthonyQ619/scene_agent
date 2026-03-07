@@ -3,25 +3,27 @@ GOAL RECONSTRUCTION: Sparse Reconstruction
 
 STEP 1: Read in Camera data
 - Set the image path to the provided directory of images to the CameraDataManager to read, resize, and pre-process images for reconstruction
-  - image_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\Family
+  - image_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\images\\dslr_images_undistorted
 - Set max_images=20 (Never above 40), we want to only use the first 20 images when evaluating the feasibility of the workflow.
 - Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
   activate the parameter
-  - calibration_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\calibration_new_2048.npz
+  - calibration_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\dslr_calibration_undistorted\\calibration_new.npz
 - Finally, call get_camera_data() function to have access to the camera data of images and calibration
 
 STEP 2: Detect Features
-- Primary object is High-textured primary object with stone paving with scene having consistent lighting. USE SIFT FEATURES.
-- Select the SIFT module since the scene featuring the object is high-textured rigid surface and stone texture, with the scene 
+- Select the SIFT module since the scene featuring the object is high-textured rigid surface and stone textured statue, with the scene 
   having consistent lighting, which is well-suited for using SIFT reliably.
     - Set max_keypoints = 15000, to ensure we detect as much features as possible since we also want to detect corners due to the 
       object having many set shapes (house)
-        - Reasoning: Since the scene is well-lit with consistent lighting across buildings/objects, most points detected will likely be 
+        - Reasoning: Since the scene is well-lit with consistent lighting across objects with rigid textures, most points detected will likely be 
           reasonably accurate, so increasing maximum number of detected points enables more possible inliers to be detected.
-    - Set contrast_threshold = 0.01 (Default 0.04) the lower the threshold, more features are produced
-      - Reasoning: Since the scene is well-lit, has consistent lighting across buildings, allowing more features will enable more inliers to be 
+    - Set contrast_threshold = 0.009, with default being 0.04, the lower the threshold, more features are produced, which is what we desire 
+      for this scenario.
+      - Reasoning: Since the scene is well-lit, has consistent lighting across the fire hydrant, allowing more features will enable more inliers to be 
         detected since the scene is good for the SIFT detector.
-    - Set edge_threshold = 10 (Default 10)
+    - Set edge_threshold = 12, the higher the threshold, the more edge-like features are produced, which we need for this scene.
+      - Reasoning: Slightly higher threshold to allow more edge-like features to be detected since some of the objects are quite defined in the images, which
+        have ridges and edges that will be good for detected features. 
 
 STEP 3: Detect Feature Matches
 - Select the Brute-Force feature matcher to utilize a nearest neighbor matcher, since it's more accurate and robust to trickling outliers. This is 
@@ -52,7 +54,8 @@ STEP 4:Estimate the camera pose using detected matching feature pairs.
         in bundle adjustment both global and local optimization.
     - Set iteration_count = 300 (Default 200)
       - Reasoning: Higher setting for iteration count of the Levenberg-Marquardt algorithm during pose estimation. Since the detected points will be less consistent due to
-        the scene being outdoors with less consistent lighting, the increased iteration count for optimization will improve initial pose estimates for scene reconstruction.
+        the scene being outdoors with less consistent lighting than indoors, the increased iteration count for optimization will improve initial pose estimates for scene 
+        reconstruction.
     - Set confidence=0.995
       - Reasoning: Since we are applying local optimization, the proposed frame we estimate we have higher confidence to be correct.
 
@@ -82,8 +85,8 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\Family"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\calibration_new_2048.npz"
+image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\images\\dslr_images_undistorted"
+calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\dslr_calibration_undistorted\\calibration_new.npz"
 
 # STEP 1: Read in Camera Data
 from modules.cameramanager import CameraDataManager
@@ -100,8 +103,8 @@ from modules.features import FeatureDetectionSIFT
 # Feature Module Initialization
 feature_detector = FeatureDetectionSIFT(cam_data=camera_data, 
                                         max_keypoints=15000,
-                                        contrast_threshold=0.01,
-                                        edge_threshold=10)
+                                        contrast_threshold=0.009,
+                                        edge_threshold=20)
 
 # Detect Features for all Images
 features = feature_detector()
@@ -119,8 +122,6 @@ feature_matcher = FeatureMatchBFPair(detector="sift",
 feature_pairs = feature_matcher(features=features)
 
 # STEP 4: Estimate Camera Poses of Scene with Feature Pairs
-# from modules.camerapose import CamPoseEstimatorEssentialToPnP
-
 from modules.optimization import BundleAdjustmentOptimizerLocal
 
 # Build Optimizer
@@ -164,7 +165,7 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
 from modules.optimization import BundleAdjustmentOptimizerGlobal
 
 # Build Optimizer
-optimizer = BundleAdjustmentOptimizerGlobal(max_num_iterations=250,
+optimizer = BundleAdjustmentOptimizerGlobal(max_num_iterations=330,
                                             cam_data=camera_data)
 
 # Run Optimizer
