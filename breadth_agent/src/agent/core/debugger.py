@@ -63,7 +63,15 @@ class Debugger:
         You are supposed to go through the stdout and respond whether there are 
         any errors or not. If there are errors, generate feedback necessary to correct 
         code using either API information for errors or standard python coding to fix
-        the errros that exist in the standard output. DO NOT EDIT THE CODE. Generate text
+        the errors that exist in the standard output.
+        
+        Ignore all warnings, do not report feedback on any warnings or COLMAP Linear Solver Failures. 
+        These are not errors, only respond to errors when code execution fails, so ignore all warnings.
+        Simply ignore this warning as it does NOT havey any effect on the code as it's not important. 
+        A specific case is "Linear solver failure. Failed to compute a step: Eigen failure" IGNORE THIS WARNING. 
+        I REPEAT, DO NOT ACKNOWLEDGE THIS WARNING. 
+        
+        DO NOT EDIT THE CODE. Generate text
         feedback of what SHOULD be done to fix the code.
         """
 
@@ -92,25 +100,25 @@ class Debugger:
                 "Return only the corrected code. Don't add any explanations or extra text."
             )
 
-    def __call__(self, script_file_name: str):
+    def __call__(self, code: str):
         class Feedback(BaseModel):
             errors: bool = Field(..., description="If you see errors, return True, otherwise, return False")
             feedback: str = Field(..., description="Description of feedback to fix the error following the API documentation of what to fix. In case you don't see any errors (ignore warnings!), return 'Not Applicable'.")
 
-        # Initial Run
-        script_path = os.path.join(self.script_dir, script_file_name)
+        # # Initial Run
+        # script_path = os.path.join(self.script_dir, script_file_name)
 
-        # Read Code from Script
-        f_script = open(script_path, 'r')
-        script = f_script.read()
-        f_script.close()
+        # # Read Code from Script
+        # f_script = open(script_path, 'r')
+        # script = f_script.read()
+        # f_script.close()
 
 
         # Initial Code Refinement for any hallucination or coding errors.
-        refined_code = self.code_refiner(script)
+        refined_code = self.code_refiner(code)
 
         # Initial Code Running Stage
-        output_trace, result = self.exec(script_file=script_file_name, script_code=refined_code)
+        output_trace, result = self.exec(script_code=refined_code)
 
         print("OUTPUT")
         print(output_trace)
@@ -137,6 +145,6 @@ class Debugger:
 
             # refined_code = self.code_refiner(refined_code)
 
-            output_trace, result = self.exec(script_file=script_file_name, script_code=refined_code)
+            output_trace, result = self.exec(script_code=refined_code)
 
         return refined_code

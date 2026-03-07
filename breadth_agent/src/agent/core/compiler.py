@@ -91,6 +91,8 @@ best fits the scene given.
         
 
     def __call__(self, query):
+        
+
         output = self.compiler(query)
 
 
