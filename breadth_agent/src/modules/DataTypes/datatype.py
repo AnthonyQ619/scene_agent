@@ -238,13 +238,13 @@ class Points3D:
     color: np.ndarray       # Point Color [r, g, b] : Nx3
     
     def __init__(self,  points: list[np.ndarray] | None = None, #np.array([[0.0, 0.0, 0.0]]), 
-                        color: list[np.ndarray] | None = np.array([0, 0, 0])):
+                        color: list[np.ndarray] | None = None): #np.array([0, 0, 0])):
         if points is None:
             self.points3D = None
         else:
             self.points3D = np.array(points)
 
-        self.color = np.array(color)
+        self.color = None #np.array(color)
 
     def update_points(self, 
                       points: list[np.ndarray], 

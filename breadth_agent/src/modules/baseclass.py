@@ -192,15 +192,25 @@ class FeatureTracker():
         max_ct = int(counts_np.max())
         avg_outlier = float(np.mean(np.array(outlier_count)))
 
-        event_msg = {"avg_outlier": avg_outlier, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
-        print(json.dumps(event_msg), flush=True)
-
         tracked_features.set_matched_matrix(self.observations)
         tracked_features.track_map = self.track_map
         tracked_features.point_count = self.next_track_id - 1
+
+        # avg_track = self._calculate_avg_track_length(data_mat=tracked_features.data_matrix, total_points=tracked_features.point_count)
+        # event_msg = {"avg track length": avg_track, "avg_outlier": avg_outlier, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
+        # print(json.dumps(event_msg), flush=True)
         
         return tracked_features
     
+    def _calculate_avg_track_length(self, data_mat: np.ndarray, total_points: int):
+        sum_of_tracks = 0
+        max_track = 0
+        for val in range(total_points):
+            sum_of_tracks += data_mat[data_mat[:, 0] == val].shape[0]
+            if data_mat[data_mat[:, 0] == val].shape[0] > max_track:
+                max_track = data_mat[data_mat[:, 0] == val].shape[0] 
+        print("MAX TRACK LENGTH:", max_track)
+        return sum_of_tracks / total_points
 
     def _z_score(self, pts1: np.ndarray, pts2: np.ndarray, sigma_th: int) -> np.ndarray:
         pixel_diff = pts1 - pts2
@@ -575,6 +585,16 @@ class DenseSceneEstimation():
 
         pcd = pcd.voxel_down_sample(voxel_size)
         return np.asarray(pcd.points)
+    
+    # Placebo Function to call at run-time for Optimizer/Debugger -> Replace at code execution
+    def build_dense(self, 
+                    sparse_scene: Scene | None = None,
+                    camera_poses: CameraPose | None = None) -> Scene:
+        if sparse_scene is not None:
+            assert isinstance(sparse_scene, Scene), "Incorrect Parameterization. Ensure sparse_scene parameter is a reconstructed Scene typing from SceneReconstruction Module."
+        if camera_poses is not None:
+            assert isinstance(camera_poses, CameraPose), "Incorrect Parameterization. Ensure camera_poses parameter is a CameraPose type from the Pose Estimation Module."
+        return sparse_scene
 
 class CameraPoseEstimatorClass():
     def __init__(self, cam_data: CameraData):
@@ -773,9 +793,9 @@ class FeatureTracking():
                  cam_data:CameraData,
                  RANSAC_threshold: float,
                  RANSAC_conf: float):
-        self.module_name = "..."
-        self.description = "..."
-        self.example = "..."
+        self.module_name = "..." # To Fill per Module Basis
+        self.description = "..." # To Fill per Module Basis
+        self.example = "..."     # To Fill per Module Basis
 
         self.detector = detector
         self.det_free = False
@@ -784,11 +804,12 @@ class FeatureTracking():
         self.K = cam_data.get_K()
         self.dist = cam_data.get_distortion()
 
-        self.DETECTORS = ["sift", "superpoint", "orb", "fast"]
+        self.DETECTORS = ["sift", "superpoint", "orb"]
 
         if self.detector not in self.DETECTORS:
             self.det_free = True
 
+        # Fixed Algorithm to Track Features
         self.feature_tracker = FeatureTracker(self.matcher_parser, 
                                               K=self.K,
                                               dist=self.dist,
@@ -796,7 +817,7 @@ class FeatureTracking():
                                               RANSAC_conf=RANSAC_conf,
                                               cam_data = self.cam_data)
 
-    def __call__(self, features: list[Points2D]) -> PointsMatched:
+    def __call__(self, features: list[Points2D]) -> PointsMatched: # Fixed to the Module
         
         # Points Matched for Tracking -> data = N x [track_id, frame_num, x, y]
 
@@ -805,7 +826,8 @@ class FeatureTracking():
         return matched_points
     
     def matcher_parser(self, pt1: Points2D, pt2: Points2D) -> tuple[list, list]:
-        return [], []
+        # To Fill per Module Basis
+        return [], [] 
 
 class OptimizationClass():
     def __init__(self, 

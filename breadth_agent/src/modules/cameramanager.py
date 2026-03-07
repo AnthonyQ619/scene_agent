@@ -22,10 +22,16 @@ import shutil
 class CameraDataManager():
     def __init__(self, 
                  image_path: str,
+                 max_images: int | None = None,
                  calibration_path: str | None = None,
                  target_resolution: Tuple[int, int] | None = None):
         
-        image_files = sorted(glob.glob(image_path + "\\*"))[:20]
+        if max_images is None:
+            image_files = sorted(glob.glob(image_path + "\\*"))#[:5]
+        else:
+            image_files = sorted(glob.glob(image_path + "\\*"))#[:max_images]
+            if len(image_files) > max_images:
+                image_files = image_files[:max_images]
 
         self.directory_path = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace"
         if os.path.exists(self.directory_path):
@@ -50,6 +56,7 @@ class CameraDataManager():
             calibrated = True
 
         image_list, image_scale, image_shape_old = self._read_images(image_path=image_files,
+                                                                     max_size=1600,
                                                                      target_resolution=target_resolution,
                                                                      is_cal=calibrated)
         
@@ -108,6 +115,7 @@ class CameraDataManager():
  
     def _read_images(self, 
                      image_path: str,
+                     max_size: int,
                      target_resolution: Tuple[int, int] | None = None,
                      is_cal: bool = False) -> tuple[List[np.ndarray],
                                                         Tuple[float, float],
@@ -162,11 +170,23 @@ class CameraDataManager():
             image = ImageOps.exif_transpose(image)
             w, h = image.size
             image = image.convert("RGB") # Confirm image is in RGB
-            
+
+            # Get largest dim of image
+            max_dim = max(h, w)
+ 
             if target_resolution is not None:
                 h_new, w_new = target_resolution #TODO: ENSURE EVERYTHING IS (W, H), including RESHAPE PARAM
                 scale = (w_new / w, h_new / h)
                 target_res = (w_new, h_new)
+            # elif max_dim <= max_size: # No resize needed
+            #     scale = (1.0, 1.0)
+            #     target_res = (w, h)
+            # else:
+            #     scale_pt = max_size / max_dim
+            #     new_w = int(round(w * scale_pt))
+            #     new_h = int(round(h * scale_pt))
+            #     scale = (scale_pt, scale_pt)
+            #     target_res = (new_w, new_h)
             elif h > 1800 or w > 1800:
                 if h > w:
                     h_new, w_new = (1600, 1200)

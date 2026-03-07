@@ -158,7 +158,7 @@ from the image resolution.
 - contrast_threshold: The contrast threshold used to filter out weak features in semi-uniform (low-contrast) regions. 
 The larger the threshold, the less features are produced by the detector. NOTE: The contrast threshold will be divided 
 by nOctaveLayers when the filtering is applied.
-    - Default (flaot): 0.04
+    - Default (float): 0.04
 - edge_threshold: The threshold used to filter out edge-like features. Note that the its meaning is different from the 
 contrastThreshold, i.e. the larger the edgeThreshold, the more features are produced.
     - Default (int): 10
@@ -368,13 +368,15 @@ Initialization Parameters:
 - max_keypoints: Maximum number of Keypoints to detect per image from the feature detector
     - Default (int): 1024
 - edge_threshold: This is size of the border where the features are not detected. It should roughly match the patchSize parameter
+  This prevents finding features too close to the image boundary where descriptors might not be computed correctly
     - Default (int): 31
 - WTA_K: The number of points that produce each element of the oriented BRIEF descriptor.
     - Default (int): 2
 - fast_threshold: This is the value to determine the pixel threshold for brightness, or dimness, that is used to estimate a point is a corner.
+  A lower value will detect more potential corners, while a higher value will be more selective.
     - Default (int): 20
 - set_nms: Utilize Non-Maximum Supression on detected feature points to create a uniform distribution of points and avoid clusters. 
-Useful in cases of highly textured regions and need a larger distance between points, but significantly increases time complexity.
+  Useful in cases of highly textured regions and need a larger distance between points, but significantly increases time complexity.
     - Default (bool): False
 - set_nms_allowed_points: number of points to search in algorithm. Ensure it is less that max_points to detect.
     - Defauilt (int): 3000

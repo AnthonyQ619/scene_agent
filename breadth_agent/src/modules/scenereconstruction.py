@@ -230,14 +230,14 @@ class Sparse3DReconstructionVGGT(SparseSceneEstimation):
 
         self.module_name = "Sparse3DReconstructionVGGT"
         self.description = f"""
-Sparsely, and densely, reconstructs a 3D scene utilizing pre-processed information of camera poses and
+Sparsely reconstructs a 3D scene utilizing pre-processed information of camera poses and
 images of the scene. Camera Poses are estimated prior to thie module through the camera pose estimation 
 module, specifically from VGGT pose estimation. Features do NOT need to be tracked or matched between frames.
 This module can reconstruct sparse 3D scenes specifically using a monocular camera. 
 This module can reconstruct sparse 3D scenes either through single view or multi-view scenes.
 This is determined by the how many images exist in the scene and how many poses were estimated from the previous
 module using the VGGT pose estimation tool specifically.
-Use this module when specified for sparse/dense reconstruction and the scene doesn't allow for many features to be detected
+Use this module when specified for ONLY SPARSE reconstruction and the scene doesn't allow for many features to be detected
 from classical feature detectors (SIFT or ORB). Utilize this module in conjuction with the VGGT pose estimation module in these cases
 where feature detection is low. This module is for reconstructing the scene using the deep learning approach. 
 Computation time should not matter when invoking this tool, but keep in mind of system constraints such as GPU memory.
@@ -662,7 +662,7 @@ Module Output:
 """
         self.example = f"""
 Initialization:
-sparse_reconstruction = Sparse3DReconstructionMono(cam_data = camera_data, reproj_error = 2.0, min_observe = 3, min_angle = 1.5)
+sparse_reconstruction = Sparse3DReconstructionMono(cam_data = camera_data, view="multi", reproj_error = 2.0, min_observe = 3, min_angle = 1.5)
 
 Function Use (multi-view):
 feature_tracker = FeatureMatchLightGlueTracking(detector="superpoint")
@@ -672,17 +672,20 @@ cam_poses = pose_estimator(features=features) # To Estimate Camera Poses from de
 tracked_features = feature_tracker(features=features) # To track features across multiple images 
 
 # Estimate 3D scene using multi-view due to tracking features from multiple images in previous step
-sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="multi") 
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses) 
 
 Function Use (two-view):
+# Edit Initialization to view="two"
+sparse_reconstruction = Sparse3DReconstructionMono(cam_data = camera_data, view="two", reproj_error = 2.0, min_observe = 3, min_angle = 1.5)
+
 feature_matcher = FeatureMatchLightGluePair(cam_data = camera_data)
 
 cam_poses = pose_estimator(features=features) # To Estimate Camera Poses from detected features
 
-matched_features = feature_matcher(features=features) # To track features across multiple images 
+matched_features = feature_matcher(features=features) # Estimate Features across matching pairs
 
-# Estimate 3D scene using multi-view due to tracking features from multiple images in previous step
-sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two") 
+# Estimate 3D scene using two-view due to matching features across image pairs in previous step
+sparse_scene = sparse_reconstruction(matched_features, cam_poses) 
 """
         self.VIEWS = ["multi", "two"]
         self.view = view
@@ -1028,9 +1031,10 @@ dense_scene = dense_reconstruction(sparse_scene=None,
         torch.cuda.empty_cache() #Empty GPU cache
         pts = Points3D()
         pts.set_all_points(points = points_3d)
-        scene = Scene(points3D=pts,
+        scene = Scene(points3D = pts,
                       cam_poses = cam_poses.camera_pose,
-                      depth_maps=depth_map)
+                      depth_maps = depth_map,
+                      sparse = False)
         print(points_3d.shape)
 
         val = self.point_density(points=points_3d)
@@ -1177,17 +1181,37 @@ dense_scene = dense_reconstruction(sparse_scene=optimal_scene)
         dense_model_path = os.path.join(self.workspace_path, "dense_fused")
         recon = pycolmap.Reconstruction(dense_model_path)
 
+        # Obtain 3D Points from Dense Reconstruction
         points = np.array([p.xyz for p in recon.points3D.values()])
         colors = np.array([p.color / 255.0 for p in recon.points3D.values()])
         # pcd = o3d.io.read_point_cloud(f"{self.workspace_path}\\dense\\fused.ply")
-
+        
         # points = np.asarray(pcd.points)      # (N, 3)
         print("NUMBER OF POINTS", points.shape)
 
+        # Obtain Depth Maps from 3D Reconstruction
         depth_maps = self.read_colmap_depth()
         print("Number of maps", len(depth_maps))
         print("Depth Map Shape", depth_maps[0].shape)
-        return None #super().build_reconstruction(sparse_scene)
+
+        # Obtain Poses from SfM reconstruction
+        poses = []
+        for _, img in recon.images.items():
+            if not img.has_pose:  # only registered images have valid poses
+                continue
+
+            poses.append(img.cam_from_world().matrix()) # Pose from SfM Reconstruction     
+        
+        # Construct Scene for Dense Reconstruction
+        pts = Points3D()
+        pts.set_all_points(points = points,
+                           color = colors)
+        scene = Scene(points3D = pts,
+                      cam_poses = poses,
+                      depth_maps = depth_maps,
+                      sparse = False)
+        recon.export_PLY(os.path.join(self.workspace_path, "dense", "fused.ply"))
+        return scene #super().build_reconstruction(sparse_scene)
     
     def read_colmap_depth(self) -> list[np.ndarray]:
         depth_dir = os.path.join(

@@ -18,13 +18,23 @@ import theseus as th
 import theseus.utils.examples as theg
 
 import os
+# Hide Warnings
+# os.environ["GLOG_log_dir"] = r"C:\Users\Anthony\Documents\Projects\scene_agent\breadth_agent\results"
+# os.environ["GLOG_logtostderr"] = "0"
+# os.environ["GLOG_alsologtostderr"] = "0"
+
+# os.environ["GLOG_minloglevel"] = "0"        # keep INFO/WARNING in files
+# os.environ["GLOG_stderrthreshold"] = "2"    # NOTHING below FATAL goes to terminal
+
 os.add_dll_directory(r"C:\\Users\\Anthony\\Desktop\\VCPKG\\vcpkg\\installed\\x64-windows\\bin")
 os.add_dll_directory(r"C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4\\bin")
 os.add_dll_directory(r"C:\\Program Files\\NVIDIA cuDSS\\v0.7\\bin\\12")
+
 import pycolmap
 
 from modules.DataTypes.datatype import Scene, CameraData, PointsMatched, Points3D, CameraPose, Calibration, IncrementalSfMState
 from modules.baseclass import OptimizationClass
+
 
 class BundleAdjustmentOptimizerLocal(OptimizationClass):
     def __init__(

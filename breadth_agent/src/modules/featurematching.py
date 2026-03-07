@@ -378,7 +378,7 @@ tracked_features = feature_tracker(features=features) # Features used from Featu
 
         if self.detector in self.DETECTORS[:2]:
             FLANN_INDEX_KDTREE = 1
-            index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
+            index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 8)
         else: # Fast and Orb
             FLANN_INDEX_LSH = 6
             index_params = dict(algorithm = FLANN_INDEX_LSH,
@@ -386,7 +386,7 @@ tracked_features = feature_tracker(features=features) # Features used from Featu
                                 key_size = 12,     # 20
                                 multi_probe_level = 2) #2
         
-        search_params = dict(checks=50)   # or pass empty dictionary
+        search_params = dict(checks=64)   # or pass empty dictionary
 
         self.matcher = cv2.FlannBasedMatcher(index_params,search_params)
         self.lowes_thresh = lowes_thresh
@@ -473,8 +473,6 @@ Initalization Parameters:
      collection is the nearest and vice versa, i.e. the BFMatcher will only return consistent pairs. Such technique usually produces best results with 
      minimal number of outliers when there are enough matches. i.e only use when there's are lot of feature points
     - Default (bool): False
-- RANSAC: Determines whether to use RANSAC for outlier rejection of matched feature points. If False, uses FM_LMEDS, or the Least-Median-of-Squares (LMedS) algorithm.
-    - Default (bool): True
 - RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
      is considered an outlier and is not used for computing the final fundamental matrix.
     - Default (float): 1.0
@@ -1174,8 +1172,8 @@ matched_features = feature_matcher(features=features) # Features used from Featu
             #                                         img1, img2, 
             #                                         torch.from_numpy(new_pt1.descriptors), 
             #                                         torch.from_numpy(new_pt2.descriptors))
-            print(len(idx1))
-            print(new_pt1.points2D.shape)
+            # print(len(idx1))
+            # print(new_pt1.points2D.shape)
             # inlier_pts1, inlier_pts2, F_mat = self.outlier_reject(new_pt1, new_pt2, scene)
             inlier_pts1, inlier_pts2, idx1_inliers, idx2_inliers, F = self.outlier_reject(new_pt1, new_pt2, idx1, idx2, scene)
             
