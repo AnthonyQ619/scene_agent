@@ -1,10 +1,14 @@
+import os
+from modules.optimization import BundleAdjustmentOptimizerGlobal
+
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\door_dslr_undistorted\\door\\images\\dslr_images_undistorted"
+image_path = "/home/anthonyq/datasets/DTU/DTU/scan22"
 
 # STEP 1: Read in Camera Data
 from modules.cameramanager import CameraDataManager
 
 CDM = CameraDataManager(image_path=image_path,
+                        # max_images=10,
                         target_resolution=[1024, 1024])
 
 # Get Camera Data
@@ -30,6 +34,8 @@ pose_estimator = CamPoseEstimatorVGGTModel(cam_data=camera_data)
 # From estimated features, estimate the camera poses for all image frames
 cam_poses = pose_estimator()
 
+print("Update Intrinsics", camera_data.multi_cam)
+
 # STEP 5: Estimate Feature Tracks:
 from modules.featurematching import FeatureMatchSuperGlueTracking
 # Feature Tracking Module Initialization
@@ -52,10 +58,10 @@ sparse_reconstruction = Sparse3DReconstructionVGGT(cam_data=camera_data,
 sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
 
 # STEP 7: Run Optimization Algorithm
-from modules.optimization import BundleAdjustmentOptimizerGlobal
 # Build Optimizer
 optimizer = BundleAdjustmentOptimizerGlobal(max_num_iterations=60,
-                                            cam_data=camera_data)
+                                            cam_data=camera_data,
+                                            use_gpu=False)
 
 # Run Optimizer
 optimal_scene = optimizer(sparse_scene)
@@ -63,6 +69,7 @@ optimal_scene = optimizer(sparse_scene)
 
 # Optional Visualization
 from modules.visualize import VisualizeScene
-visualizer = VisualizeScene()
+visualizer = VisualizeScene(server=True, 
+                            img_path = os.path.dirname(os.path.abspath(__file__)) + '/feature_images/point_cloud.png')
 
-visualizer(optimal_scene)
+visualizer(optimal_scene, incl_axis=False)

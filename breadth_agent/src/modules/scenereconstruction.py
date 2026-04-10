@@ -29,9 +29,9 @@ from modules.DataTypes.datatype import (Points2D,
 
 
 # Import Pycolmap
-os.add_dll_directory(r"C:\\Users\\Anthony\\Desktop\\VCPKG\\vcpkg\\installed\\x64-windows\\bin")
-os.add_dll_directory(r"C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4\\bin")
-os.add_dll_directory(r"C:\\Program Files\\NVIDIA cuDSS\\v0.7\\bin\\12")
+# os.add_dll_directory(r"C:\\Users\\Anthony\\Desktop\\VCPKG\\vcpkg\\installed\\x64-windows\\bin")
+# os.add_dll_directory(r"C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4\\bin")
+# os.add_dll_directory(r"C:\\Program Files\\NVIDIA cuDSS\\v0.7\\bin\\12")
 import pycolmap
 
 ##########################################################################################################
@@ -308,7 +308,13 @@ sparse_scene = sparse_reconstruction(camera_poses=cam_poses)
 """
 
         # Initialize Model
-        WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        # WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        # Initialize Model
+        if os.name == 'nt':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        elif os.name == 'posix':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
+            
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         # bfloat16 is supported on Ampere GPUs (Compute Capability 8.0+) 

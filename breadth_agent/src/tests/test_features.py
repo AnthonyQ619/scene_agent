@@ -18,25 +18,42 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
+from matplotlib.collections import LineCollection
+
+def plot_features(img_path: str, pts:np.ndarray, image_size):
+    fig, ax = plt.subplots(figsize=(8, 8))
+    img = cv2.resize(cv2.imread(img_path), image_size, interpolation=cv2.INTER_AREA)
+    #img = cv2.resize(img, (640, 480), interpolation=cv2.INTER_AREA)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    ax.imshow(img)
+
+    
+    # Draw keypoints
+    ax.scatter(pts[:, 0], pts[:, 1], c='r', s=5)
+    # ax.scatter(pts2_offset[:, 0], pts2_offset[:, 1], c=point_color, s=5)
+    
+    plt.tight_layout()
+    plt.axis('off')
+    # plt.show()
+    plt.savefig(os.path.dirname(os.path.abspath(__file__)) + '/feature_images/detected_features.png')
 
 # Construct Modules with Initialized Arguments
 # image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
 # calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\Structure-from-Motion\\calibration_new.npz"
 # image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_illumination_change"
 # calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
-# image_path = "D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\apple\\189_20393_38136\\images"
-# calibration_path = "D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\apple\\calibration_new_189_20393_38136.npz"
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\Family"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\calibration_new_2048.npz"
+image_path = "/home/anthonyq/datasets/DTU/DTU/scan22"
+calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
+# image_path = "/home/anthonyq/datasets/tanks_and_temples/Francis"
+# calibration_path = "/home/anthonyq/datasets/tanks_and_temples/calibration_new_1920.npz"
 
 camera_data = CameraDataManager(image_path=image_path,
+                                # max_images = 5,
                                 calibration_path=calibration_path).get_camera_data()
 # Feature Module Initialization
 # calibration_data = CalibrationReader(calibration_path).get_calibration()
-feature_detector = FeatureDetectionSIFT(cam_data=camera_data, 
-                                        max_keypoints=15000,
-                                        contrast_threshold=0.009,
-                                        edge_threshold=10)
+feature_detector = FeatureDetectionSIFT(cam_data=camera_data,
+                                        max_keypoints=12000)
 # feature_detector = FeatureDetectionORB(cam_data=camera_data, 
 #                                         max_keypoints=20000,
 #                                         fast_threshold=20,
@@ -52,25 +69,45 @@ feature_detector = FeatureDetectionSIFT(cam_data=camera_data,
 # feature_matcher = FeatureMatchSuperGluePair(cam_data=camera_data,
 #                                             detector='superpoint', 
 #                                             setting='indoor')
+feature_tracker = FeatureMatchLightGlueTracking(cam_data=camera_data, 
+                                                detector="sift",
+                                                RANSAC_threshold=0.015,
+                                                RANSAC_conf=0.999)
 # feature_tracker = FeatureMatchFlannTracking(cam_data=camera_data, 
 #                                             detector="sift",
+#                                             lowes_thresh=0.70,
+#                                             RANSAC_threshold=0.015,
+#                                             RANSAC_conf=0.999)
+# feature_tracker = FeatureMatchBFTracking(cam_data=camera_data,
+#                                          detector="sift",
+#                                          k=2,
+#                                          cross_check=False,
+#                                          lowes_thresh=0.70,
+#                                          RANSAC_threshold=0.015,
+#                                          RANSAC_conf=0.999)
+
+# feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
+#                                             detector="sift",
 #                                             RANSAC_threshold=0.02,
-#                                             lowes_thresh=0.75)
-feature_tracker = FeatureMatchBFTracking(cam_data=camera_data,
-                                         detector="sift",
-                                         RANSAC_threshold=0.02,
-                                         lowes_thresh=0.75)
+#                                             RANSAC_conf=0.999)
 
-feature_matcher = FeatureMatchBFPair(detector="sift", 
-                                     cam_data=camera_data,
-                                     cross_check=False,
-                                     RANSAC_threshold=0.02,
-                                     lowes_thresh=0.70)
-
-# feature_matcher = FeatureMatchFlannPair(detector="sift", 
+# feature_matcher = FeatureMatchSuperGluePair(cam_data=camera_data,
+#                                             detector="superpoint",
+#                                             RANSAC_threshold=0.02,
+#                                             RANSAC_conf=0.999)
+# feature_matcher = FeatureMatchBFPair(detector="sift", 
 #                                      cam_data=camera_data,
-#                                      RANSAC_threshold=0.03,
-#                                      lowes_thresh=0.68)
+#                                      cross_check=False,
+#                                      RANSAC_threshold=0.05,
+#                                      lowes_thresh=0.750)
+
+# feature_matcher = FeatureMatchFlannPair(cam_data=camera_data,
+#                                         detector="sift",
+#                                         k=2,
+#                                         lowes_thresh=0.78,
+#                                         RANSAC=True,
+#                                         RANSAC_threshold=0.02,
+#                                         RANSAC_conf=0.999)
 # feature_matcher = FeatureMatchRoMAPair(img_path=image_path, setting="outdoor")
 # feature_tracker = FeatureMatchSuperGlueTracking(cam_data=camera_data,
 #                                                 detector='superpoint', 
@@ -81,15 +118,21 @@ feature_matcher = FeatureMatchBFPair(detector="sift",
 detected_features = feature_detector()
 # print(detected_features)
 
-# matched_features = feature_matcher(detected_features)
-# matched_features = feature_matcher()
-
-# tracked_features = feature_tracker(detected_features)
 
 tracks = True
-if tracks: 
+vis = True
+server = True
+pair = True
+# matched_features = feature_matcher(detected_features)
+
+# Read Images
+image_path = sorted(glob.glob(image_path + "/*"))
+
+plot_features(image_path[0], detected_features[0].points2D, detected_features[0].image_size)
+
+if tracks and vis: 
     tracked_features = feature_tracker(detected_features)
-    image_path = sorted(glob.glob(image_path + "\\*"))
+    # image_path = sorted(glob.glob(image_path + "/*"))
 
     j = 0
     for i in range(1000):
@@ -108,16 +151,18 @@ if tracks:
                 ax[j].imshow(img)
                 xx = tracked_features.access_point3D(i)[j, 1]
                 yy = tracked_features.access_point3D(i)[j, 2]
-                circ = Circle((xx,yy),20)
+                circ = Circle((xx,yy),80, color='r')
                 ax[j].add_patch(circ)
-            
+                ax[j].axis('off')
             plt.tight_layout()
-            plt.show()
+            # plt.axis('off')
+            # plt.show()
+            plt.savefig(os.path.dirname(os.path.abspath(__file__)) + '/feature_images/tracked_feature.png')
 
             break
 
-else: 
-    pair = 4
+elif vis: 
+    pair = 0
 
     matched_features = feature_matcher(detected_features)
 
@@ -150,12 +195,68 @@ else:
         plt.imshow(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
         plt.axis('off')
         plt.show()
+    
+    def plot_matches_server(img1, img2, pts1, pts2, max_lines=None, line_color='green', 
+                 point_color='red', linewidth=0.5, alpha=0.7):
+        """
+        Visualize matching feature points between two images.
 
-    image_path = sorted(glob.glob(image_path + "\\*"))
+        Args:
+            img1, img2: HxW or HxWx3 numpy arrays
+            pts1, pts2: Nx2 arrays of (x, y) coordinates
+            max_lines: optional int to subsample matches for clarity
+            line_color: color of match lines
+            point_color: color of keypoints
+        """
+
+        assert pts1.shape == pts2.shape, "Point arrays must match"
+        
+        # Optionally subsample matches (important for large N)
+        if max_lines is not None and pts1.shape[0] > max_lines:
+            idx = np.random.choice(pts1.shape[0], max_lines, replace=False)
+            pts1 = pts1[idx]
+            pts2 = pts2[idx]
+
+        h1, w1 = img1.shape[:2]
+        h2, w2 = img2.shape[:2]
+
+        # Create combined canvas
+        H = max(h1, h2)
+        W = w1 + w2
+        canvas = np.zeros((H, W, 3), dtype=img1.dtype)
+
+        canvas[:h1, :w1] = img1
+        canvas[:h2, w1:w1+w2] = img2
+
+        # Offset pts2 x-coordinates
+        pts2_offset = pts2.copy()
+        pts2_offset[:, 0] += w1
+
+        # Create line segments
+        lines = np.stack([pts1, pts2_offset], axis=1)
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.imshow(canvas)
+        ax.axis('off')
+
+        # Draw lines efficiently
+        lc = LineCollection(lines, colors=line_color, linewidths=linewidth, alpha=alpha)
+        ax.add_collection(lc)
+
+        # Draw keypoints
+        ax.scatter(pts1[:, 0], pts1[:, 1], c=point_color, s=5)
+        ax.scatter(pts2_offset[:, 0], pts2_offset[:, 1], c=point_color, s=5)
+
+        plt.tight_layout()
+        # plt.show()
+        plt.savefig(os.path.dirname(os.path.abspath(__file__)) + '/feature_images/my_figure.png')
 
     pt1, pt2 = matched_features.access_matching_pair(pair)
 
-    img1 = cv2.resize(cv2.imread(image_path[pair]), matched_features.image_size, interpolation=cv2.INTER_AREA)
-    img2 = cv2.resize(cv2.imread(image_path[pair+1]), matched_features.image_size, interpolation=cv2.INTER_AREA)
+    img1 = cv2.cvtColor(cv2.resize(cv2.imread(image_path[pair]), matched_features.image_size, interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2RGB)
+    img2 = cv2.cvtColor(cv2.resize(cv2.imread(image_path[pair+1]), matched_features.image_size, interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2RGB)
 
-    plot_matches(img1, img2, pt1, pt2)
+    if server:
+        plot_matches_server(img1, img2, pt1, pt2)
+    else:
+        plot_matches(img1, img2, pt1, pt2)

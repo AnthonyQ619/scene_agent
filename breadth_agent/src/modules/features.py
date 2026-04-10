@@ -256,6 +256,9 @@ features = feature_detector()
         mean_ct, min_count, max_count = self._metric_calculation()
         event_msg = {"avg": mean_ct, "min": min_count, "max": max_count}
         print(json.dumps(event_msg), flush=True)
+        mean_ct, min_count, max_count = self._spatial_dist_calc()
+        event_msg = {"avg Coverage": mean_ct, "min Coverage": min_count, "max Coverage": max_count}
+        print(json.dumps(event_msg), flush=True)
 
         return self.features
     
@@ -468,6 +471,9 @@ features = feature_detector()
         mean_ct, min_count, max_count = self._metric_calculation()
         event_msg = {"avg": mean_ct, "min": min_count, "max": max_count}
         print(json.dumps(event_msg), flush=True)
+        mean_ct, min_count, max_count = self._spatial_dist_calc()
+        event_msg = {"avg Coverage": mean_ct, "min Coverage": min_count, "max Coverage": max_count}
+        print(json.dumps(event_msg), flush=True)
 
         return self.features
 
@@ -645,6 +651,10 @@ features = feature_detector()
         # Output Metric
         mean_ct, min_count, max_count = self._metric_calculation()
         event_msg = {"avg": mean_ct, "min": min_count, "max": max_count}
+        print(json.dumps(event_msg), flush=True)
+
+        mean_ct, min_count, max_count = self._spatial_dist_calc()
+        event_msg = {"avg Coverage": mean_ct, "min Coverage": min_count, "max Coverage": max_count}
         print(json.dumps(event_msg), flush=True)
 
         return self.features

@@ -1,5 +1,6 @@
 import sys
-sys.path.append("C:\\Users\\Anthony\\Documents\\Projects\\Matchers\\RoMa\\romatch")
+# import
+# sys.path.append("C:\\Users\\Anthony\\Documents\\Projects\\Matchers\\RoMa\\romatch")
 ############ TEMP SOLUTION FOR NOW #################
 import json
 import cv2
@@ -10,7 +11,7 @@ import glob
 from tqdm import tqdm
 from modules.DataTypes.datatype import Points2D, PointsMatched, CameraData
 from modules.models.matchers import LightGlue, SuperGlue
-from romatch import roma_outdoor, roma_indoor
+# from romatch import roma_outdoor, roma_indoor
 
 from modules.baseclass import FeatureMatching, FeatureTracking
 from collections.abc import Callable
@@ -980,9 +981,10 @@ matched_features = feature_matcher(features=features) # Features used from Featu
         # Get the last image feature set
         matched_points.img_features.append(features[-1].points2D)
 
-        avg_outliers, mean_ct, min_ct, max_ct = self._metric_calculation(matched_points) 
+        mean_ct, inlier_yield, repeatability, gric_F, gric_H = self._metric_calculation(matched_points) 
 
-        event_msg = {"avg_outlier": avg_outliers, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
+        event_msg = {"avg_feats": mean_ct, "inlier_yield": inlier_yield, 
+                    "repeatability": repeatability, "gric_fundamental": gric_F, "gric_homography": gric_H}
         print(json.dumps(event_msg), flush=True)
 
         return matched_points
@@ -1191,9 +1193,10 @@ matched_features = feature_matcher(features=features) # Features used from Featu
         # Get the last image feature set
         matched_points.img_features.append(features[-1].points2D)
 
-        avg_outliers, mean_ct, min_ct, max_ct = self._metric_calculation(matched_points) 
+        mean_ct, inlier_yield, repeatability, gric_F, gric_H = self._metric_calculation(matched_points) 
 
-        event_msg = {"avg_outlier": avg_outliers, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
+        event_msg = {"avg_feats": mean_ct, "inlier_yield": inlier_yield, 
+                    "repeatability": repeatability, "gric_fundamental": gric_F, "gric_homography": gric_H}
         print(json.dumps(event_msg), flush=True)
 
         return matched_points
@@ -1367,9 +1370,10 @@ detected_features = feature_matcher(features=features) # Features used from Feat
         # Get the last image feature set
         matched_points.img_features.append(features[-1].points2D)
 
-        avg_outliers, mean_ct, min_ct, max_ct = self._metric_calculation(matched_points) 
+        mean_ct, inlier_yield, repeatability, gric_F, gric_H = self._metric_calculation(matched_points) 
 
-        event_msg = {"avg_outlier": avg_outliers, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
+        event_msg = {"avg_feats": mean_ct, "inlier_yield": inlier_yield, 
+                    "repeatability": repeatability, "gric_fundamental": gric_F, "gric_homography": gric_H}
         print(json.dumps(event_msg), flush=True)
 
         return matched_points
@@ -1540,9 +1544,10 @@ tracked_features = feature_matcher(features=features) # Features used from Featu
         # Get the last image feature set
         matched_points.img_features.append(features[-1].points2D)
 
-        avg_outliers, mean_ct, min_ct, max_ct = self._metric_calculation(matched_points) 
+        mean_ct, inlier_yield, repeatability, gric_F, gric_H = self._metric_calculation(matched_points) 
 
-        event_msg = {"avg_outlier": avg_outliers, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
+        event_msg = {"avg_feats": mean_ct, "inlier_yield": inlier_yield, 
+                    "repeatability": repeatability, "gric_fundamental": gric_F, "gric_homography": gric_H}
         print(json.dumps(event_msg), flush=True)
 
         return matched_points

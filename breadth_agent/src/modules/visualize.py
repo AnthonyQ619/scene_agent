@@ -1,5 +1,7 @@
 from .DataTypes.datatype import Scene, CameraPose, CameraData
 from .baseclass import VisualizeClass
+import matplotlib as plt
+plt.use('Agg')
 import numpy as np
 import open3d as o3d
 import open3d.visualization.gui as gui
@@ -9,10 +11,10 @@ import cv2
 import pytransform3d.transformations as pt
 import pytransform3d.camera as pc
 import pytransform3d.visualizer as pv
-
+import os
 
 class VisualizeScene(VisualizeClass):
-    def __init__(self):
+    def __init__(self, server:bool = False, img_path:str = "output.png"):
         self.module_name = "VisualizeScene"
         self.description = ""
         self.example = ""
@@ -20,14 +22,20 @@ class VisualizeScene(VisualizeClass):
         # Current Visualizer only handles discrete types of data
         self.FORMATS = ["point cloud", "Mesh"]
 
-        # Set up GUI for visualization
-        gui.Application.instance.initialize()
+        if server:
+            self.renderer = rendering.OffscreenRenderer(1280, 960)
+            self.scene = self.renderer.scene
+            self.img_path = img_path
+        else:
+            # Set up GUI for visualization
+            gui.Application.instance.initialize()
 
-        self.window = gui.Application.instance.create_window("Mesh-Viewer", 1024, 750)
-        self.scene = gui.SceneWidget()
+            self.window = gui.Application.instance.create_window("Mesh-Viewer", 1024, 750)
+            self.scene = gui.SceneWidget()
+        self.server = server
         
 
-    def __call__(self, data: Scene | np.ndarray, store:bool = False, path:str | None = None, format: str = "point cloud") -> None:
+    def __call__(self, data: Scene | np.ndarray, store:bool = False, path:str | None = None, format: str = "point cloud", incl_axis: bool = True) -> None:
         data_np = data.points3D.points3D
         # data_np = data
 
@@ -48,15 +56,44 @@ class VisualizeScene(VisualizeClass):
             print(colors)
             pcd, bounds, mat = self.visualize_point_cloud(data_np, colors)
 
-        self.scene.scene = rendering.Open3DScene(self.window.renderer)
-        self.window.add_child(self.scene)
-        
-        self.scene.scene.add_geometry("mesh_name2", pcd, mat)
-        self.scene.scene.add_geometry("mesh_name3", o3d.geometry.TriangleMesh.create_coordinate_frame(), rendering.MaterialRecord())
 
-        self.scene.setup_camera(60, bounds, bounds.get_center())
+        if self.server:
+            # Control Camera Direction
+            def orbit_camera(center, radius, azimuth, elevation):
+                eye = center + radius * np.array([
+                    np.cos(elevation) * np.sin(azimuth),
+                    np.sin(elevation),
+                    np.cos(elevation) * np.cos(azimuth)
+                ])
+                return eye.astype(np.float32)
 
-        gui.Application.instance.run()  # Run until user closes window
+            center = bounds.get_center().astype(np.float32)
+            extent = np.max(bounds.get_extent())
+            # eye = center + np.array([0.0, 0.0, 2.5 * extent], dtype=np.float32)
+            # eye = orbit_camera(center, radius=5, azimuth=130.0, elevation=0.2)
+            eye = center + np.array([3, 2, 4]) * extent * 0.2  #1.2 (1,1,0)
+            up = np.array([0.0, 1.0, 0.0], dtype=np.float32)
+
+            self.scene.add_geometry("mesh_name2", pcd, mat)
+            if incl_axis:
+                self.scene.add_geometry("mesh_name3", o3d.geometry.TriangleMesh.create_coordinate_frame(), rendering.MaterialRecord())
+
+            # self.renderer.setup_camera(60, bounds, bounds.get_center())
+            self.renderer.setup_camera(60.0, center, eye, up)
+
+            img = self.renderer.render_to_image()
+            o3d.io.write_image(self.img_path, img)
+        else: 
+            self.scene.scene = rendering.Open3DScene(self.window.renderer)
+            self.window.add_child(self.scene)
+            
+            self.scene.scene.add_geometry("mesh_name2", pcd, mat)
+            if incl_axis:
+                self.scene.scene.add_geometry("mesh_name3", o3d.geometry.TriangleMesh.create_coordinate_frame(), rendering.MaterialRecord())
+
+            self.scene.setup_camera(60, bounds, bounds.get_center())
+
+            gui.Application.instance.run()  # Run until user closes window
 
     def visualize_point_cloud(self, data: np.ndarray, color: np.ndarray | None) -> tuple:
         mat = rendering.MaterialRecord()
@@ -123,7 +160,8 @@ class VisualizePose(VisualizeClass):
         self.example = ""
         
 
-    def __call__(self, pose_data: CameraPose | np.ndarray, camera_data: CameraData | None = None) -> None:
+    def __call__(self, pose_data: CameraPose | np.ndarray, camera_data: CameraData | None = None, 
+                server = False, file_name: str = "temp_pose.png") -> None:
         if camera_data is None:
             sensor_size = np.array([0.036, 0.024])
             intrinsic_matrix = np.array(
@@ -163,4 +201,7 @@ class VisualizePose(VisualizeClass):
                 virtual_image_distance=virtual_image_distance,
             )
         # plt.show()
-        fig.show()
+        if server:
+            fig.save(file_name)
+        else:
+            fig.show()

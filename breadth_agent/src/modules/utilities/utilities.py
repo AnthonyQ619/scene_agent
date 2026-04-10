@@ -3,7 +3,7 @@ import numpy as np
 import sys
 import re
 sys.path.insert(0, "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\modules")
-from DataTypes.datatype import Calibration
+from modules.DataTypes.datatype import Calibration
 import glob
 
 # function to convert calibration data into a readable numpy file

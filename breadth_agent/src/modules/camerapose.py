@@ -5,6 +5,7 @@ from tqdm import tqdm
 import torch
 import torch.nn.functional as F
 from torchvision import transforms as TF
+import json
 
 from modules.baseclass import CameraPoseEstimatorClass
 from modules.optimization import BundleAdjustmentOptimizerLocal
@@ -63,7 +64,10 @@ pose_estimator() # No Features used with this module
 """
 
         # Initialize Model
-        WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        if os.name == 'nt':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        elif os.name == 'posix':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
         # bfloat16 is supported on Ampere GPUs (Compute Capability 8.0+) 
@@ -214,6 +218,10 @@ camera_pose = pose_estimator(feature_pairs=feature_pairs) # Features used from F
                                ba_per_frame: int = 4) -> CameraPose:
         assert(feature_pairs.multi_view == False), "Features passed must be two view correspondences. Ensure to invoke Feature Matching Two View tools prior to this call."
 
+        # Metric Calculation
+        reprojection_error = []
+        median_reproj_error = []
+
         if self.optimizer is not None:
             state = IncrementalSfMState(self.K_mat, self.dist,
                                         width=self.cam_data.image_list[0].shape[1], 
@@ -284,8 +292,10 @@ camera_pose = pose_estimator(feature_pairs=feature_pairs) # Features used from F
                 # state.poses.append(new_pose)
                 camera_poses.camera_pose.append(new_pose)
                 
-                # state.poses.append(new_pose)
-                # print(state.poses)
+                # Store Residual Error for Metric Recording
+                mean_error, median_error = self._metric_calculation_residuals(obj_pts, img_pts, new_pose)
+                reprojection_error.append(mean_error)
+                median_reproj_error.append(median_error)
 
                 # 6) Local BA every ba_per_frame frames
                 if ((new_img_id) % ba_per_frame) == 0:
@@ -329,10 +339,23 @@ camera_pose = pose_estimator(feature_pairs=feature_pairs) # Features used from F
                 # if state is not None:
                 #     state.poses.append(new_pose)
 
+                # Store Residual Error for Metric Recording
+                mean_error, median_error = self._metric_calculation_residuals(cloud[index], pts3_com, new_pose)
+                # reprojection_error.append(self._metric_calculation_residuals(cloud[index], pts3_com, new_pose))
+                reprojection_error.append(mean_error)
+                median_reproj_error.append(median_error)
+
                 # # Local BA refinement hook w/ updating poses in window!
                 # if optimizer is not None and state is not None and ((i + 1) % ba_per_frame) == 0:
                 #     state = optimizer.optimize(state, new_image_id=i + 1)
                 #     camera_poses.camera_pose = list(state.poses)
+
+        # Report the reprojection metric
+        residual_error = np.array(reprojection_error).mean()
+        residual_median = np.median(median_reproj_error)
+        event_msg = {"Average Reprojection Error per Frame": float(residual_error),
+                     "Average Median Reprojection Error per Frame": float(residual_median)}
+        print(json.dumps(event_msg), flush=True)
 
         return camera_poses
 
@@ -582,7 +605,7 @@ camera_pose = pose_estimator(feature_pairs=feature_pairs) # Features used from F
     # def estimate_pose_pnp(self, point_cloud: np.ndarray, pts1: np.ndarray, pts2: np.ndarray, prev_pose: np.ndarray) -> np.ndarray:
     def estimate_pose_pnp(self, point_cloud: np.ndarray, pts2: np.ndarray) -> np.ndarray:
         #cv2.solvePnPRansac(point_cloud, pts2, self.K1, self.dist1, cv2.SOLVEPNP_ITERATIVE)
-        _,rot,trans,_= cv2.solvePnPRansac(objectPoints=point_cloud, 
+        _,rot,trans,inliers= cv2.solvePnPRansac(objectPoints=point_cloud, 
                                           imagePoints=pts2, 
                                           cameraMatrix=self.K_mat, 
                                           distCoeffs=self.dist, 
@@ -591,7 +614,18 @@ camera_pose = pose_estimator(feature_pairs=feature_pairs) # Features used from F
                                           iterationsCount= self.iteration_ct,
                                           confidence=self.confidence,
                                           flags=cv2.SOLVEPNP_ITERATIVE)
-        
+
+        # Set inlier Points
+        inlier_3dPoints = point_cloud[inliers][:,0,:,:]
+        inlier_2dPoints = pts2[inliers][:,0,:]
+
+        rot,trans - cv2.solvePnPRefineLM(inlier_3dPoints,
+                                        inlier_2dPoints,
+                                        self.K_mat,
+                                        self.dist,
+                                        rot,
+                                        trans)
+
         rot,_=cv2.Rodrigues(rot)
 
         new_pose = np.hstack((rot, trans))

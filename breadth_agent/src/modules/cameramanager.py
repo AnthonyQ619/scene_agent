@@ -27,12 +27,19 @@ class CameraDataManager():
                  target_resolution: Tuple[int, int] | None = None):
         
         if max_images is None:
-            image_files = sorted(glob.glob(image_path + "\\*"))#[:5]
+            if os.name == 'nt':
+                image_files = sorted(glob.glob(image_path + "\\*"))#[:5]
+            else:
+                image_files = sorted(glob.glob(image_path + "/*"))
         else:
-            image_files = sorted(glob.glob(image_path + "\\*"))#[:max_images]
+            if os.name == 'nt':
+                image_files = sorted(glob.glob(image_path + "\\*"))#[:max_images]
+            else:
+                image_files = sorted(glob.glob(image_path + "/*"))
             if len(image_files) > max_images:
                 image_files = image_files[:max_images]
 
+        print(image_files)
         self.directory_path = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace"
         if os.path.exists(self.directory_path):
             # Delete the directory and all its contents
@@ -41,7 +48,10 @@ class CameraDataManager():
 
         # Recreate an empty directory
         os.makedirs(self.directory_path)
-        self.image_dir = self.directory_path + "\\images"
+        if os.name == 'nt':
+            self.image_dir = self.directory_path + "\\images"
+        else:
+            self.image_dir = self.directory_path + "/images"
         # Recreate an empty image directory
         os.makedirs(self.image_dir)
 

@@ -6,6 +6,7 @@ This is to reduce the possiblility of the Agent to hallucinate code
 '''
 
 import numpy as np
+from scipy.spatial import cKDTree
 import cv2
 from modules.DataTypes.datatype import (Scene, 
                                 CameraData, 
@@ -196,21 +197,30 @@ class FeatureTracker():
         tracked_features.track_map = self.track_map
         tracked_features.point_count = self.next_track_id - 1
 
-        # avg_track = self._calculate_avg_track_length(data_mat=tracked_features.data_matrix, total_points=tracked_features.point_count)
-        # event_msg = {"avg track length": avg_track, "avg_outlier": avg_outlier, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
-        # print(json.dumps(event_msg), flush=True)
+        avg_track, max_track = self._calculate_avg_track_length(data_mat=tracked_features.data_matrix, total_points=tracked_features.point_count)
+        event_msg = {"avg track length": avg_track, "max track length": max_track, "avg_outlier": avg_outlier, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
+        print(json.dumps(event_msg), flush=True)
         
         return tracked_features
     
     def _calculate_avg_track_length(self, data_mat: np.ndarray, total_points: int):
-        sum_of_tracks = 0
-        max_track = 0
-        for val in range(total_points):
-            sum_of_tracks += data_mat[data_mat[:, 0] == val].shape[0]
-            if data_mat[data_mat[:, 0] == val].shape[0] > max_track:
-                max_track = data_mat[data_mat[:, 0] == val].shape[0] 
-        print("MAX TRACK LENGTH:", max_track)
-        return sum_of_tracks / total_points
+        # sum_of_tracks = 0
+        # max_track = 0
+        # for val in range(total_points):
+        #     sum_of_tracks += data_mat[data_mat[:, 0] == val].shape[0]
+        #     if data_mat[data_mat[:, 0] == val].shape[0] > max_track:
+        #         max_track = data_mat[data_mat[:, 0] == val].shape[0] 
+        # print("MAX TRACK LENGTH:", max_track)
+
+        track_ids = data_mat[:, 0].astype(int)
+
+        unique_ids, counts = np.unique(track_ids, return_counts=True)
+
+        max_track = counts.max()
+        avg_track = counts.mean()
+        
+        # return sum_of_tracks / total_points
+        return float(avg_track), float(max_track)
 
     def _z_score(self, pts1: np.ndarray, pts2: np.ndarray, sigma_th: int) -> np.ndarray:
         pixel_diff = pts1 - pts2
@@ -641,6 +651,20 @@ class CameraPoseEstimatorClass():
         
         return camera_poses
 
+    def _metric_calculation_residuals(self, 
+                                      object_points: np.ndarray, 
+                                      image_points: np.ndarray,
+                                      pose: np.ndarray):
+        R = pose[:, :3]
+        T = pose[:, 3:]
+        proj, _ = cv2.projectPoints(object_points, R, T, self.K_mat, self.dist)
+
+        residual_error = np.linalg.norm(image_points - proj.reshape(-1,2), axis=1)
+        error = np.mean(residual_error)
+        median_error = np.median(residual_error)
+
+        return error, median_error
+
 class FeatureClass():
     def __init__(self, cam_data: CameraData):
                  #image_path:str):
@@ -657,6 +681,42 @@ class FeatureClass():
     def __call__(self) -> list[Points2D]:
         return self.features
     
+    def _spatial_dist_calc(self):
+        set_of_coverages = []
+        for pts_2D in self.features:
+            pts = pts_2D.points2D
+
+            if pts.shape[0] < 2:
+                set_of_coverages.append(0)
+                continue
+
+            # print("DUPE CHECK: ", len(pts) - len(np.unique(pts, axis=0)))
+            # Remove duplicate points
+            pts_non_dupe = np.unique(pts, axis=0)
+
+            tree = cKDTree(pts_non_dupe)
+
+            # k=2 because first neighbor is itself
+            dists, _ = tree.query(pts_non_dupe, k=2)
+
+            nearest = dists[:,1]
+
+            # Clamp points to avoid 0 distance error.
+            nearest = np.maximum(nearest, 1e-6)
+
+            coverage = nearest.shape[0] / np.sum(1.0 / nearest)
+
+            set_of_coverages.append(coverage)
+
+        coverages_np = np.array(set_of_coverages)
+
+
+        mean_ct = coverages_np.mean()
+        min_count = coverages_np.min()
+        max_count = coverages_np.max()
+
+        return float(mean_ct), float(min_count), float(max_count)
+
     def _metric_calculation(self):
         set_of_pt_counts = []
 
@@ -748,45 +808,178 @@ class FeatureMatching():
         return matched_points
 
     def _metric_calculation(self, matching_points: PointsMatched, sigma_th: int = 3):
-        outlier_count = self._z_score(matched_points=matching_points.pairwise_matches, sigma_th=sigma_th)
-        mean_ct, min_count, max_count = self._matching_feat_counts(matched_points=matching_points.pairwise_matches)
-        
-        return float(np.mean(outlier_count)), mean_ct, min_count, max_count
+        # outlier_count = self._z_score(matched_points=matching_points.pairwise_matches, sigma_th=sigma_th)
+        repeatability = self._calc_repeatability(matching_points=matching_points, epsilon=3.5) # Since we don't have ground truth, we assume 1px of noise.
+        mean_ct, inlier_yield = self._matching_feat_counts(matched_points=matching_points.pairwise_matches, features = matching_points.img_features)
+        gric_score_F, gric_score_H = self.evaluate_models(matching_points=matching_points)
+
+        return mean_ct, inlier_yield, repeatability, gric_score_F, gric_score_H
     
-    def _matching_feat_counts(self, matched_points: list[np.ndarray]):
-        set_of_pt_counts = []
+    def _matching_feat_counts(self, matched_points: list[np.ndarray], features: list[np.ndarray]):
+        set_of_pt_counts = np.zeros((len(matched_points), 1))
+        inlier_yields = np.zeros((len(features), 1))
 
         for i in range(len(matched_points)):
             matching_points = matched_points[i]
             num_pts = matching_points.shape[0]
-            set_of_pt_counts.append(num_pts)
+            set_of_pt_counts[i] = num_pts # Get total correspondences
+
+            # Get inlier Yield
+            feats1 = features[i]
+            feats2 = features[i + 1]
+            inlier_yields[i] = num_pts/feats1.shape[0]
+            inlier_yields[i + 1] = num_pts/feats2.shape[0]
         
-        counts_np = np.array(set_of_pt_counts)
+        # counts_np = np.array(set_of_pt_counts)
 
-        mean_ct = counts_np.mean()
-        min_count = counts_np.min()
-        max_count = counts_np.max()
+        mean_ct = set_of_pt_counts.mean()
+        inlier_yield_avg = inlier_yields.mean()
+        # min_count = counts_np.min()
+        # max_count = counts_np.max()
 
-        return float(mean_ct), int(min_count), int(max_count)
+        return float(mean_ct), float(inlier_yield_avg) #int(min_count), int(max_count)
 
-    def _z_score(self, matched_points: list[np.ndarray], sigma_th: int) -> np.ndarray:
-        outlier_counts = []
+    def _warp_points(self, src: np.ndarray, mat: np.ndarray, img_shape: list):
+        KA_prime = cv2.perspectiveTransform(src, mat)
+        KA_prime = KA_prime.reshape(-1, 2)
+        W, H = img_shape[:]
+        # Filter Warped Points
+        KA_prime = KA_prime[KA_prime[:, 0] >= 0]
+        KA_prime = KA_prime[KA_prime[:, 1] >= 0]
+        KA_prime = KA_prime[KA_prime[:, 0] < W]
+        KA_prime = KA_prime[KA_prime[:, 1] < H]
 
-        for i in range(len(matched_points)):
-            matching_points = matched_points[i]
+        return KA_prime
+           
 
-            pixel_diff = matching_points[:, :2] - matching_points[:, 2:]
+    def _calc_repeatability(self, matching_points: PointsMatched, epsilon: float = 3.0):
+        matched_points = matching_points.pairwise_matches
+        features = matching_points.img_features
+        W, H = matching_points.image_size[:]
 
-            pixel_dist = np.linalg.norm(pixel_diff, axis=1)
+        repeatabilities = []
+        for pair in range(len(matched_points)):
+            pt_set = matched_points[pair]
+            pt_set_A = pt_set[:, :2]
+            pt_set_B = pt_set[:, 2:]
 
-            mu = np.mean(pixel_dist)
-            sigma = np.std(pixel_dist)
-            z = (pixel_dist - mu) / (sigma + 1e-12)
-            out_count = np.sum(np.abs(z) > sigma_th)
+            H_mat, _ = cv2.findHomography(pt_set_A, pt_set_B, cv2.RANSAC, 5.0)
 
-            outlier_counts.append(int(out_count))
+            KA = features[pair]
+            KB = features[pair + 1]
+
+            print("BEFORE", KB.shape)
+            KA_prime = self._warp_points(KA.reshape(-1, 1, 2), H_mat, [W, H])
+            KB_prime = self._warp_points(KB.reshape(-1, 1, 2), np.linalg.inv(H_mat),[W, H])
+            KB = self._warp_points(KB_prime.reshape(-1, 1, 2), H_mat, [W, H])
+            print("AFTER", KB.shape)
+            tree = cKDTree(KB)
+
+            # k=2 because first neighbor is itself
+            dists, _ = tree.query(KA_prime, k=2)
+
+            nearest = dists[:,1]
+
+            repeated = nearest[nearest <= epsilon].shape[0]
+            print(repeated)
+            repeatability = repeated / min(len(KA_prime), len(KB))
+
+            repeatabilities.append(repeatability)
+
+
+        return float(np.array(repeatabilities).mean())
+
+    def fundamental_error(self, pts1, pts2, F):
+        """
+        Sampson error for fundamental matrix residuals
+        """
+        pts1_h = np.hstack([pts1, np.ones((pts1.shape[0],1))])
+        pts2_h = np.hstack([pts2, np.ones((pts2.shape[0],1))])
+
+        Fx1 = F @ pts1_h.T
+        Ftx2 = F.T @ pts2_h.T
+
+        denom = Fx1[0]**2 + Fx1[1]**2 + Ftx2[0]**2 + Ftx2[1]**2
+        err = np.sum(pts2_h.T * (F @ pts1_h.T), axis=0)
+
+        return (err**2) / denom
+
+
+    def homography_error(self, pts1, pts2, H):
+        """
+        symmetric transfer error for homography
+        """
+        pts1_h = np.hstack([pts1, np.ones((pts1.shape[0],1))])
+        pts2_h = np.hstack([pts2, np.ones((pts2.shape[0],1))])
+
+        proj = (H @ pts1_h.T).T
+        proj = proj[:,:2] / proj[:,2:]
+
+        err = np.linalg.norm(proj - pts2, axis=1)**2
+        return err
+
+
+    def compute_gric(self, errors, sigma, model_dim, param_dim, r: int = 4, lambda3: int = 2):
+        """
+        GRIC computation
+        Fundamental: model_dim = 3, param_dim = 7
+        Homography: model_dim = 2, param_dim = 8
+        """
+        n = len(errors)
+
+        lambda1 = np.log(r)
+        lambda2 = np.log(r*n)
         
-        return np.array(outlier_counts)
+        # robust truncation
+        errors = np.minimum(errors / (sigma**2), lambda3*(r - model_dim))
+
+        gric = np.sum(errors) + lambda1 * model_dim * n + lambda2 * param_dim
+        return gric
+
+
+    def evaluate_models(self, matching_points: PointsMatched, sigma: float = 1.0):
+        """
+        Compare homography vs fundamental matrix using GRIC
+        """
+
+        matched_points = matching_points.pairwise_matches
+        features = matching_points.img_features
+        W, H = matching_points.image_size[:]
+
+        gric_scores = {'fundamental':[], 'homography':[]}
+        for pair in range(len(matched_points)):
+            pt_set = matched_points[pair]
+            pts1 = pt_set[:, :2]
+            pts2 = pt_set[:, 2:]
+
+            # estimate models
+            H, _ = cv2.findHomography(pts1, pts2, cv2.RANSAC)
+            F, _ = cv2.findFundamentalMat(pts1, pts2, cv2.FM_RANSAC)
+
+            # compute residuals
+            h_errors = self.homography_error(pts1, pts2, H)
+            f_errors = self.fundamental_error(pts1, pts2, F)
+
+            # model parameters
+            # homography: 8 parameters, dimension=2
+            # fundamental: 7 parameters, dimension=3
+            gric_H = self.compute_gric(h_errors, sigma, model_dim=2, param_dim=8)
+            gric_F = self.compute_gric(f_errors, sigma, model_dim=3, param_dim=7)
+
+            gric_scores['fundamental'].append(gric_F)
+            gric_scores['homography'].append(gric_H)
+
+        return np.array(gric_scores['fundamental']).mean(), np.array(gric_scores['homography']).mean()
+        # if gric_H < gric_F:
+        #     model = "homography"
+        # else:
+        #     model = "fundamental"
+
+        # return {
+        #     "GRIC_H": gric_H,
+        #     "GRIC_F": gric_F,
+        #     "best_model": model
+        # }
 
 class FeatureTracking():
     def __init__(self, detector:str, 

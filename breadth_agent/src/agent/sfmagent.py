@@ -228,7 +228,7 @@ The goal is to output the same python code that is provided but only make the ab
 
         self.exec = Executor(script_dir=script_dir, output_file=output_file)
 
-        self.analyzer = ImageAnalyzer(model = model_name, k_images= k_images, reasoning_effort=reasoning_effort)
+        #self.analyzer = ImageAnalyzer(model = model_name, k_images= k_images, reasoning_effort=reasoning_effort)
         self.enhancer = PromptEnhancerLLM(model= model_name, reasoning_effort=reasoning_effort, instruction_path=instruction_path)
         self.generator = Generator(model= model_name, api_directory=api_directory, reasoning_effort=reasoning_effort)
         self.compiler = Compiler(script_dir=script_dir, model = model_name, api_directory=api_directory, reasoning_effort=reasoning_effort)
@@ -268,6 +268,8 @@ The goal is to output the same python code that is provided but only make the ab
 # Use Calibration Path in Code: {prompt['calibration']}
 # """   
         # This is to guide the problem in a more formal prompt
+
+        # PLANNER #
         pre_prompt = f"""
 # Camera Calibration Path: {prompt['calibration']}
 # Reconstruction Type: {prompt['recon_type']}
@@ -301,6 +303,9 @@ Use Calibration Path in Code: {prompt['calibration']}
         temp_file.close()
 
         print(procedure)
+        # PLANNER #
+
+        # PROGRAM SYNTHESIS #
         t0 = time.time()
         code = self.compiler(procedure)
         t1 = time.time()
@@ -317,7 +322,7 @@ Use Calibration Path in Code: {prompt['calibration']}
         refined_code = self.debugger(code)
         t1 = time.time()
         log_file.write("DEBUGGER LLM:\n" + str(t1-t0) + "\n")
-        # print(code)
+        # PROGRAM SYNTHESIS #
 
         # Save the refined Code
         temp_file = open(self.script_dir + "\\refined_gen_code.py", 'w', encoding="utf-8")
@@ -326,6 +331,8 @@ Use Calibration Path in Code: {prompt['calibration']}
 
         temp_file.close()
 
+
+        # Clean Code to ignore Dense Reconstruction !
         t0 = time.time()
         cleaned_code = self.cleaner(refined_code)
         t1 = time.time()
@@ -337,7 +344,9 @@ Use Calibration Path in Code: {prompt['calibration']}
         temp_file.write(cleaned_code)
 
         temp_file.close()
+        # Cleaned Code
 
+        # OPTIMIZER GOES HERE
 
         log_file.close()
 

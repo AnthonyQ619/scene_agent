@@ -12,8 +12,8 @@ import numpy as np
 import pycolmap
 import torch
 import torch.nn.functional as F
-# from lightglue import ALIKED, SIFT, SuperPoint
-from modules.models.features import SuperPoint
+from lightglue import ALIKED, SIFT, SuperPoint
+# from modules.models.features import SuperPoint
 from .vggsfm_tracker import TrackerPredictor
 
 # Suppress verbose logging from dependencies
@@ -204,23 +204,21 @@ def initialize_feature_extractors(max_query_num, det_thres=0.005, extractor_meth
 
     for method in methods:
         method = method.strip()
-        # if method == "aliked":
-        #     aliked_extractor = ALIKED(max_num_keypoints=max_query_num, detection_threshold=det_thres)
-        #     extractors["aliked"] = aliked_extractor.to(device).eval()
-        # elif method == "sp":
-        if method == 'sp':
+        if method == "aliked":
+            aliked_extractor = ALIKED(max_num_keypoints=max_query_num, detection_threshold=det_thres)
+            extractors["aliked"] = aliked_extractor.to(device).eval()
+        elif method == "sp":
             sp_extractor = SuperPoint(max_num_keypoints=max_query_num, detection_threshold=det_thres)
             extractors["sp"] = sp_extractor.to(device).eval()
-        # elif method == "sift":
-        #     sift_extractor = SIFT(max_num_keypoints=max_query_num)
-        #     extractors["sift"] = sift_extractor.to(device).eval()
+        elif method == "sift":
+            sift_extractor = SIFT(max_num_keypoints=max_query_num)
+            extractors["sift"] = sift_extractor.to(device).eval()
         else:
             print(f"Warning: Unknown feature extractor '{method}', ignoring.")
 
     if not extractors:
-        # print(f"Warning: No valid extractors found in '{extractor_method}'. Using ALIKED by default.")
-        # aliked_extractor = ALIKED(max_num_keypoints=max_query_num, detection_threshold=det_thres)
-        aliked_extractor = SuperPoint(max_num_keypoints=max_query_num, detection_threshold=det_thres)
+        print(f"Warning: No valid extractors found in '{extractor_method}'. Using ALIKED by default.")
+        aliked_extractor = ALIKED(max_num_keypoints=max_query_num, detection_threshold=det_thres)
         extractors["aliked"] = aliked_extractor.to(device).eval()
 
     return extractors

@@ -1,3 +1,4 @@
+import pycolmap
 import logging
 import os
 import pathlib
@@ -17,7 +18,6 @@ import re
 import theseus as th
 import theseus.utils.examples as theg
 
-import os
 # Hide Warnings
 # os.environ["GLOG_log_dir"] = r"C:\Users\Anthony\Documents\Projects\scene_agent\breadth_agent\results"
 # os.environ["GLOG_logtostderr"] = "0"
@@ -26,11 +26,14 @@ import os
 # os.environ["GLOG_minloglevel"] = "0"        # keep INFO/WARNING in files
 # os.environ["GLOG_stderrthreshold"] = "2"    # NOTHING below FATAL goes to terminal
 
-os.add_dll_directory(r"C:\\Users\\Anthony\\Desktop\\VCPKG\\vcpkg\\installed\\x64-windows\\bin")
-os.add_dll_directory(r"C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4\\bin")
-os.add_dll_directory(r"C:\\Program Files\\NVIDIA cuDSS\\v0.7\\bin\\12")
+# os.add_dll_directory(r"C:\\Users\\Anthony\\Desktop\\VCPKG\\vcpkg\\installed\\x64-windows\\bin")
+# os.add_dll_directory(r"C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4\\bin")
+# os.add_dll_directory(r"C:\\Program Files\\NVIDIA cuDSS\\v0.7\\bin\\12")
 
-import pycolmap
+import sys
+print(sys.executable)
+
+# import pycolmap
 
 from modules.DataTypes.datatype import Scene, CameraData, PointsMatched, Points3D, CameraPose, Calibration, IncrementalSfMState
 from modules.baseclass import OptimizationClass
@@ -149,15 +152,18 @@ cam_poses = pose_estimator(feature_pairs=feature_pairs)
         ba_opts.refine_extra_params = self.refine_extra_params
 
         # GPU knobs (only used when supported in your build)
-        ba_opts.use_gpu = bool(self.use_gpu)
-        ba_opts.gpu_index = str(self.gpu_index)
+        if self.use_gpu:
+            ba_opts.use_gpu = bool(self.use_gpu)
+            ba_opts.gpu_index = str(self.gpu_index)
 
         # Ceres solver options (requires PyCeres installed in your environment)
-        ba_opts.solver_options.max_num_iterations = int(self.max_num_iterations)
+        # was ba_opts.solver_options.max_num_iterations = int(self.max_num_iterations) 
+        ba_opts.ceres.solver_options.max_num_iterations = int(self.max_num_iterations) 
 
         # Optional robust loss
         if self.robust_loss:
-            ba_opts.loss_function_type = pycolmap.LossFunctionType.CAUCHY
+            # Was: ba_opts.loss_function_type = pycolmap.LossFunctionType.CAUCHY
+            ba_opts.ceres.loss_function_type = pycolmap.LossFunctionType.CAUCHY
 
         bundle_adjuster = pycolmap.create_default_bundle_adjuster(ba_opts, config, recon)
         _ = bundle_adjuster.solve()
@@ -460,15 +466,27 @@ optimal_scene = optimizer(sparse_scene)
         ba_opts.refine_extra_params = self.refine_extra_params
 
         # GPU knobs (only used when supported in your build)
-        ba_opts.use_gpu = bool(self.use_gpu)
-        ba_opts.gpu_index = str(self.gpu_index)
+        # ba_opts.use_gpu = bool(self.use_gpu)
+        # ba_opts.gpu_index = str(self.gpu_index)
+
+        # # Ceres solver options (requires PyCeres installed in your environment)
+        # ba_opts.solver_options.max_num_iterations = int(self.max_num_iterations)
+
+        # # Optional robust loss
+        # if self.robust_loss:
+        #     ba_opts.loss_function_type = pycolmap.LossFunctionType.CAUCHY
+
+        # GPU knobs (only used when supported in your build)
+        if self.use_gpu:
+            ba_opts.use_gpu = bool(self.use_gpu)
+            ba_opts.gpu_index = str(self.gpu_index)
 
         # Ceres solver options (requires PyCeres installed in your environment)
-        ba_opts.solver_options.max_num_iterations = int(self.max_num_iterations)
+        ba_opts.ceres.solver_options.max_num_iterations = int(self.max_num_iterations) 
 
         # Optional robust loss
         if self.robust_loss:
-            ba_opts.loss_function_type = pycolmap.LossFunctionType.CAUCHY
+            ba_opts.ceres.loss_function_type = pycolmap.LossFunctionType.CAUCHY
 
         bundle_adjuster = pycolmap.create_default_bundle_adjuster(ba_opts, config, recon)
         summary = bundle_adjuster.solve()
@@ -517,8 +535,23 @@ optimal_scene = optimizer(sparse_scene)
                         model = pycolmap.CameraModelId.PINHOLE
                         params = np.array([fx, fy, cx, cy], np.float64)
                     else:
-                        model = pycolmap.CameraModelId.OPENCV
-                        params = np.array([fx, fy, cx, cy, *d], np.float64)
+                        # model = pycolmap.CameraModelId.OPENCV
+                        # params = np.array([fx, fy, cx, cy, *d], np.float64)
+                        d = np.asarray(dist, dtype=np.float64).ravel()
+
+                        if len(d) == 4:
+                            # k1, k2, p1, p2
+                            model = pycolmap.CameraModelId.OPENCV
+                            params = np.array([fx, fy, cx, cy, d[0], d[1], d[2], d[3]], dtype=np.float64)
+                        elif len(d) == 5:
+                            # OpenCV often gives k1, k2, p1, p2, k3
+                            # drop k3 and use OPENCV
+                            model = pycolmap.CameraModelId.OPENCV
+                            params = np.array([fx, fy, cx, cy, d[0], d[1], d[2], d[3]], dtype=np.float64)
+                        elif len(d) == 8:
+                            # k1, k2, p1, p2, k3, k4, k5, k6
+                            model = pycolmap.CameraModelId.FULL_OPENCV
+                            params = np.array([fx, fy, cx, cy, *d], dtype=np.float64)
 
                     cam = pycolmap.Camera(
                         camera_id=next_camera_id,
@@ -538,17 +571,33 @@ optimal_scene = optimizer(sparse_scene)
             rig = pycolmap.Rig()
             rig.rig_id = 1
 
-            for cam_id in camera_map.values():
+            # for cam_id in camera_map.values():
+            #     sensor = pycolmap.sensor_t()
+            #     sensor.type = pycolmap.SensorType.CAMERA
+            #     sensor.id = cam_id
+            #     rig.add_sensor(sensor)
+            cam_ids = list(camera_map.values())
+
+            for i, cam_id in enumerate(cam_ids):
                 sensor = pycolmap.sensor_t()
                 sensor.type = pycolmap.SensorType.CAMERA
                 sensor.id = cam_id
-                rig.add_sensor(sensor)
+
+                if i == 0:
+                    # Make first camera the reference sensor
+                    rig.add_ref_sensor(sensor)
+
+                    # # Optional but explicit: reference sensor has identity transform
+                    # rig.set_sensor_from_rig(sensor, pycolmap.Rigid3d())
+                else:
+                    # Additional sensors need an explicit pose wrt rig
+                    rig.add_sensor(sensor, pycolmap.Rigid3d())
 
             # choose a reference sensor (first camera)
-            ref = pycolmap.sensor_t()
-            ref.type = pycolmap.SensorType.CAMERA
-            ref.id = list(camera_map.values())[0]
-            rig.add_ref_sensor(ref)
+            # ref = pycolmap.sensor_t()
+            # ref.type = pycolmap.SensorType.CAMERA
+            # ref.id = list(camera_map.values())[0]
+            # rig.add_ref_sensor(ref)
 
             recon.add_rig(rig)
         else:
