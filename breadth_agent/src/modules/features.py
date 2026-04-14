@@ -124,7 +124,6 @@ class FeatureDetectionSIFT(FeatureClass):
                  edge_threshold: int = 10,
                  sigma: float = 1.6):
         #super().__init__(image_path)
-        super().__init__(cam_data)
         """
         Detect Features (Keypoints and Descriptors) using the SIFT algorithm
 
@@ -137,8 +136,10 @@ class FeatureDetectionSIFT(FeatureClass):
                     scores:         [N x 1] np.float32
                     image_size:     [1 x 2] np.int64
         """
-        self.module_name = "FeatureDetectionSIFT"
-        self.description = f"""
+
+        module_name = "FeatureDetectionSIFT"
+
+        description = f"""
 Detects existing keypoints(features) and descriptors in images using the feature detector 
 SIFT. This Feature Detector is used when accurate and robust feature detection with
 detailed description generation based algorithms are the priority. USE THIS MODULE in cases
@@ -175,7 +176,7 @@ Module Output:
             image_size:     [1 x 2] np.int64
 """
         
-        self.example = f"""
+        example = f"""
 Initialization of Module: 
 feature_detector = FeatureDetectionSIFT(cam_data = camera_data, max_keypoints = 2000) 
 
@@ -183,37 +184,25 @@ Function call of Module:
 features = feature_detector()
 """
         
-
+        # Set up Initialization
+        super().__init__(cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example)
+        
+        
         self.detector = cv2.SIFT_create(nfeatures = max_keypoints,
                                         nOctaveLayers = n_octave_layers,
                                         contrastThreshold = contrast_threshold,
                                         edgeThreshold =edge_threshold,
                                         sigma = sigma)
 
-        # self.image_reshape, self.reshape_scale = self._det_img_shape(self.image_path[0],
-        #                                                              image_reshape)
-        # print(self.image_reshape)
-        # print(self.reshape_scale)
+        # Verifying Images are read accordingly
         print("Number of Images", len(self.image_list))
         print("New Image Scale", self.image_scale)
 
-        # Update Image Scale accordingly
-        # cam_data.update_calibration(self.image_scale)
 
-        # self.image_reshape = None
-        # self.reshape_scale = [1.0, 1.0]
-        # print(self.reshape_scale)
-        # if image_reshape is not None:
-        #     img = self.image_path[0]
-        #     h, w = cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2GRAY).shape[:2]
-        #     h_new, w_new = image_reshape
-        #     self.reshape_scale = [w_new / w, h_new / h]
-        #     self.image_rehsape = image_reshape
-        # else:
-        #     self.reshape_scale = [1.0, 1.0]
-        #     self.image_rehsape = None
-
-    def __call__(self) -> list[Points2D]:
+    def _detect_features(self) -> list[Points2D]:
 
         # New Version
         # if self.image_reshape is not None:
@@ -253,81 +242,15 @@ features = feature_detector()
                                     orientation=ori))
         
         # Output Metric
-        mean_ct, min_count, max_count = self._metric_calculation()
-        event_msg = {"avg": mean_ct, "min": min_count, "max": max_count}
-        print(json.dumps(event_msg), flush=True)
-        mean_ct, min_count, max_count = self._spatial_dist_calc()
-        event_msg = {"avg Coverage": mean_ct, "min Coverage": min_count, "max Coverage": max_count}
-        print(json.dumps(event_msg), flush=True)
+        # mean_ct, min_count, max_count = self._metric_calculation()
+        # event_msg = {"avg": mean_ct, "min": min_count, "max": max_count}
+        # print(json.dumps(event_msg), flush=True)
+        # mean_ct, min_count, max_count = self._spatial_dist_calc()
+        # event_msg = {"avg Coverage": mean_ct, "min Coverage": min_count, "max Coverage": max_count}
+        # print(json.dumps(event_msg), flush=True)
 
         return self.features
     
-    # def _detect_resize(self) -> list[Points2D]:
-    #     features = []
-    #     eps=1e-7
-        
-    #     for i in tqdm(range(len(self.image_path))): # len(self.image_path)
-    #     # img in self.image_path:
-    #         img = self.image_path[i]
-    #         im_gray = cv2.resize(cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2GRAY),
-    #                              self.image_reshape, 
-    #                              interpolation=cv2.INTER_AREA)
-
-    #         kp, des = self.detector.detectAndCompute(im_gray, None)
-    #         pts = np.array([kp[i].pt for i in range(len(kp))], np.float32)
-    #         des = np.float32(des)
-    #         # apply the Hellinger kernel by first L1-normalizing and taking the
-    #         # square-root
-    #         des /= (des.sum(axis=1, keepdims=True) + eps)
-    #         des = np.sqrt(des)
-
-    #         scores = np.vstack(np.array([kp[i].response for i in range(len(kp))], np.float32))
-    #         scale = np.array([[kp[i].size for i in range(len(kp))]], np.float32)
-    #         ori = np.array([[kp[i].angle for i in range(len(kp))]], np.float32)
-    #         image_size = np.array([im_gray.shape[1], im_gray.shape[0]])
-            
-    #         features.append(Points2D(points2D = pts, 
-    #                                 descriptors = des,
-    #                                 scores = scores, 
-    #                                 image_size = image_size,
-    #                                 reshape_scale=self.reshape_scale,
-    #                                 scale=scale,
-    #                                 orientation=ori))
-            
-    #     return features
-
-    # def _detect_base(self) -> list[Points2D]:
-    #     features = []
-    #     eps=1e-7
-
-    #     #for i in tqdm(range(len(self.image_path))): # len(self.image_path)
-    #     for i in range(len(self.image_list)):
-    #     # img in self.image_path:
-    #         img = self.image_list[i] #self.image_path[i]
-    #         im_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) #cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2GRAY)
-
-    #         kp, des = self.detector.detectAndCompute(im_gray, None)
-    #         pts = np.array([kp[i].pt for i in range(len(kp))], np.float32)
-    #         des = np.float32(des)
-    #         # apply the Hellinger kernel by first L1-normalizing and taking the
-    #         # square-root
-    #         des /= (des.sum(axis=1, keepdims=True) + eps)
-    #         des = np.sqrt(des)
-
-    #         scores = np.vstack(np.array([kp[i].response for i in range(len(kp))], np.float32))
-    #         scale = np.array([[kp[i].size for i in range(len(kp))]], np.float32)
-    #         ori = np.array([[kp[i].angle for i in range(len(kp))]], np.float32)
-    #         image_size = np.array([im_gray.shape[1], im_gray.shape[0]])
-            
-    #         features.append(Points2D(points2D = pts, 
-    #                                 descriptors = des,
-    #                                 scores = scores, 
-    #                                 image_size = image_size,
-    #                                 reshape_scale=self.image_scale,
-    #                                 scale=scale,
-    #                                 orientation=ori))
-            
-    #     return features
     
 
 class FeatureDetectionORB(FeatureClass):

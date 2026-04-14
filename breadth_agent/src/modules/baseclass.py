@@ -314,27 +314,6 @@ class KeypointRefinement():
 ##########################################################################################################
 
 
-class GeometryClass():
-    def __init__(self, format: str):
-        self.module_name = "..."
-        self.description = "..."
-        self.example = "..."
-
-        self.format = format
-
-    def __call__(self):
-        pass
-
-class ImageProcessorClass():
-    def __init__(self, format: str):
-        self.module_name = "..."
-        self.description = "..."
-        self.example = "..."
-
-        self.format = format
-
-    def __call__(self):
-        pass
 
 class SparseSceneEstimation():
     def __init__(self, cam_data: CameraData):
@@ -666,21 +645,57 @@ class CameraPoseEstimatorClass():
         return error, median_error
 
 class FeatureClass():
-    def __init__(self, cam_data: CameraData):
-                 #image_path:str):
-        self.module_name = "..."
-        self.description = "..."
-        self.example = "..."
-        self.features: list[Points2D] = []
+    def __init__(self, 
+                 cam_data: CameraData,
+                 module_name: str,
+                 description: str,
+                 example: str):
 
+        # Define Module Name, Description, etc. 
+        # Under modules.
+        self.module_name = module_name
+        self.description = description
+        self.example = example
+        
+        # Define Camera Data variables to use. 
         self.image_list = cam_data.image_list
         self.image_scale = cam_data.image_scale
         self.image_shape = cam_data.image_list[0].shape[:2]
+        
+        # Personal Variables of Feature Module
+        self.features: list[Points2D] = []
 
 
     def __call__(self) -> list[Points2D]:
+
+        # Detect Features from Designated Detector
+        self.features = self._detect_features()
+
+        # Output Metric
+        self.calculate_metrics()
+
         return self.features
     
+    def _detect_features(self) -> list[Points2D]:
+        # Write Code Here to Fill Feature Module per Detector Implemented
+
+        return self.features
+
+    def calculate_metrics(self) -> None:
+
+
+        # Output Metric
+        mean_ct, min_count, max_count = self._metric_calculation()
+        event_msg = {"avg": mean_ct, "min": min_count, "max": max_count}
+        print(json.dumps(event_msg), flush=True)
+        mean_ct, min_count, max_count = self._spatial_dist_calc()
+        event_msg = {"avg Coverage": mean_ct, "min Coverage": min_count, "max Coverage": max_count}
+        print(json.dumps(event_msg), flush=True)
+
+        # Write to file
+        with open('data.json', 'w', encoding='utf-8') as f:
+            json.dump(data, f)
+
     def _spatial_dist_calc(self):
         set_of_coverages = []
         for pts_2D in self.features:
