@@ -747,26 +747,25 @@ class FeatureClass():
 
 class FeatureMatching():
     def __init__(self, 
-                 detector:str, 
                  cam_data:CameraData,
+                 module_name: str,
+                 description: str,
+                 example: str,
                  RANSAC_threshold: float,
                  RANSAC: bool,
                  RANSAC_conf: float):
-        self.module_name = "..."
-        self.description = "..."
-        self.example = "..."
+        
+        # Define Module Name, Description, etc. 
+        # Under modules.
+        self.module_name = module_name
+        self.description = description
+        self.example = example
 
-        self.detector = detector
-        self.det_free = False
-
+        # Set up Calibration and Image Data
         self.cam_data = cam_data
         self.K = cam_data.get_K()
         self.dist = cam_data.get_distortion()
 
-        self.DETECTORS = ["sift", "superpoint", "orb"]
-
-        if self.detector not in self.DETECTORS:
-            self.det_free = True
 
         # Setup Outlier Rejection
         self.normalize = Normalization(K=self.K, 

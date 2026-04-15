@@ -838,16 +838,10 @@ class FeatureMatchSuperGluePair(FeatureMatching):
         if detector.lower() not in SUPPORTED_FEATURES:
             message = 'Error: detector is not supported. Use one of ' + str(SUPPORTED_FEATURES) + ' instead to use this Feature Matcher.'
             raise Exception(message)
-        
-        super().__init__(detector=detector.lower(), 
-                         cam_data=cam_data,
-                         RANSAC_conf=RANSAC_conf,
-                         RANSAC=RANSAC,
-                         RANSAC_threshold=RANSAC_threshold)
 
-        self.module_name = "FeatureMatchSuperGluePair"
+        module_name = "FeatureMatchSuperGluePair"
 
-        self.description = f"""
+        description = f"""
 Detects point correspondance between two sequential frames at once to detect matching 
 features across a set of images. The feature matching algorithm used is the SuperGlue deep
 learning model trained as a feature matcher. Unless specified directly, assume the features 
@@ -889,7 +883,7 @@ Function Call Parameters:
 - features (list[Points2D]): list of features detected per scene estimated from the feature detection module
 """ # TODO: Fill in details for the matcher. Be precise as we want the agent to know when exactly to use this
         
-        self.example = f"""
+        example = f"""
 Initialization: 
 # Determine the detector that was used previously and initialize module with said detector
 
@@ -904,6 +898,16 @@ features = feature_detector() # Call Feature Detector Module on image frames
 
 matched_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
 """
+
+        super().__init__(cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC=RANSAC,
+                         RANSAC_threshold=RANSAC_threshold)
+        
+        self.detector = detector
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
 
@@ -1033,15 +1037,8 @@ class FeatureMatchLightGluePair(FeatureMatching):
             message = 'Error: detector is not supported. Use one of ' + str(self.FORMATS) + ' instead to use this Feature Matcher.'
             raise Exception(message)
 
-        super().__init__(detector=detector.lower(), 
-                         cam_data=cam_data,
-                         RANSAC_conf=RANSAC_conf,
-                         RANSAC=RANSAC,
-                         RANSAC_threshold=RANSAC_threshold)
-        
-
-        self.module_name = "FeatureMatchLightGluePair"
-        self.description = f"""
+        module_name = "FeatureMatchLightGluePair"
+        description = f"""
 Detects point correspondance between two sequential frames at once to detect matching 
 features across a set of images. The feature matching algorithm used is the LightGlue deep
 learning model trained as a feature matcher. Unless specified directly, assume the features 
@@ -1085,7 +1082,7 @@ Function Call Parameters:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """ # TODO: Fill in details for the matcher. Be precise as we want the agent to know when exactly to use this
         
-        self.example = f"""
+        example = f"""
 Initialization: 
 # Determine the detector that was used previously and initialize module with said detector
 
@@ -1101,6 +1098,17 @@ features = feature_detector() # Call Feature Detector Module on image frames
 
 matched_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
 """
+        
+        super().__init__(cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC=RANSAC,
+                         RANSAC_threshold=RANSAC_threshold)
+        
+        self.detector = detector
+        
         self.matcher = LightGlue(features=self.detector, 
                                  n_layers = n_layers,
                                  flash = flash, 
@@ -1246,14 +1254,8 @@ class FeatureMatchFlannPair(FeatureMatching):
                  RANSAC_conf: float = 0.99,
                  lowes_thresh: float = 0.75):
 
-        super().__init__(detector=detector.lower(), 
-                         cam_data=cam_data,
-                         RANSAC_conf=RANSAC_conf,
-                         RANSAC=RANSAC,
-                         RANSAC_threshold=RANSAC_threshold)
-
-        self.module_name = "FeatureMatchFlannPair"
-        self.description = f"""
+        module_name = "FeatureMatchFlannPair"
+        description = f"""
 Detects point correspondance between two sequential frames at once to detect matching 
 features across a set of images. The feature matching algorithm used is the Flann feature 
 detector. Use this feature matcher for when a Nearest Neighbor algorithm is called for 
@@ -1287,7 +1289,7 @@ Initialization Parameters:
 Function Call Parameters:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """
-        self.example = f"""
+        example = f"""
 Initialization: 
 # Determine the detector that was used previously and initialize module with said detector
 
@@ -1304,9 +1306,18 @@ Example Usage in Script:
 features = feature_detector() # Call Feature Detector Module on image frames
 
 detected_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
-"""
+"""     
+        super().__init__(cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC=RANSAC,
+                         RANSAC_threshold=RANSAC_threshold)
+        
+        self.detector = detector
         # print(self.detector)
-        if self.detector in self.DETECTORS[:2]:
+        if detector in self.DETECTORS[:2]:
             FLANN_INDEX_KDTREE = 1
             index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
         else: # Fast and Orb
@@ -1427,14 +1438,8 @@ class FeatureMatchBFPair(FeatureMatching):
                  GMS: bool = False,
                  lowes_thresh: float = 0.75):
 
-        super().__init__(detector=detector.lower(), 
-                         cam_data=cam_data,
-                         RANSAC_threshold=RANSAC_threshold,
-                         RANSAC=RANSAC,
-                         RANSAC_conf=RANSAC_conf)
-
-        self.module_name = "FeatureMatchBFPair"
-        self.description = f"""
+        module_name = "FeatureMatchBFPair"
+        description = f"""
 Detects point correspondance between two sequential frames at a time to detect matching 
 features across a set of images. The feature matching algorithm used is the Brute-Force 
 feature detector. Unless specified directly, assume the features are detected using the SIFT 
@@ -1470,7 +1475,7 @@ Initalization Parameters:
 Function Call Parameters:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """
-        self.example = f"""
+        example = f"""
 Initialization: 
 # Determine the detector that was used previously and initialize module with said detector
 
@@ -1488,6 +1493,16 @@ features = feature_detector() # Call Feature Detector Module on image frames
 
 tracked_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
 """
+
+        super().__init__(cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC=RANSAC,
+                         RANSAC_threshold=RANSAC_threshold)
+        
+        self.detector = detector
 
         if self.detector ==  self.DETECTORS[0]:
             norm_type = cv2.NORM_L2

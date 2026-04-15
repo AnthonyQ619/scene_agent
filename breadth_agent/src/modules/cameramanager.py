@@ -65,10 +65,10 @@ class CameraDataManager():
             intrinsics, distortions, extrinsic = self._read_calibration(cal_file_path=calibration_path)
             calibrated = True
 
-        image_list, image_scale, image_shape_old = self._read_images(image_path=image_files,
-                                                                     max_size=1600,
-                                                                     target_resolution=target_resolution,
-                                                                     is_cal=calibrated)
+        image_list, image_scale, image_shape_old, image_shape_new = self._read_images(image_path=image_files,
+                                                                                      max_size=1600,
+                                                                                      target_resolution=target_resolution,
+                                                                                      is_cal=calibrated)
         
         # intrinsics, distortions, extrinsic = self._read_calibration(cal_file_path=calibration_path)
         stereo = False
@@ -81,6 +81,7 @@ class CameraDataManager():
 
         self.cam_data = CameraData(image_list=image_list,
                                    image_shape_old=image_shape_old,
+                                   image_shape_new=image_shape_new,
                                    image_scale=image_scale,
                                    intrinsics=intrinsics,
                                    distortions=distortions,
@@ -174,6 +175,7 @@ class CameraDataManager():
 
             image_scale = (scale, scale)
             image_shape_old = (width, height)
+            image_shape_new = (target_res, target_res)
         else:
             img = image_path[0]
             image = Image.open(img)
@@ -214,6 +216,7 @@ class CameraDataManager():
            
             image_scale = scale
             image_shape_old = (w, h)
+            image_shape_new = target_res
 
             # Read Images
             for i in tqdm(range(len(image_path)), desc="Reading Images"):
@@ -231,7 +234,7 @@ class CameraDataManager():
                 # Write Image to Colmap Workspace
                 image.save(f"{self.image_dir}\\{i:06d}.png")
 
-        return image_list, image_scale, image_shape_old
+        return image_list, image_scale, image_shape_old, image_shape_new
             
     def get_camera_data(self) -> CameraData:
         return self.cam_data
