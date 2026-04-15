@@ -802,14 +802,14 @@ class FeatureMatching():
             #                                  ransacReprojThreshold=self.ransac_threshold, 
             #                                  confidence=self.ransac_conf)
             F, mask = cv2.findHomography(pts1_norm, pts2_norm, 
-                                         cv2.RANSAC, 
+                                         cv2.USAC_MAGSAC, 
                                          ransacReprojThreshold=self.ransac_threshold,
                                          maxIters=10000,
                                          confidence=self.ransac_conf)
         else:
             # F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, cv2.FM_LMEDS)
             F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, 
-                                             cv2.FM_RANSAC, 
+                                             cv2.USAC_MAGSAC, 
                                              ransacReprojThreshold=self.ransac_threshold,
                                              maxIters=10000,
                                              confidence=self.ransac_conf)

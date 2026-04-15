@@ -1205,11 +1205,11 @@ matched_features = feature_matcher(features=features) # Features used from Featu
         # Get the last image feature set
         matched_points.img_features.append(features[-1].points2D)
 
-        mean_ct, inlier_yield, repeatability, gric_F, gric_H = self._metric_calculation(matched_points) 
+        # mean_ct, inlier_yield, repeatability, gric_F, gric_H = self._metric_calculation(matched_points) 
 
-        event_msg = {"avg_feats": mean_ct, "inlier_yield": inlier_yield, 
-                    "repeatability": repeatability, "gric_fundamental": gric_F, "gric_homography": gric_H}
-        print(json.dumps(event_msg), flush=True)
+        # event_msg = {"avg_feats": mean_ct, "inlier_yield": inlier_yield, 
+        #             "repeatability": repeatability, "gric_fundamental": gric_F, "gric_homography": gric_H}
+        # print(json.dumps(event_msg), flush=True)
 
         return matched_points
 
