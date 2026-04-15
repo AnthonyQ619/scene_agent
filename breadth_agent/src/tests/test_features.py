@@ -48,12 +48,12 @@ calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
 # calibration_path = "/home/anthonyq/datasets/tanks_and_temples/calibration_new_1920.npz"
 
 camera_data = CameraDataManager(image_path=image_path,
-                                # max_images = 5,
+                                max_images = 5,
                                 calibration_path=calibration_path).get_camera_data()
 # Feature Module Initialization
 # calibration_data = CalibrationReader(calibration_path).get_calibration()
-feature_detector = FeatureDetectionSIFT(cam_data=camera_data,
-                                        max_keypoints=12000)
+# feature_detector = FeatureDetectionSIFT(cam_data=camera_data,
+#                                         max_keypoints=12000)
 # feature_detector = FeatureDetectionORB(cam_data=camera_data, 
 #                                         max_keypoints=20000,
 #                                         fast_threshold=20,
@@ -62,8 +62,8 @@ feature_detector = FeatureDetectionSIFT(cam_data=camera_data,
 #                                         # set_nms_tolerance = 0.2
 #                                         )
 
-# feature_detector = FeatureDetectionSP(cam_data=camera_data, 
-#                                         max_keypoints=5000)
+feature_detector = FeatureDetectionSP(cam_data=camera_data, 
+                                        max_keypoints=5000)
 # feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
 #                                             detector="superpoint")
 # feature_matcher = FeatureMatchSuperGluePair(cam_data=camera_data,
@@ -86,10 +86,10 @@ feature_tracker = FeatureMatchLightGlueTracking(cam_data=camera_data,
 #                                          RANSAC_threshold=0.015,
 #                                          RANSAC_conf=0.999)
 
-# feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
-#                                             detector="sift",
-#                                             RANSAC_threshold=0.02,
-#                                             RANSAC_conf=0.999)
+feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
+                                            detector="superpoint",
+                                            RANSAC_threshold=0.02,
+                                            RANSAC_conf=0.999)
 
 # feature_matcher = FeatureMatchSuperGluePair(cam_data=camera_data,
 #                                             detector="superpoint",
@@ -119,7 +119,7 @@ detected_features = feature_detector()
 # print(detected_features)
 
 
-tracks = True
+tracks = False
 vis = True
 server = True
 pair = True

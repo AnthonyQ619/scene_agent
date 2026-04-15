@@ -682,19 +682,17 @@ class FeatureClass():
         return self.features
 
     def calculate_metrics(self) -> None:
-
-
         # Output Metric
         mean_ct, min_count, max_count = self._metric_calculation()
-        event_msg = {"avg": mean_ct, "min": min_count, "max": max_count}
-        print(json.dumps(event_msg), flush=True)
+        event_msg_feats = {"Average": mean_ct, "Minimum": min_count, "Maximum": max_count}
+        print(json.dumps(event_msg_feats), flush=True)
         mean_ct, min_count, max_count = self._spatial_dist_calc()
-        event_msg = {"avg Coverage": mean_ct, "min Coverage": min_count, "max Coverage": max_count}
-        print(json.dumps(event_msg), flush=True)
+        event_msg_coverage = {"Average": mean_ct, "Minimum": min_count, "Maximum": max_count}
+        print(json.dumps(event_msg_coverage), flush=True)
 
         # Write to file
         with open('data.json', 'w', encoding='utf-8') as f:
-            json.dump(data, f)
+            json.dump({"Features Detected per Frame": event_msg_feats, "Feature Spatial Distribution per Frame": event_msg_coverage}, f, indent = 4)
 
     def _spatial_dist_calc(self):
         set_of_coverages = []
