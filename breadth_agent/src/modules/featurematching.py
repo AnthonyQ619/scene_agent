@@ -824,7 +824,7 @@ class FeatureMatchSuperGluePair(FeatureMatching):
                  match_threshold: float = 0.2, 
                  descriptor_dim: int = 256,
                  setting: str = 'indoor',
-                 RANSAC: bool = True,
+                 RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99):
         
@@ -904,7 +904,7 @@ matched_features = feature_matcher(features=features) # Features used from Featu
                          description=description,
                          example=example,
                          RANSAC_conf=RANSAC_conf,
-                         RANSAC=RANSAC,
+                         RANSAC_homography=RANSAC_homography,
                          RANSAC_threshold=RANSAC_threshold)
         
         self.detector = detector
@@ -985,11 +985,15 @@ matched_features = feature_matcher(features=features) # Features used from Featu
         # Get the last image feature set
         matched_points.img_features.append(features[-1].points2D)
 
-        mean_ct, inlier_yield, repeatability, gric_F, gric_H = self._metric_calculation(matched_points) 
+        # mean_ct, inlier_yield, repeatability, gric_F, gric_H = self._metric_calculation(matched_points) 
 
-        event_msg = {"avg_feats": mean_ct, "inlier_yield": inlier_yield, 
-                    "repeatability": repeatability, "gric_fundamental": gric_F, "gric_homography": gric_H}
-        print(json.dumps(event_msg), flush=True)
+        # event_msg = {"Average Corresponding Features": mean_ct, "Inlier Yield per Frame": inlier_yield, 
+        #             "repeatability": repeatability, "gric_fundamental": gric_F, "gric_homography": gric_H}
+        # print(json.dumps(event_msg), flush=True)
+
+        # # Write to file
+        # with open('data.json', 'w', encoding='utf-8') as f:
+        #     json.dump({"Features Detected per Frame": event_msg_feats, "Feature Spatial Distribution per Frame": event_msg_coverage}, f, indent = 4)
 
         return matched_points
 
@@ -1027,7 +1031,7 @@ class FeatureMatchLightGluePair(FeatureMatching):
                  depth_confidence: float = 0.95,
                  width_confidence: float = 0.99, 
                  filter_threshold: float = 0.1,
-                 RANSAC: bool = True,
+                 RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99):
         
@@ -1104,7 +1108,7 @@ matched_features = feature_matcher(features=features) # Features used from Featu
                          description=description,
                          example=example,
                          RANSAC_conf=RANSAC_conf,
-                         RANSAC=RANSAC,
+                         RANSAC_homography=RANSAC_homography,
                          RANSAC_threshold=RANSAC_threshold)
         
         self.detector = detector
@@ -1249,7 +1253,7 @@ class FeatureMatchFlannPair(FeatureMatching):
                  cam_data: CameraData, 
                  detector:str = 'sift',
                  k: int = 2,
-                 RANSAC: bool = True,
+                 RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99,
                  lowes_thresh: float = 0.75):
@@ -1312,7 +1316,7 @@ detected_features = feature_matcher(features=features) # Features used from Feat
                          description=description,
                          example=example,
                          RANSAC_conf=RANSAC_conf,
-                         RANSAC=RANSAC,
+                         RANSAC_homography=RANSAC_homography,
                          RANSAC_threshold=RANSAC_threshold)
         
         self.detector = detector
@@ -1432,7 +1436,7 @@ class FeatureMatchBFPair(FeatureMatching):
                  detector:str = 'sift',
                  k: int = 2,
                  cross_check: bool = True,
-                 RANSAC: bool = True,
+                 RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 1.0,
                  RANSAC_conf: float = 0.99,
                  GMS: bool = False,
@@ -1499,7 +1503,7 @@ tracked_features = feature_matcher(features=features) # Features used from Featu
                          description=description,
                          example=example,
                          RANSAC_conf=RANSAC_conf,
-                         RANSAC=RANSAC,
+                         RANSAC_homography=RANSAC_homography,
                          RANSAC_threshold=RANSAC_threshold)
         
         self.detector = detector

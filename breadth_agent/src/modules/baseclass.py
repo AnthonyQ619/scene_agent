@@ -752,8 +752,8 @@ class FeatureMatching():
                  description: str,
                  example: str,
                  RANSAC_threshold: float,
-                 RANSAC: bool,
-                 RANSAC_conf: float):
+                 RANSAC_conf: float,
+                 RANSAC_homography: bool = False):
         
         # Define Module Name, Description, etc. 
         # Under modules.
@@ -771,13 +771,15 @@ class FeatureMatching():
         self.normalize = Normalization(K=self.K, 
                                        dist=self.dist,
                                        multi_cam=self.cam_data.multi_cam)
-        self.ransac = RANSAC
+        self.homography = RANSAC_homography
         self.ransac_threshold = RANSAC_threshold
         self.ransac_conf = RANSAC_conf
     
     def __call__(self, features: list[Points2D]) -> PointsMatched:
         
         matched_points = self.match_full(features) 
+
+        self.calculate_metrics(matched_points) 
 
         return matched_points
     
@@ -795,14 +797,22 @@ class FeatureMatching():
         pts1_norm = self.normalize(pts1, frame_id)
         pts2_norm = self.normalize(pts2, frame_id+1)
 
-        if self.ransac:
+        if self.homography:
             # F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, cv2.FM_RANSAC, 
             #                                  ransacReprojThreshold=self.ransac_threshold, 
             #                                  confidence=self.ransac_conf)
-            F, mask = cv2.findHomography(pts1_norm, pts2_norm, cv2.RANSAC, 
-                                         ransacReprojThreshold=self.ransac_threshold)
+            F, mask = cv2.findHomography(pts1_norm, pts2_norm, 
+                                         cv2.RANSAC, 
+                                         ransacReprojThreshold=self.ransac_threshold,
+                                         maxIters=10000,
+                                         confidence=self.ransac_conf)
         else:
-            F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, cv2.FM_LMEDS)
+            # F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, cv2.FM_LMEDS)
+            F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, 
+                                             cv2.FM_RANSAC, 
+                                             ransacReprojThreshold=self.ransac_threshold,
+                                             maxIters=10000,
+                                             confidence=self.ransac_conf)
 
         # Could update points2D to inlier points with Mask
         inlier_pts1 = Points2D(**pts1.set_inliers(mask))
@@ -819,13 +829,22 @@ class FeatureMatching():
 
         return matched_points
 
-    def _metric_calculation(self, matching_points: PointsMatched, sigma_th: int = 3):
+    def calculate_metrics(self, matching_points: PointsMatched, sigma_th: int = 3):
         # outlier_count = self._z_score(matched_points=matching_points.pairwise_matches, sigma_th=sigma_th)
         repeatability = self._calc_repeatability(matching_points=matching_points, epsilon=3.5) # Since we don't have ground truth, we assume 1px of noise.
         mean_ct, inlier_yield = self._matching_feat_counts(matched_points=matching_points.pairwise_matches, features = matching_points.img_features)
         gric_score_F, gric_score_H = self.evaluate_models(matching_points=matching_points)
 
-        return mean_ct, inlier_yield, repeatability, gric_score_F, gric_score_H
+        event_msg = {"Average Corresponding Features": mean_ct, "Average Inlier Yield per Frame": inlier_yield, 
+                    "Average Repeatability per Image Pair": repeatability, "Gric Score - Fundamental": gric_score_F, 
+                    "Gric Score - Homography": gric_score_H}
+        print(json.dumps(event_msg), flush=True)
+
+        # Write to file
+        with open('data.json', 'w', encoding='utf-8') as f:
+            json.dump({"Corresponding Feature Metrics per Image Pair": event_msg}, f, indent = 4)
+
+        # return mean_ct, inlier_yield, repeatability, gric_score_F, gric_score_H
     
     def _matching_feat_counts(self, matched_points: list[np.ndarray], features: list[np.ndarray]):
         set_of_pt_counts = np.zeros((len(matched_points), 1))
