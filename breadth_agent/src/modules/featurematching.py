@@ -29,6 +29,7 @@ import piexif
 class FeatureMatchSuperGlueTracking(FeatureTracking):
     def __init__(self, 
                  cam_data: CameraData,
+                 RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99, 
                  detector:str = 'superpoint', 
@@ -48,14 +49,9 @@ class FeatureMatchSuperGlueTracking(FeatureTracking):
             message = 'Error: detector is not supported. Use one of ' + str(SUPPORTED_FEATURES) + ' instead to use this Feature Matcher.'
             raise Exception(message)
 
-        super().__init__(detector=detector.lower(),
-                         cam_data=cam_data,
-                         RANSAC_threshold=RANSAC_threshold,
-                         RANSAC_conf=RANSAC_conf)
-        
-        self.module_name = "FeatureMatchSuperGlueTracking"
+        module_name = "FeatureMatchSuperGlueTracking"
 
-        self.description = f"""
+        description = f"""
 Detects point correspondance across multiple frames for feature tracking in case of multi-view 
 purposes. The feature matching algorithm used is the SuperGlue deep learning model trained 
 as a feature matcher. Unless specified directly, assume the features are detected using 
@@ -96,7 +92,7 @@ Function Call Parameters:
 - features (list[Points2D]): list of features detected per scene estimated from the feature detection module
 """ # TODO: Fill in details for the matcher. Be precise as we want the agent to know when exactly to use this
         
-        self.example = f"""
+        example = f"""
 Initialization: 
 # Determine the detector that was used previously and initialize module with said detector
 
@@ -111,7 +107,15 @@ features = feature_detector() # Call Feature Detector Module on image frames
 
 tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
 """
-
+        super().__init__(detector=detector,
+                         cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC_homography=RANSAC_homography,
+                         RANSAC_threshold=RANSAC_threshold)
+        
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
 
         config_settings = {
@@ -158,6 +162,7 @@ tracked_features = feature_tracker(features=features) # Features used from Featu
 class FeatureMatchLightGlueTracking(FeatureTracking):
     def __init__(self, 
                  cam_data: CameraData,
+                 RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99, 
                  detector:str = 'superpoint', 
@@ -173,15 +178,10 @@ class FeatureMatchLightGlueTracking(FeatureTracking):
         if detector.lower() not in SUPPORTED_FEATURES:
             message = 'Error: detector is not supported. Use one of ' + str(SUPPORTED_FEATURES) + ' instead to use this Feature Matcher.'
             raise Exception(message)
-
-        super().__init__(detector=detector.lower(),
-                         cam_data=cam_data,
-                         RANSAC_threshold=RANSAC_threshold,
-                         RANSAC_conf=RANSAC_conf)
         
-        self.module_name = "FeatureMatchLightGlueTracking"
+        module_name = "FeatureMatchLightGlueTracking"
         
-        self.description = f"""
+        description = f"""
 Detects point correspondance across multiple frames to track features for multi-view purposes. 
 The feature matching algorithm used is the LightGlue deep learning model trained as a feature 
 matcher. Unless specified directly, assume the features are detected using the SuperPoint 
@@ -223,7 +223,7 @@ Function Call Parameters:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """ # TODO: Fill in details for the matcher. Be precise as we want the agent to know when exactly to use this
         
-        self.example = f"""
+        example = f"""
 Initialization: 
 # Determine the detector that was used previously and initialize module with said detector
 
@@ -240,6 +240,15 @@ features = feature_detector() # Call Feature Detector Module on image frames
 tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
 """
 
+        super().__init__(detector=detector,
+                         cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC_homography=RANSAC_homography,
+                         RANSAC_threshold=RANSAC_threshold)
+        
         self.matcher = LightGlue(features = self.detector, 
                                  n_layers = n_layers,
                                  flash = flash, 
@@ -316,18 +325,14 @@ class FeatureMatchFlannTracking(FeatureTracking):
                  cam_data: CameraData,
                  lowes_thresh: float = 0.75,
                  k: int = 2,
+                 RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99, 
                  detector:str = 'sift'):
 
-        super().__init__(detector.lower(), 
-                         cam_data=cam_data,
-                         RANSAC_conf=RANSAC_conf,
-                         RANSAC_threshold=RANSAC_threshold)
+        module_name = "FeatureMatchFlannTracking"
 
-        self.module_name = "FeatureMatchFlannTracking"
-
-        self.description = f"""
+        description = f"""
 Detects point correspondance across multiple frames to track features. The feature matching
 algorithm used is the Flann feature detector. Unless specified directly, assume the features
 are detected using the SIFT algorithm and initialize through the detector parameter. 
@@ -358,7 +363,7 @@ Function Call Parameters:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """
 
-        self.example = f"""
+        example = f"""
 Initialization: 
 # Determine the detector that was used previously and initialize module with said detector
 
@@ -376,6 +381,14 @@ features = feature_detector() # Call Feature Detector Module on image frames
 
 tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
 """
+        super().__init__(detector=detector,
+                         cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC_homography=RANSAC_homography,
+                         RANSAC_threshold=RANSAC_threshold)
 
         if self.detector in self.DETECTORS[:2]:
             FLANN_INDEX_KDTREE = 1
@@ -442,18 +455,13 @@ class FeatureMatchBFTracking(FeatureTracking):
                  lowes_thresh: float = 0.75,
                  k: int = 2,
                  cross_check: bool = True,
+                 RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99,
                  GMS: bool = False):
-
-
-        super().__init__(detector.lower(), 
-                         cam_data=cam_data,
-                         RANSAC_conf=RANSAC_conf,
-                         RANSAC_threshold=RANSAC_threshold)
         
-        self.module_name = "FeatureMatchBFTracking"
-        self.description = f"""
+        module_name = "FeatureMatchBFTracking"
+        description = f"""
 Detects point correspondance between multiple frames to track any matching 
 features across the set of images. The feature matching algorithm used is the Brute-Force 
 feature detector. Unless specified directly, assume the features are detected using the SIFT 
@@ -487,7 +495,7 @@ Initalization Parameters:
 Function Call Parameters:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """
-        self.example = f"""
+        example = f"""
 Initialization: 
 # Determine the detector that was used previously and initialize module with said detector
 
@@ -504,7 +512,15 @@ Example Usage in Script:
 features = feature_detector() # Call Feature Detector Module on image frames
 
 tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
-"""
+"""     
+        super().__init__(detector=detector,
+                         cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC_homography=RANSAC_homography,
+                         RANSAC_threshold=RANSAC_threshold)
 
         if self.detector ==  self.DETECTORS[0]:
             norm_type = cv2.NORM_L2
