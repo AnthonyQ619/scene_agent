@@ -93,3 +93,14 @@ from modules.visualize import VisualizeScene
 visualizer = VisualizeScene(server=True, img_path = os.path.dirname(os.path.abspath(__file__)) + '/feature_images/point_cloud.png')
 
 visualizer(optimal_scene)
+
+
+## NEW SFM PIPELINE
+
+feature_detector = FeatureDetectionSIFT(
+    max_keypoints=9000,
+    contrast_threshold=0.02,
+    edge_threshold=20,
+)
+
+scene = feature_detector(scene)

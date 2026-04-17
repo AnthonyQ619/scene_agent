@@ -81,11 +81,10 @@ class Normalization():
 class FeatureTracker():
     def __init__(self, 
                  matcher_parser: Callable[[Points2D, Points2D], tuple],
-                 K: np.ndarray,
-                 dist: np.ndarray,
+                 normalization: Normalization,
                  RANSAC_threshold: float,
                  RANSAC_conf: float,
-                 cam_data: CameraData):
+                 homography: bool = False):
 
         # Establish the data structures 
         self.track_map = {}
@@ -95,14 +94,13 @@ class FeatureTracker():
         # Set up Outlier Check Parameters
         self.ransac_threshold = RANSAC_threshold
         self.ransac_conf = RANSAC_conf
+        self.homography = homography
 
         # Set the Matcher
         self.matcher = matcher_parser
 
-        # self.ep_check = EpipoleChecker(pxl_min=25)
-        self.normalization = Normalization(K=K,
-                                           dist=dist,
-                                           multi_cam=cam_data.multi_cam)
+        # Set 2D Point Normalization
+        self.normalize = normalization
     
     def tracking_points(self, frame_id: float, pts1: Points2D, pts2: Points2D) -> None:        
         for i in range(pts1.points2D.shape[0]):
@@ -129,27 +127,26 @@ class FeatureTracker():
             self.track_map[key2] = track_id
 
     def outlier_reject(self, pts1: Points2D, pts2: Points2D, frame_id: int) -> tuple[Points2D, Points2D]:
-        pts_norm1 = self.normalization(pts1, frame_id)
-        pts_norm2 = self.normalization(pts2, frame_id + 1)
+        pts1_norm = self.normalize(pts1, frame_id)
+        pts2_norm = self.normalize(pts2, frame_id+1)
 
-        # _, mask = cv2.findFundamentalMat(pts1.points2D, pts2.points2D, cv2.FM_LMEDS)
-        # _, mask = cv2.findFundamentalMat(pts_norm1, pts_norm2, cv2.FM_LMEDS)
-        F, mask = cv2.findFundamentalMat(pts_norm1, pts_norm2, cv2.FM_RANSAC, 
-                                             ransacReprojThreshold=self.ransac_threshold, 
+        if self.homography:
+            F, mask = cv2.findHomography(pts1_norm, pts2_norm, 
+                                         cv2.USAC_MAGSAC, 
+                                         ransacReprojThreshold=self.ransac_threshold,
+                                         maxIters=10000,
+                                         confidence=self.ransac_conf)
+        else:
+            F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, 
+                                             cv2.USAC_MAGSAC, 
+                                             ransacReprojThreshold=self.ransac_threshold,
+                                             maxIters=10000,
                                              confidence=self.ransac_conf)
 
         # Could update points2D to inlier points with Mask
         inlier_pts1 = Points2D(**pts1.set_inliers(mask))
         inlier_pts2 = Points2D(**pts2.set_inliers(mask))
-        # print(pts_norm1.shape)
-        # print(inlier_pts1.points2D.shape)
-        # # print(matches)
-        # matches_np = np.array(matches)
-
-        # # print(inlier_pts1.points2D.shape)
-        # matches_inlier = matches_np[mask.ravel()==1].tolist()
-        # # print(len(matches_inlier))
-        # return matches_inlier, inlier_pts1, inlier_pts2
+    
         return inlier_pts1, inlier_pts2
     
     def match_full(self, features: list[Points2D]) -> PointsMatched:
@@ -179,60 +176,55 @@ class FeatureTracker():
 
             # Collect Metric Information
             matching_pair_ct.append(inlier_pts1.points2D.shape[0])
-            outlier_count.append(self._z_score(inlier_pts1.points2D, inlier_pts2.points2D, sigma_th=3))
+            # outlier_count.append(self._z_score(inlier_pts1.points2D, inlier_pts2.points2D, sigma_th=3))
 
             # Feature Tracking algorithm here
             self.tracking_points(scene, inlier_pts1, inlier_pts2) #, matches_inlier)
 
             # matched_points.append([new_pt1, new_pt2])
         
-        # Output Metric Information
-        counts_np = np.array(matching_pair_ct)
-        mean_ct = float(counts_np.mean())
-        min_ct = int(counts_np.min())
-        max_ct = int(counts_np.max())
-        avg_outlier = float(np.mean(np.array(outlier_count)))
+        # # Output Metric Information
+        # counts_np = np.array(matching_pair_ct)
+        # mean_ct = float(counts_np.mean())
+        # min_ct = int(counts_np.min())
+        # max_ct = int(counts_np.max())
+        # avg_outlier = float(np.mean(np.array(outlier_count)))
 
         tracked_features.set_matched_matrix(self.observations)
         tracked_features.track_map = self.track_map
         tracked_features.point_count = self.next_track_id - 1
-
-        avg_track, max_track = self._calculate_avg_track_length(data_mat=tracked_features.data_matrix, total_points=tracked_features.point_count)
-        event_msg = {"avg track length": avg_track, "max track length": max_track, "avg_outlier": avg_outlier, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
-        print(json.dumps(event_msg), flush=True)
         
         return tracked_features
     
-    def _calculate_avg_track_length(self, data_mat: np.ndarray, total_points: int):
-        # sum_of_tracks = 0
-        # max_track = 0
-        # for val in range(total_points):
-        #     sum_of_tracks += data_mat[data_mat[:, 0] == val].shape[0]
-        #     if data_mat[data_mat[:, 0] == val].shape[0] > max_track:
-        #         max_track = data_mat[data_mat[:, 0] == val].shape[0] 
-        # print("MAX TRACK LENGTH:", max_track)
+    # def _calculate_avg_track_length(self, data_mat: np.ndarray, total_points: int):
 
-        track_ids = data_mat[:, 0].astype(int)
+    #     track_ids = data_mat[:, 0].astype(int)
 
-        unique_ids, counts = np.unique(track_ids, return_counts=True)
+    #     unique_ids, counts = np.unique(track_ids, return_counts=True)
 
-        max_track = counts.max()
-        avg_track = counts.mean()
-        
-        # return sum_of_tracks / total_points
-        return float(avg_track), float(max_track)
+    #     # Track Length Average, Median, and Maximum
+    #     max_track = counts.max()
+    #     median_track_length = np.median(counts)
+    #     avg_track = counts.mean()
 
-    def _z_score(self, pts1: np.ndarray, pts2: np.ndarray, sigma_th: int) -> np.ndarray:
-        pixel_diff = pts1 - pts2
+    #     # Survival Curve Metric (Num of Tracks lasting N frames)
+    #     survive_ge_3  = np.mean(counts >= 3) # Multi-View Suppert rate 3
+    #     survive_ge_5  = np.mean(counts >= 5) # Multi-View Suppert rate 5
+    #     survive_ge_10 = np.mean(counts >= 10) # Multi-View Suppert rate 10
+       
+    #     # Lower fragmentation and higher observations-per-track are usually better.
+    #     fragmentation = len(counts) / np.sum(counts) # tracks per observation
+    #     obs_per_track = np.sum(counts) / len(counts) # ovservation per track
 
-        pixel_dist = np.linalg.norm(pixel_diff, axis=1)
 
-        mu = np.mean(pixel_dist)
-        sigma = np.std(pixel_dist)
-        z = (pixel_dist - mu) / (sigma + 1e-12)
-        out_count = np.sum(np.abs(z) > sigma_th)
-
-        return out_count
+    #     return {"Avg. track length": avg_track, 
+    #             "Max. track length": max_track, 
+    #             "Median track length": median_track_length, 
+    #             "Survival Tracks of 3": survive_ge_3, 
+    #             "Survival Tracks of 5": survive_ge_5, 
+    #             "Survival Tracks of 10": survive_ge_10,
+    #             "Fragmentation": fragmentation,
+    #             "Obs. per Track": obs_per_track}
 
 class TriangulationCheck():
     def __init__(self, 
@@ -766,7 +758,6 @@ class FeatureMatching():
         self.K = cam_data.get_K()
         self.dist = cam_data.get_distortion()
 
-
         # Setup Outlier Rejection
         self.normalize = Normalization(K=self.K, 
                                        dist=self.dist,
@@ -780,6 +771,13 @@ class FeatureMatching():
         matched_points = self.match_full(features) 
 
         self.calculate_metrics(matched_points) 
+
+        return matched_points
+    
+    def match_full(self, features: list[Points2D]) -> PointsMatched:
+        """Override for custom matching algorithm in here"""
+        
+        matched_points = PointsMatched() 
 
         return matched_points
     
@@ -821,13 +819,6 @@ class FeatureMatching():
         idx2_inliers = np.array(idx2)[mask.ravel() == 1]
 
         return inlier_pts1, inlier_pts2, idx1_inliers, idx2_inliers, F
-    
-    def match_full(self, features: list[Points2D]) -> PointsMatched:
-        """Override for custom matching algorithm in here"""
-        
-        matched_points = PointsMatched() 
-
-        return matched_points
 
     def calculate_metrics(self, matching_points: PointsMatched, sigma_th: int = 3):
         # outlier_count = self._z_score(matched_points=matching_points.pairwise_matches, sigma_th=sigma_th)
@@ -1015,11 +1006,17 @@ class FeatureMatching():
 class FeatureTracking():
     def __init__(self, detector:str, 
                  cam_data:CameraData,
+                 module_name: str,
+                 description: str,
+                 example: str,
                  RANSAC_threshold: float,
-                 RANSAC_conf: float):
-        self.module_name = "..." # To Fill per Module Basis
-        self.description = "..." # To Fill per Module Basis
-        self.example = "..."     # To Fill per Module Basis
+                 RANSAC_conf: float,
+                 RANSAC_homography: bool = False):
+        
+        # Define Module Name, Description, etc. per Sub-Module
+        self.module_name = module_name
+        self.description = description
+        self.example = example
 
         self.detector = detector
         self.det_free = False
@@ -1033,13 +1030,17 @@ class FeatureTracking():
         if self.detector not in self.DETECTORS:
             self.det_free = True
 
+        # Set normalization function
+        normalization = Normalization(K=self.K,
+                                           dist=self.dist,
+                                           multi_cam=cam_data.multi_cam)
+        
         # Fixed Algorithm to Track Features
         self.feature_tracker = FeatureTracker(self.matcher_parser, 
-                                              K=self.K,
-                                              dist=self.dist,
-                                              RANSAC_threshold=RANSAC_threshold,
-                                              RANSAC_conf=RANSAC_conf,
-                                              cam_data = self.cam_data)
+                                              normalization = normalization,
+                                              homography = RANSAC_homography,
+                                              ransac_threshold = RANSAC_threshold,
+                                              ransac_conf = RANSAC_conf)
 
     def __call__(self, features: list[Points2D]) -> PointsMatched: # Fixed to the Module
         
@@ -1047,11 +1048,50 @@ class FeatureTracking():
 
         matched_points = self.feature_tracker.match_full(features)
 
+        self.calculate_metrics(data_mat=matched_points.data_matrix, total_points=matched_points.point_count)
+
         return matched_points
     
     def matcher_parser(self, pt1: Points2D, pt2: Points2D) -> tuple[list, list]:
         # To Fill per Module Basis
         return [], [] 
+    
+    # Metric Function
+    def calculate_metrics(self, data_mat: np.ndarray, total_points: int):
+
+        track_ids = data_mat[:, 0].astype(int)
+
+        unique_ids, counts = np.unique(track_ids, return_counts=True)
+
+        # Track Length Average, Median, and Maximum
+        max_track = counts.max()
+        median_track_length = np.median(counts)
+        avg_track = counts.mean()
+
+        # Survival Curve Metric (Num of Tracks lasting N frames)
+        survive_ge_3  = np.mean(counts >= 3) # Multi-View Suppert rate 3
+        survive_ge_5  = np.mean(counts >= 5) # Multi-View Suppert rate 5
+        survive_ge_10 = np.mean(counts >= 10) # Multi-View Suppert rate 10
+       
+        # Lower fragmentation and higher observations-per-track are usually better.
+        fragmentation = len(counts) / np.sum(counts) # tracks per observation
+        obs_per_track = np.sum(counts) / len(counts) # ovservation per track
+
+
+        event_msg = {"Avg. track length": avg_track, 
+                     "Max. track length": max_track, 
+                     "Median track length": median_track_length, 
+                     "Survival Tracks of 3": survive_ge_3, 
+                     "Survival Tracks of 5": survive_ge_5, 
+                     "Survival Tracks of 10": survive_ge_10,
+                     "Fragmentation": fragmentation,
+                     "Obs. per Track": obs_per_track}
+    
+        print(json.dumps(event_msg), flush=True)
+
+        # Write to file
+        with open('data.json', 'w', encoding='utf-8') as f:
+            json.dump({"Corresponding Feature Metrics per Image Pair": event_msg}, f, indent = 4)
 
 class OptimizationClass():
     def __init__(self, 
