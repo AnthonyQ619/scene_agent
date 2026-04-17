@@ -133,6 +133,8 @@ tracked_features = feature_tracker(features=features) # Features used from Featu
 
         matched_points = self.feature_tracker.match_full(features)
 
+        self.calculate_metrics(data_mat=matched_points.data_matrix, total_points=matched_points.point_count)
+
         return matched_points
     
     
@@ -266,6 +268,8 @@ tracked_features = feature_tracker(features=features) # Features used from Featu
         # feature_tracker = FeatureTracker(self.matcher_parser)
 
         matched_points = self.feature_tracker.match_full(features)
+
+        self.calculate_metrics(data_mat=matched_points.data_matrix, total_points=matched_points.point_count)
 
         return matched_points
     

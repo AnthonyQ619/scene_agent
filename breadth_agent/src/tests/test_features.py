@@ -42,10 +42,10 @@ def plot_features(img_path: str, pts:np.ndarray, image_size):
 # calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\Structure-from-Motion\\calibration_new.npz"
 # image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_illumination_change"
 # calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
-image_path = "/home/anthonyq/datasets/DTU/DTU/scan22"
-calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
-# image_path = "/home/anthonyq/datasets/tanks_and_temples/Francis"
-# calibration_path = "/home/anthonyq/datasets/tanks_and_temples/calibration_new_1920.npz"
+# image_path = "/home/anthonyq/datasets/DTU/DTU/scan22"
+# calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
+image_path = "/home/anthonyq/datasets/tanks_and_temples/Francis"
+calibration_path = "/home/anthonyq/datasets/tanks_and_temples/calibration_new_1920.npz"
 
 camera_data = CameraDataManager(image_path=image_path,
                                 max_images = 5,
@@ -70,7 +70,7 @@ feature_detector = FeatureDetectionSP(cam_data=camera_data,
 #                                             detector='superpoint', 
 #                                             setting='indoor')
 feature_tracker = FeatureMatchLightGlueTracking(cam_data=camera_data, 
-                                                detector="sift",
+                                                detector="superpoint",
                                                 RANSAC_threshold=0.015,
                                                 RANSAC_conf=0.999)
 # feature_tracker = FeatureMatchFlannTracking(cam_data=camera_data, 
@@ -88,6 +88,7 @@ feature_tracker = FeatureMatchLightGlueTracking(cam_data=camera_data,
 
 feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
                                             detector="superpoint",
+                                            RANSAC_homography = False,
                                             RANSAC_threshold=0.02,
                                             RANSAC_conf=0.999)
 
@@ -119,7 +120,7 @@ detected_features = feature_detector()
 # print(detected_features)
 
 
-tracks = False
+tracks = True
 vis = True
 server = True
 pair = True
@@ -131,6 +132,7 @@ image_path = sorted(glob.glob(image_path + "/*"))
 plot_features(image_path[0], detected_features[0].points2D, detected_features[0].image_size)
 
 if tracks and vis: 
+    print("here")
     tracked_features = feature_tracker(detected_features)
     # image_path = sorted(glob.glob(image_path + "/*"))
 

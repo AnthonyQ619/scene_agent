@@ -1036,11 +1036,11 @@ class FeatureTracking():
                                            multi_cam=cam_data.multi_cam)
         
         # Fixed Algorithm to Track Features
-        self.feature_tracker = FeatureTracker(self.matcher_parser, 
+        self.feature_tracker = FeatureTracker(matcher_parser = self.matcher_parser, 
                                               normalization = normalization,
-                                              homography = RANSAC_homography,
-                                              ransac_threshold = RANSAC_threshold,
-                                              ransac_conf = RANSAC_conf)
+                                              RANSAC_threshold = RANSAC_threshold,
+                                              RANSAC_conf = RANSAC_conf,
+                                              homography = RANSAC_homography)
 
     def __call__(self, features: list[Points2D]) -> PointsMatched: # Fixed to the Module
         
@@ -1078,20 +1078,21 @@ class FeatureTracking():
         obs_per_track = np.sum(counts) / len(counts) # ovservation per track
 
 
-        event_msg = {"Avg. track length": avg_track, 
-                     "Max. track length": max_track, 
-                     "Median track length": median_track_length, 
-                     "Survival Tracks of 3": survive_ge_3, 
-                     "Survival Tracks of 5": survive_ge_5, 
-                     "Survival Tracks of 10": survive_ge_10,
-                     "Fragmentation": fragmentation,
-                     "Obs. per Track": obs_per_track}
-    
+        event_msg = {"Avg. track length": float(avg_track), 
+                     "Max. track length": float(max_track), 
+                     "Median track length": float(median_track_length), 
+                     "Survival Tracks of 3": float(survive_ge_3), 
+                     "Survival Tracks of 5": float(survive_ge_5), 
+                     "Survival Tracks of 10": float(survive_ge_10),
+                     "Fragmentation": float(fragmentation),
+                     "Obs. per Track": float(obs_per_track)}
+
+        print("HERE")
         print(json.dumps(event_msg), flush=True)
 
         # Write to file
         with open('data.json', 'w', encoding='utf-8') as f:
-            json.dump({"Corresponding Feature Metrics per Image Pair": event_msg}, f, indent = 4)
+            json.dump({"Feature Track Metrics for Survivability and Stability": event_msg}, f, indent = 4)
 
 class OptimizationClass():
     def __init__(self, 
