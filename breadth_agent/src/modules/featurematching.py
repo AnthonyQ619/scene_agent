@@ -953,7 +953,7 @@ matched_features = feature_matcher(features=features) # Features used from Featu
 
     #     return matched_points
     
-    def match_full(self, features: list[Points2D]) -> PointsMatched:
+    def find_correspondences(self, features: list[Points2D]) -> PointsMatched:
         torch.set_grad_enabled(False)
 
         img_size = features[0].image_size
@@ -1151,7 +1151,7 @@ matched_features = feature_matcher(features=features) # Features used from Featu
 
     #     return matched_points
     
-    def match_full(self, features: list[Points2D]) -> PointsMatched:
+    def find_correspondences(self, features: list[Points2D]) -> PointsMatched:
         torch.set_grad_enabled(False)
 
         img_size = features[0].image_size
@@ -1370,7 +1370,7 @@ detected_features = feature_matcher(features=features) # Features used from Feat
 
     #     return matched_points
     
-    def match_full(self, features: list[Points2D]) -> PointsMatched:
+    def find_correspondences(self, features: list[Points2D]) -> PointsMatched:
         img_size = features[0].image_size
         img_scale = features[0].reshape_scale
         matched_points = PointsMatched(pairwise_matches=[], 
@@ -1547,7 +1547,7 @@ tracked_features = feature_matcher(features=features) # Features used from Featu
    
     #     return matched_points
     
-    def match_full(self, features: list[Points2D]) -> PointsMatched:
+    def find_correspondences(self, features: list[Points2D]) -> PointsMatched:
         img_size = features[0].image_size
         img_scale = features[0].reshape_scale
         matched_points = PointsMatched(pairwise_matches=[], 

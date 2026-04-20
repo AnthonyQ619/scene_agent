@@ -23,10 +23,8 @@ class CamPoseEstimatorVGGTModel(CameraPoseEstimatorClass):
     def __init__(self, 
                  cam_data: CameraData):
         
-        super().__init__(cam_data = cam_data)
-
-        self.module_name = "CamPoseEstimatorVGGTModel"
-        self.description = f"""
+        module_name = "CamPoseEstimatorVGGTModel"
+        description = f"""
 Estimates the camera pose for each frame in a set of images for a monocular camera. The 
 process of this module is to estimate the camera pose utilizing the Visual Geometry 
 Grounded Transformer (VGGT) Model, a feed-forward neural network that directly infers 
@@ -55,14 +53,18 @@ Module Output:
         translations: list[np.ndarray]  [3 x 1] (np.float) Translation matrices for each corresponding frame (Derived from camera_pose)
 """
 
-        self.example = f"""
+        example = f"""
 Initialization: 
 pose_estimator = CamPoseEstimatorVGGTModel(cam_data = camera_data)
 
 Function call:  
 pose_estimator() # No Features used with this module
 """
-
+        super().__init__(cam_data = cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example)
+        
         # Initialize Model
         if os.name == 'nt':
             WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
@@ -147,10 +149,9 @@ class CamPoseEstimatorEssentialToPnP(CameraPoseEstimatorClass):
                  confidence: float = 0.99,
                  optimizer: BundleAdjustmentOptimizerLocal | None = None
                  ):
-        super().__init__(cam_data = cam_data)
 
-        self.module_name = "CamPoseEstimatorEssentialToPnP"
-        self.description = f"""
+        module_name = "CamPoseEstimatorEssentialToPnP"
+        description = f"""
 Estimates the camera pose for each frame in a set of images for a monocular camera. The
 process of this module is to estimate the essential matrix for the first pair of images 
 of the image set, recover the camera pose that's up-to-scale, then use the PnP algorithm
@@ -196,7 +197,7 @@ Module Output:
         translations: list[np.ndarray]  [3 x 1] (np.float) Translation matrices for each corresponding frame (Derived from camera_pose)
 """
 
-        self.example = f"""
+        example = f"""
 Initialization: 
 CamPoseEstimatorEssentialToPnP(cam_data = camera_data, calibration=calibration_data) 
 
@@ -206,7 +207,12 @@ features = feature_detector() # Call Feature Detector Module on image frames
 feature_pairs = feature_matcher(features) # Call Feature Matcher Module on detected features
 
 camera_pose = pose_estimator(feature_pairs=feature_pairs) # Features used from Feature Detector Module
-"""
+"""     
+        super().__init__(cam_data = cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example)
+
         self.reproj_error = reprojection_error
         self.iteration_ct = iteration_count
         self.confidence = confidence

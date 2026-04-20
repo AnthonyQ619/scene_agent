@@ -4,7 +4,7 @@ for each tool/module.
 
 This is to reduce the possiblility of the Agent to hallucinate code
 '''
-
+from abc import ABC, abstractmethod
 import numpy as np
 from scipy.spatial import cKDTree
 import cv2
@@ -578,10 +578,16 @@ class DenseSceneEstimation():
         return sparse_scene
 
 class CameraPoseEstimatorClass():
-    def __init__(self, cam_data: CameraData):
-        self.module_name = "..."
-        self.description = "..."
-        self.example = "..."
+    def __init__(self, 
+                 cam_data: CameraData,
+                 module_name: str,
+                 description: str,
+                 example: str):
+        
+        # Define Module Name, Description, etc. per Sub-Module
+        self.module_name = module_name
+        self.description = description
+        self.example = example
 
         self.cam_data = cam_data
         self.image_list = copy.copy(cam_data.image_list)
@@ -636,7 +642,7 @@ class CameraPoseEstimatorClass():
 
         return error, median_error
 
-class FeatureClass():
+class FeatureClass(ABC):
     def __init__(self, 
                  cam_data: CameraData,
                  module_name: str,
@@ -668,10 +674,10 @@ class FeatureClass():
 
         return self.features
     
+    @abstractmethod
     def _detect_features(self) -> list[Points2D]:
         # Write Code Here to Fill Feature Module per Detector Implemented
-
-        return self.features
+        raise NotImplementedError
 
     def calculate_metrics(self) -> None:
         # Output Metric
@@ -737,7 +743,7 @@ class FeatureClass():
 
         return float(mean_ct), int(min_count), int(max_count)
 
-class FeatureMatching():
+class FeatureMatching(ABC):
     def __init__(self, 
                  cam_data:CameraData,
                  module_name: str,
@@ -768,18 +774,19 @@ class FeatureMatching():
     
     def __call__(self, features: list[Points2D]) -> PointsMatched:
         
-        matched_points = self.match_full(features) 
+        matched_points = self.find_correspondences(features) 
 
         self.calculate_metrics(matched_points) 
 
         return matched_points
     
-    def match_full(self, features: list[Points2D]) -> PointsMatched:
+    @abstractmethod
+    def find_correspondences(self, features: list[Points2D]) -> PointsMatched:
         """Override for custom matching algorithm in here"""
-        
-        matched_points = PointsMatched() 
+        raise NotImplementedError
+        # matched_points = PointsMatched() 
 
-        return matched_points
+        # return matched_points
     
     def outlier_reject(self, 
                        pts1: Points2D, 
@@ -823,12 +830,13 @@ class FeatureMatching():
     def calculate_metrics(self, matching_points: PointsMatched, sigma_th: int = 3):
         # outlier_count = self._z_score(matched_points=matching_points.pairwise_matches, sigma_th=sigma_th)
         repeatability = self._calc_repeatability(matching_points=matching_points, epsilon=3.5) # Since we don't have ground truth, we assume 1px of noise.
-        mean_ct, inlier_yield = self._matching_feat_counts(matched_points=matching_points.pairwise_matches, features = matching_points.img_features)
+        mean_ct, inlier_yield_avg, inlier_yield_median = self._calculate_proxy_matching_score(matched_points=matching_points.pairwise_matches, features = matching_points.img_features)
         gric_score_F, gric_score_H = self.evaluate_models(matching_points=matching_points)
 
-        event_msg = {"Average Corresponding Features": mean_ct, "Average Inlier Yield per Frame": inlier_yield, 
-                    "Average Repeatability per Image Pair": repeatability, "Gric Score - Fundamental": gric_score_F, 
-                    "Gric Score - Homography": gric_score_H}
+        event_msg = {"Average Corresponding Features": mean_ct, "Average Inlier Yield per Frame": inlier_yield_avg,
+                     "Median Inlier Yield per Frame": inlier_yield_median,
+                     "Average Repeatability per Image Pair": repeatability, "Gric Score - Fundamental": gric_score_F, 
+                     "Gric Score - Homography": gric_score_H}
         print(json.dumps(event_msg), flush=True)
 
         # Write to file
@@ -837,7 +845,7 @@ class FeatureMatching():
 
         # return mean_ct, inlier_yield, repeatability, gric_score_F, gric_score_H
     
-    def _matching_feat_counts(self, matched_points: list[np.ndarray], features: list[np.ndarray]):
+    def _calculate_proxy_matching_score(self, matched_points: list[np.ndarray], features: list[np.ndarray]):
         set_of_pt_counts = np.zeros((len(matched_points), 1))
         inlier_yields = np.zeros((len(features), 1))
 
@@ -849,17 +857,18 @@ class FeatureMatching():
             # Get inlier Yield
             feats1 = features[i]
             feats2 = features[i + 1]
-            inlier_yields[i] = num_pts/feats1.shape[0]
-            inlier_yields[i + 1] = num_pts/feats2.shape[0]
+            inlier_yields[i] = num_pts/min(feats1.shape[0], feats2.shape[0])
+            # inlier_yields[i + 1] = num_pts/feats2.shape[0]
         
         # counts_np = np.array(set_of_pt_counts)
 
         mean_ct = set_of_pt_counts.mean()
         inlier_yield_avg = inlier_yields.mean()
+        inlier_yield_median = np.median(inlier_yields)
         # min_count = counts_np.min()
         # max_count = counts_np.max()
 
-        return float(mean_ct), float(inlier_yield_avg) #int(min_count), int(max_count)
+        return float(mean_ct), float(inlier_yield_avg), float(inlier_yield_median) #int(min_count), int(max_count)
 
     def _warp_points(self, src: np.ndarray, mat: np.ndarray, img_shape: list):
         KA_prime = cv2.perspectiveTransform(src, mat)
@@ -1003,7 +1012,7 @@ class FeatureMatching():
         #     "best_model": model
         # }
 
-class FeatureTracking():
+class FeatureTracking(ABC):
     def __init__(self, detector:str, 
                  cam_data:CameraData,
                  module_name: str,
@@ -1052,9 +1061,11 @@ class FeatureTracking():
 
         return matched_points
     
+    @abstractmethod
     def matcher_parser(self, pt1: Points2D, pt2: Points2D) -> tuple[list, list]:
         # To Fill per Module Basis
-        return [], [] 
+        # return [], [] 
+        raise NotImplementedError
     
     # Metric Function
     def calculate_metrics(self, data_mat: np.ndarray, total_points: int):
@@ -1094,20 +1105,25 @@ class FeatureTracking():
         with open('data.json', 'w', encoding='utf-8') as f:
             json.dump({"Feature Track Metrics for Survivability and Stability": event_msg}, f, indent = 4)
 
-class OptimizationClass():
+class OptimizationClass(ABC):
     def __init__(self, 
                  cam_data: CameraData,
-                 refine_focal_length: bool = False,
-                 refine_principal_point: bool = False,
-                 refine_extra_params: bool = False,
-                 max_num_iterations: int = 50,
-                 use_gpu: bool = True,
-                 gpu_index: int = 0,
-                 robust_loss: bool = True,
+                 module_name: str,
+                 description: str,
+                 example: str,
+                #  refine_focal_length: bool = False,
+                #  refine_principal_point: bool = False,
+                #  refine_extra_params: bool = False,
+                #  max_num_iterations: int = 50,
+                #  use_gpu: bool = True,
+                #  gpu_index: int = 0,
+                #  robust_loss: bool = True,
                  ):
-        self.module_name = "..."
-        self.description = "..."
-        self.example = "..."
+        
+        # Define Module Name, Description, etc. per Sub-Module
+        self.module_name = module_name
+        self.description = description
+        self.example = example
 
         # Set up Camera Data/Image Resolution
         self.K = cam_data.get_K()
@@ -1117,13 +1133,13 @@ class OptimizationClass():
         self.multi_cam = cam_data.multi_cam
 
         # Set up Bundle Adjustment Params
-        self.refine_focal_length = refine_focal_length
-        self.refine_principal_point = refine_principal_point
-        self.refine_extra_params = refine_extra_params
-        self.max_num_iterations = max_num_iterations
-        self.use_gpu = use_gpu
-        self.gpu_index = gpu_index
-        self.robust_loss = robust_loss
+        # self.refine_focal_length = refine_focal_length
+        # self.refine_principal_point = refine_principal_point
+        # self.refine_extra_params = refine_extra_params
+        # self.max_num_iterations = max_num_iterations
+        # self.use_gpu = use_gpu
+        # self.gpu_index = gpu_index
+        # self.robust_loss = robust_loss
 
         # self.optimizer = ["BA"]
         # self.dataset = scene.bal_data.dataset
@@ -1135,16 +1151,47 @@ class OptimizationClass():
         
     def __call__(self, current_scene: Scene) -> Scene:
         """Fixed Function Call specifically for global bundle adjustment pipelines"""
-        return self.optimize(current_scene)
-
-    def optimize(self, current_scene: Scene | IncrementalSfMState):
-        """Edit Function Call for optimizer library and BA style (Global or Local)"""
-        pass
+        optimized_scene = self._optimize_scene(current_scene)
+        # self.calculate_metrics(optimized_scene)
+        return optimized_scene
+        # return self.optimize(current_scene)
     
-    def _build_reconstruction(self, 
-                              current_scene: Scene | IncrementalSfMState):
-        """Edit Function Call specifically to set up state or optimization solver"""
-        pass
+
+    @abstractmethod
+    def _optimize_scene(self, current_scene: Scene | IncrementalSfMState) -> Scene | IncrementalSfMState:
+        """Write optimizer-specific implementation here."""
+        raise NotImplementedError
+
+    def calculate_metrics(self, current_scene: Scene | IncrementalSfMState) -> None:
+        metrics = self._metric_calculation(current_scene)
+        print(json.dumps(metrics), flush=True)
+
+        with open("data.json", "w", encoding="utf-8") as f:
+            json.dump(metrics, f, indent=4)
+
+    def _metric_calculation(self, current_scene: Scene | IncrementalSfMState) -> dict:
+        metrics = {"Optimizer": self.module_name}
+
+        if hasattr(current_scene, "points3D") and current_scene.points3D is not None:
+            pts3d = getattr(current_scene.points3D, "points3D", None)
+            if pts3d is not None:
+                metrics["Num Points3D"] = int(len(pts3d))
+
+        if hasattr(current_scene, "camera_poses") and current_scene.camera_poses is not None:
+            poses = getattr(current_scene.camera_poses, "camera_pose", None)
+            if poses is not None:
+                metrics["Num Camera Poses"] = int(len(poses))
+
+        return metrics
+
+    # def optimize(self, current_scene: Scene | IncrementalSfMState):
+    #     """Edit Function Call for optimizer library and BA style (Global or Local)"""
+    #     pass
+    
+    # def _build_reconstruction(self, 
+    #                           current_scene: Scene | IncrementalSfMState):
+    #     """Edit Function Call specifically to set up state or optimization solver"""
+    #     pass
  
 class VisualizeClass():
     def __init__(self, path:str):
