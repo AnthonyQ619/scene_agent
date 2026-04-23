@@ -1,3 +1,4 @@
+from __future__ import annotations
 '''
 Base Class designs for each module to standardize the class design
 for each tool/module.
@@ -8,6 +9,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 from scipy.spatial import cKDTree
 import cv2
+from modules.cameramanager import CameraDataManager
 from modules.DataTypes.datatype import (Scene, 
                                 CameraData, 
                                 Calibration, 
@@ -23,8 +25,6 @@ from collections.abc import Callable
 import torch
 import open3d as o3d
 
-from __future__ import annotations
-
 import inspect
 from abc import ABC
 from dataclasses import dataclass, field
@@ -37,6 +37,31 @@ from tqdm import tqdm
 
 ############################################# HELPER CLASSES #############################################
 
+class PipelineModule(ABC):
+    """
+    Auto-register every concrete subclass by its public name.
+    """
+    REGISTRY: dict[str, type["PipelineModule"]] = {}
+
+    exposed_name: str | None = None
+    output_key: str | None = None
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        if inspect.isabstract(cls):
+            return
+
+        public_name = cls.exposed_name or cls.__name__
+
+        if public_name in PipelineModule.REGISTRY:
+            raise ValueError(f"Duplicate pipeline module name: {public_name}")
+
+        PipelineModule.REGISTRY[public_name] = cls
+
+    def run_from_state(self, state: "SceneState") -> Any:
+        raise NotImplementedError
+    
 # Convert points to normalized iamge coordinates!
 class Normalization():
     def __init__(self, 
@@ -319,7 +344,7 @@ def module_metric(func):
     func._is_metric_provider = True
     return func
 
-class SparseSceneEstimation(ABC):
+class SparseSceneEstimation(PipelineModule, ABC):
     use_base_metrics = True
     _registered_metric_methods: tuple[str, ...] = ()
     output_key = "sparse_scene"
@@ -533,7 +558,7 @@ class SparseSceneEstimation(ABC):
 
             return np.mean(errors)
 
-class DenseSceneEstimation(ABC):
+class DenseSceneEstimation(PipelineModule, ABC):
     use_base_metrics = True
     _registered_metric_methods: tuple[str, ...] = ()
     output_key = "dense_scene"
@@ -634,7 +659,7 @@ class DenseSceneEstimation(ABC):
             assert isinstance(camera_poses, CameraPose), "Incorrect Parameterization. Ensure camera_poses parameter is a CameraPose type from the Pose Estimation Module."
         return sparse_scene
 
-class CameraPoseEstimatorClass(ABC):
+class CameraPoseEstimatorClass(PipelineModule, ABC):
     use_base_metrics = True
     _registered_metric_methods: tuple[str, ...] = ()
     output_key = "camera_poses"
@@ -796,7 +821,7 @@ class CameraPoseEstimatorClass(ABC):
 
         return error, median_error
 
-class FeatureClass(ABC):
+class FeatureClass(PipelineModule, ABC):
     output_key = "features"
 
     def run_from_state(self, state: SceneState) -> list[Points2D]:
@@ -902,7 +927,7 @@ class FeatureClass(ABC):
 
         return float(mean_ct), int(min_count), int(max_count)
 
-class FeatureMatching(ABC):
+class FeatureMatching(PipelineModule, ABC):
     output_key = "feature_pairs"
 
     def run_from_state(self, state: SceneState) -> PointsMatched:
@@ -1178,7 +1203,7 @@ class FeatureMatching(ABC):
         #     "best_model": model
         # }
 
-class FeatureTracking(ABC):
+class FeatureTracking(PipelineModule, ABC):
     output_key = "tracked_features"
 
     def run_from_state(self, state: SceneState) -> PointsMatched:
@@ -1278,14 +1303,14 @@ class FeatureTracking(ABC):
         with open('data.json', 'w', encoding='utf-8') as f:
             json.dump({"Feature Track Metrics for Survivability and Stability": event_msg}, f, indent = 4)
 
-class OptimizationClass(ABC):
+class OptimizationClass(PipelineModule, ABC):
     output_key = "optimized_scene"
 
-    def run_from_state(self, state: SceneState) -> Scene | IncrementalSfMState:
+    def run_from_state(self, state: SceneState, **kwargs) -> Scene | IncrementalSfMState:
         current_scene = state.dense_scene or state.sparse_scene
         if current_scene is None:
             raise RuntimeError("Optimization requires a sparse or dense scene.")
-        return self(current_scene)
+        return self(current_scene, **kwargs)
     
     def __init__(self, 
                  cam_data: CameraData,
@@ -1330,12 +1355,11 @@ class OptimizationClass(ABC):
 
         # self.format = format
         
-    def __call__(self, current_scene: Scene) -> Scene:
+    def __call__(self, current_scene: Scene, **kwargs) -> Scene:
         """Fixed Function Call specifically for global bundle adjustment pipelines"""
-        optimized_scene = self._optimize_scene(current_scene)
+        optimized_scene = self._optimize_scene(current_scene, **kwargs)
         # self.calculate_metrics(optimized_scene)
         return optimized_scene
-        # return self.optimize(current_scene)
     
 
     @abstractmethod
@@ -1387,49 +1411,33 @@ class VisualizeClass():
 
 
 ############################################ Orchestrator ############################################
-
-
-class PipelineModule(ABC):
-    """
-    Auto-register every concrete subclass by its public name.
-    """
-    REGISTRY: dict[str, type["PipelineModule"]] = {}
-
-    exposed_name: str | None = None
-    output_key: str | None = None
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-
-        if inspect.isabstract(cls):
-            return
-
-        public_name = cls.exposed_name or cls.__name__
-
-        if public_name in PipelineModule.REGISTRY:
-            raise ValueError(f"Duplicate pipeline module name: {public_name}")
-
-        PipelineModule.REGISTRY[public_name] = cls
-
-    def run_from_state(self, state: "SceneState") -> Any:
-        raise NotImplementedError
-    
 class SfMScene:
     def __init__(
         self,
         image_path: str | None = None,
         calibration_path: str | None = None,
         cam_data: CameraData | None = None,
+        max_images: int | None = None
     ):
         if cam_data is None:
             if image_path is None or calibration_path is None:
                 raise ValueError(
                     "Provide either cam_data or both image_path and calibration_path."
                 )
-            cam_data = CameraData(
-                image_path=image_path,
-                calibration_path=calibration_path,
-            )
+            if max_images is None:
+                CDM = CameraDataManager(image_path=image_path,
+                            calibration_path=calibration_path)
+            else:
+                CDM = CameraDataManager(image_path=image_path,
+                            max_images=max_images,
+                            calibration_path=calibration_path)
+
+            # Get Camera Data
+            cam_data = CDM.get_camera_data()
+            # cam_data = CameraData(
+            #     image_path=image_path,
+            #     calibration_path=calibration_path,
+            # )
 
         self.cam_data = cam_data
         self.state = SceneState(cam_data=cam_data)

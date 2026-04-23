@@ -1341,7 +1341,7 @@ detected_features = feature_matcher(features=features) # Features used from Feat
         
         self.detector = detector
         # print(self.detector)
-        if detector in self.DETECTORS[:2]:
+        if detector in ["sift", "sp", "superpoint"]:
             FLANN_INDEX_KDTREE = 1
             index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
         else: # Fast and Orb
@@ -1522,7 +1522,7 @@ tracked_features = feature_matcher(features=features) # Features used from Featu
         
         self.detector = detector
 
-        if self.detector ==  self.DETECTORS[0]:
+        if self.detector in ["sift", "sp", "superpoint"]:
             norm_type = cv2.NORM_L2
         else:
             norm_type = cv2.NORM_HAMMING
