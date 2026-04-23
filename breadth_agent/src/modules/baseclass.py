@@ -16,11 +16,19 @@ from modules.DataTypes.datatype import (Scene,
                                 CameraPose, 
                                 Points3D,
                                 BundleAdjustmentData,
-                                IncrementalSfMState)
+                                IncrementalSfMState,
+                                SceneState)
 import glob
 from collections.abc import Callable
 import torch
 import open3d as o3d
+
+from __future__ import annotations
+
+import inspect
+from abc import ABC
+from dataclasses import dataclass, field
+from typing import Any
 
 import copy
 import random
@@ -314,6 +322,7 @@ def module_metric(func):
 class SparseSceneEstimation(ABC):
     use_base_metrics = True
     _registered_metric_methods: tuple[str, ...] = ()
+    output_key = "sparse_scene"
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -332,6 +341,16 @@ class SparseSceneEstimation(ABC):
         # remove duplicates, preserve order
         cls._registered_metric_methods = tuple(dict.fromkeys(metric_names))
 
+    def run_from_state(self, state: SceneState) -> Scene:
+        tracked = state.tracked_features or state.feature_pairs
+        if tracked is None:
+            raise RuntimeError(
+                "SparseSceneEstimation requires tracked_features or feature_pairs."
+            )
+        if state.camera_poses is None:
+            raise RuntimeError("SparseSceneEstimation requires camera_poses.")
+        return self(tracked, state.camera_poses)
+    
     def __init__(self, cam_data: CameraData,
                  module_name: str,
                  description: str,
@@ -517,6 +536,7 @@ class SparseSceneEstimation(ABC):
 class DenseSceneEstimation(ABC):
     use_base_metrics = True
     _registered_metric_methods: tuple[str, ...] = ()
+    output_key = "dense_scene"
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -535,6 +555,12 @@ class DenseSceneEstimation(ABC):
         # remove duplicates, preserve order
         cls._registered_metric_methods = tuple(dict.fromkeys(metric_names))
 
+    def run_from_state(self, state: SceneState) -> Scene:
+        return self(
+            sparse_scene=state.sparse_scene,
+            camera_poses=state.camera_poses,
+        )
+    
     def __init__(self, cam_data: CameraData,
                  module_name: str,
                  description: str,
@@ -611,6 +637,7 @@ class DenseSceneEstimation(ABC):
 class CameraPoseEstimatorClass(ABC):
     use_base_metrics = True
     _registered_metric_methods: tuple[str, ...] = ()
+    output_key = "camera_poses"
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -628,6 +655,15 @@ class CameraPoseEstimatorClass(ABC):
 
         # remove duplicates, preserve order
         cls._registered_metric_methods = tuple(dict.fromkeys(metric_names))
+
+    def run_from_state(self, state: SceneState) -> CameraPose:
+        correspondences = state.tracked_features or state.feature_pairs
+        if correspondences is None:
+            raise RuntimeError(
+                "CameraPoseEstimator requires correspondences. "
+                "Run FeatureMatching or FeatureTracking first."
+            )
+        return self(correspondences)
     
     def __init__(self, 
                  cam_data: CameraData,
@@ -761,6 +797,11 @@ class CameraPoseEstimatorClass(ABC):
         return error, median_error
 
 class FeatureClass(ABC):
+    output_key = "features"
+
+    def run_from_state(self, state: SceneState) -> list[Points2D]:
+        return self()
+    
     def __init__(self, 
                  cam_data: CameraData,
                  module_name: str,
@@ -862,6 +903,13 @@ class FeatureClass(ABC):
         return float(mean_ct), int(min_count), int(max_count)
 
 class FeatureMatching(ABC):
+    output_key = "feature_pairs"
+
+    def run_from_state(self, state: SceneState) -> PointsMatched:
+        if state.features is None:
+            raise RuntimeError("FeatureMatching requires features. Run a FeatureClass module first.")
+        return self(state.features)
+    
     def __init__(self, 
                  cam_data:CameraData,
                  module_name: str,
@@ -1131,6 +1179,13 @@ class FeatureMatching(ABC):
         # }
 
 class FeatureTracking(ABC):
+    output_key = "tracked_features"
+
+    def run_from_state(self, state: SceneState) -> PointsMatched:
+        if state.features is None:
+            raise RuntimeError("FeatureTracking requires features. Run a FeatureClass module first.")
+        return self(state.features)
+    
     def __init__(self, detector:str, 
                  cam_data:CameraData,
                  module_name: str,
@@ -1224,6 +1279,14 @@ class FeatureTracking(ABC):
             json.dump({"Feature Track Metrics for Survivability and Stability": event_msg}, f, indent = 4)
 
 class OptimizationClass(ABC):
+    output_key = "optimized_scene"
+
+    def run_from_state(self, state: SceneState) -> Scene | IncrementalSfMState:
+        current_scene = state.dense_scene or state.sparse_scene
+        if current_scene is None:
+            raise RuntimeError("Optimization requires a sparse or dense scene.")
+        return self(current_scene)
+    
     def __init__(self, 
                  cam_data: CameraData,
                  module_name: str,
@@ -1321,3 +1384,110 @@ class VisualizeClass():
 
     def __call__(self, data: Scene | np.ndarray, store:bool = False) -> None:
         pass
+
+
+############################################ Orchestrator ############################################
+
+
+class PipelineModule(ABC):
+    """
+    Auto-register every concrete subclass by its public name.
+    """
+    REGISTRY: dict[str, type["PipelineModule"]] = {}
+
+    exposed_name: str | None = None
+    output_key: str | None = None
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        if inspect.isabstract(cls):
+            return
+
+        public_name = cls.exposed_name or cls.__name__
+
+        if public_name in PipelineModule.REGISTRY:
+            raise ValueError(f"Duplicate pipeline module name: {public_name}")
+
+        PipelineModule.REGISTRY[public_name] = cls
+
+    def run_from_state(self, state: "SceneState") -> Any:
+        raise NotImplementedError
+    
+class SfMScene:
+    def __init__(
+        self,
+        image_path: str | None = None,
+        calibration_path: str | None = None,
+        cam_data: CameraData | None = None,
+    ):
+        if cam_data is None:
+            if image_path is None or calibration_path is None:
+                raise ValueError(
+                    "Provide either cam_data or both image_path and calibration_path."
+                )
+            cam_data = CameraData(
+                image_path=image_path,
+                calibration_path=calibration_path,
+            )
+
+        self.cam_data = cam_data
+        self.state = SceneState(cam_data=cam_data)
+
+    def __getattr__(self, name: str):
+        module_cls = PipelineModule.REGISTRY.get(name)
+        if module_cls is None:
+            raise AttributeError(f"{type(self).__name__!s} has no module '{name}'")
+
+        def runner(**kwargs):
+            module = module_cls(cam_data=self.cam_data, **kwargs)
+            result = module.run_from_state(self.state)
+
+            output_key = module.output_key
+            if output_key is None:
+                raise RuntimeError(f"{module_cls.__name__} is missing output_key")
+
+            setattr(self.state, output_key, result)
+            self.state.last_output = result
+            self.state.history.append(
+                {
+                    "module": name,
+                    "params": kwargs,
+                    "output_key": output_key,
+                }
+            )
+            return self  # enables chaining
+
+        return runner
+
+    def __dir__(self):
+        return sorted(set(super().__dir__()) | set(PipelineModule.REGISTRY.keys()))
+
+    @property
+    def features(self):
+        return self.state.features
+
+    @property
+    def feature_pairs(self):
+        return self.state.feature_pairs
+
+    @property
+    def tracked_features(self):
+        return self.state.tracked_features
+
+    @property
+    def camera_poses(self):
+        return self.state.camera_poses
+
+    @property
+    def sparse_scene(self):
+        return self.state.sparse_scene
+
+    @property
+    def dense_scene(self):
+        return self.state.dense_scene
+
+    @property
+    def optimized_scene(self):
+        return self.state.optimized_scene
+######################################################################################################

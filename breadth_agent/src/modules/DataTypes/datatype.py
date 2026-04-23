@@ -5,11 +5,15 @@ import os
 import theseus as th
 import theseus.utils.examples as theg
 from theseus.utils.examples.bundle_adjustment.data import Camera, Observation
+from __future__ import annotations
 
+import inspect
+from abc import ABC
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Union, Dict
+from typing import List, Optional, Tuple, Union, Dict, Any
 
 Obs = Tuple[int, int]  # (image_id, kp_idx)
+
 
 @dataclass
 class IncrementalSfMState:
@@ -539,6 +543,22 @@ class BundleAdjustmentData:
             start_index = end_index
 
         return observation
+
+@dataclass
+class SceneState:
+    cam_data: CameraData
+
+    features: list[Points2D] | None = None
+    feature_pairs: PointsMatched | None = None
+    tracked_features: PointsMatched | None = None
+    camera_poses: CameraPose | None = None
+
+    sparse_scene: Scene | None = None
+    dense_scene: Scene | None = None
+    optimized_scene: Scene | IncrementalSfMState | None = None
+
+    last_output: Any = None
+    history: list[dict[str, Any]] = field(default_factory=list)
 
 @dataclass
 class Scene:
