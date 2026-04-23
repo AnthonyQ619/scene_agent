@@ -743,7 +743,7 @@ sparse_scene = sparse_reconstruction(matched_features, cam_poses)
                 if reproj_error <= self.reproj_error_min:
                     # BAL Data Construction
                     point_ind = np.array([point_index for _ in range(views.shape[0])]).reshape((views.shape[0],1))
-                    norm_pts = self._normalize_points_for_BAL(views)#views[:, 1:])
+                    norm_pts = self._normalize_points(views)#views[:, 1:])
                     observation = np.hstack((np.vstack(views[:,0]), point_ind, norm_pts))#views[:,1:]))
                     observation_pix = np.hstack((np.vstack(views[:,0]), point_ind, views[:, 1:]))
                     observations_pix.append(observation_pix)
