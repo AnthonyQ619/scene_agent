@@ -178,10 +178,16 @@ Module Output:
         
         example = f"""
 Initialization of Module: 
-feature_detector = FeatureDetectionSIFT(cam_data = camera_data, max_keypoints = 2000) 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-Function call of Module:  
-features = feature_detector()
+# Step 2: Detect Features
+reconstructed_scene.FeatureDetectionSIFT(
+    max_keypoints=9000,
+    contrast_threshold=0.02,
+    edge_threshold=20,
+    )
 """
         
         # Set up Initialization
@@ -307,14 +313,16 @@ Module Output:
         
         example = f"""
 Initialization of Module: 
-image_reader = ImageProcessor(image_path=image_path)
-images = image_reader(calibration_data)
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-feature_detector = FeatureDetectionORB(cam_data = camera_data, max_keypoints = 2000) 
-
-Function call of Module:  
-features = feature_detector()
-
+# Step 2: Detect Features
+reconstructed_scene.FeatureDetectionORB(
+    max_keypoints=9000,
+    contrast_threshold=0.02,
+    edge_threshold=20,
+    )
 """        
         # Set up Initialization
         super().__init__(cam_data=cam_data,
@@ -507,11 +515,17 @@ Module Output:
 """
 
         example = f"""
-Initialization: 
-feature_detector = FeatureDetectionSP(cam_data = camera_data, max_keypoints=2000) 
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-Function call:  
-features = feature_detector()
+# Step 2: Detect Features
+reconstructed_scene.FeatureDetectionSP(
+    max_keypoints=9000,
+    contrast_threshold=0.02,
+    edge_threshold=20,
+    )
 """     
 
         # Set up Initialization

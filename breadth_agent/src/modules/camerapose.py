@@ -54,11 +54,14 @@ Module Output:
 """
 
         example = f"""
-Initialization: 
-pose_estimator = CamPoseEstimatorVGGTModel(cam_data = camera_data)
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-Function call:  
-pose_estimator() # No Features used with this module
+# Step 2 and 3: Not needed for this module
+# Step 3: 
+reconstructed_scene.{module_name}() # Images read in previous step (1)
 """
         super().__init__(cam_data = cam_data,
                          module_name=module_name,
@@ -247,15 +250,17 @@ Module Output:
 """
 
         example = f"""
-Initialization: 
-CamPoseEstimatorEssentialToPnP(cam_data = camera_data, calibration=calibration_data) 
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-Function call:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-feature_pairs = feature_matcher(features) # Call Feature Matcher Module on detected features
-
-camera_pose = pose_estimator(feature_pairs=feature_pairs) # Features used from Feature Detector Module
+# Step 2: Detect Features must be completed prior!
+# Step 3: Feature Pairs must be completed prior!
+# Step 4: Detect Camera Poses
+reconstructed_scene.{module_name}(ba_per_frame = 5)
+# Or no local bundle adjustment
+reconstructed_scene.{module_name}()
 """     
         super().__init__(cam_data = cam_data,
                          module_name=module_name,

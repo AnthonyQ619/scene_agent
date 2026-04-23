@@ -39,7 +39,6 @@ print(sys.executable)
 from modules.DataTypes.datatype import Scene, CameraData, PointsMatched, Points3D, CameraPose, Calibration, IncrementalSfMState
 from modules.baseclass import OptimizationClass
 
-
 class BundleAdjustmentOptimizerLocal(OptimizationClass):
     def __init__(
         self,

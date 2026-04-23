@@ -1448,6 +1448,9 @@ class SfMScene:
             raise AttributeError(f"{type(self).__name__!s} has no module '{name}'")
 
         def runner(**kwargs):
+            if "optimizer" in kwargs:
+                kwargs["optimizer"] = self._build_dependency(kwargs["optimizer"])
+                
             module = module_cls(cam_data=self.cam_data, **kwargs)
             result = module.run_from_state(self.state)
 
@@ -1470,7 +1473,21 @@ class SfMScene:
 
     def __dir__(self):
         return sorted(set(super().__dir__()) | set(PipelineModule.REGISTRY.keys()))
+    
+    # Helper Function to pass Function Instances in Params of Sub-Modules
+    def _build_dependency(self, dep):
+        if dep is None:
+            return None
 
+        # already-instantiated object
+        if not isinstance(dep, tuple):
+            return dep
+
+        module_name, kwargs = dep
+        module_cls = PipelineModule.REGISTRY[module_name]
+
+        return module_cls(cam_data=self.cam_data, **kwargs)
+    
     @property
     def features(self):
         return self.state.features

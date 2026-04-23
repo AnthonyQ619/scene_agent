@@ -93,19 +93,17 @@ Function Call Parameters:
 """ # TODO: Fill in details for the matcher. Be precise as we want the agent to know when exactly to use this
         
         example = f"""
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Matcher Module initialized with the SIFT detector
-feature_tracker = FeatureMatchSuperGlueTracking(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
-
-# Feature Matcher Module intialized with the SuperPoint detector
-feature_tracker = FeatureMatchSuperGlueTracking(cam_data = camera_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
+# Step 2: Detect Features must be completed prior!
+# Step 3/4: 
+reconstructed_scene.{module_name}(
+    RANSAC_threshold=0.008,
+    lowes_thresh=0.65,
+    )
 """
         super().__init__(detector=detector,
                          cam_data=cam_data,
@@ -226,20 +224,17 @@ Function Call Parameters:
 """ # TODO: Fill in details for the matcher. Be precise as we want the agent to know when exactly to use this
         
         example = f"""
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Matcher Module initialized with the SIFT detector
-feature_tracker = FeatureMatchLightGlueTracking(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
-
-# Feature Matcher Module intialized with the SuperPoint detector
-feature_tracker = FeatureMatchLightGlueTracking(cam_data = camera_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
-
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
+# Step 2: Detect Features must be completed prior!
+# Step 3/4: 
+reconstructed_scene.{module_name}(
+    RANSAC_threshold=0.008,
+    lowes_thresh=0.65,
+    )
 """
 
         super().__init__(detector=detector,
@@ -368,22 +363,17 @@ Function Call Parameters:
 """
 
         example = f"""
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Tracker Module initialized with the SIFT detector
-feature_tracker = FeatureMatchFlannTracking(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
-
-# Feature Tracker Module initialized with the ORB detector 
-feature_tracker = FeatureMatchFlannTracking(cam_data = camera_data, detector='orb') # Initialized with detector 'orb' for proper matching
-
-# Feature Tracker Module intialized with the FAST detector
-feature_tracker = FeatureMatchFlannTracking(cam_data = camera_data, detector='fast') # Initialized with detector 'orb' for proper matching
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
+# Step 2: Detect Features must be completed prior!
+# Step 3/4: 
+reconstructed_scene.{module_name}(
+    RANSAC_threshold=0.008,
+    lowes_thresh=0.65,
+    )
 """
         super().__init__(detector=detector,
                          cam_data=cam_data,
@@ -500,22 +490,17 @@ Function Call Parameters:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """
         example = f"""
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Matcher Module initialized with the SIFT detector
-feature_tracker = FeatureMatchBFTracking(cam_data=cam_data, detector='sift') # Initialized with detector 'sift' for proper matching
-
-# Feature Matcher Module initialized with the ORB detector 
-feature_tracker = FeatureMatchBFTracking(cam_data=cam_data, detector='orb') # Initialized with detector 'orb' for proper matching
-
-# Feature Matcher Module intialized with the SuperPoint detector
-feature_tracker = FeatureMatchBFTracking(cam_data=cam_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
+# Step 2: Detect Features must be completed prior!
+# Step 3/4: 
+reconstructed_scene.{module_name}(
+    RANSAC_threshold=0.008,
+    lowes_thresh=0.65,
+    )
 """     
         super().__init__(detector=detector,
                          cam_data=cam_data,
@@ -904,19 +889,17 @@ Function Call Parameters:
 """ # TODO: Fill in details for the matcher. Be precise as we want the agent to know when exactly to use this
         
         example = f"""
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Matcher Module initialized with the SIFT detector
-feature_matcher = FeatureMatchSuperGluePair(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
-
-# Feature Matcher Module intialized with the SuperPoint detector
-feature_matcher = FeatureMatchSuperGluePair(cam_data = camera_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-matched_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
+# Step 2: Detect Features must be completed prior!
+# Step 3: 
+reconstructed_scene.{module_name}(
+    RANSAC_threshold=0.008,
+    lowes_thresh=0.65,
+    )
 """
 
         super().__init__(cam_data=cam_data,
@@ -1107,20 +1090,17 @@ Function Call Parameters:
 """ # TODO: Fill in details for the matcher. Be precise as we want the agent to know when exactly to use this
         
         example = f"""
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Matcher Module initialized with the SIFT detector
-feature_matcher = FeatureMatchLightGluePair(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
-
-# Feature Matcher Module intialized with the SuperPoint detector
-feature_matcher = FeatureMatchLightGluePair(cam_data = camera_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
-
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-matched_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
+# Step 2: Detect Features must be completed prior!
+# Step 3: 
+reconstructed_scene.{module_name}(
+    RANSAC_threshold=0.008,
+    lowes_thresh=0.65,
+    )
 """
         
         super().__init__(cam_data=cam_data,
@@ -1314,22 +1294,17 @@ Function Call Parameters:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """
         example = f"""
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Matcher Module initialized with the SIFT detector
-feature_matcher = FeatureMatchFlannPair(cam_data=cam_data, detector='sift') # Initialized with detector 'sift' for proper matching
-
-# Feature Matcher Module initialized with the SuperPoint detector
-feature_matcher = FeatureMatchFlannPair(cam_data=cam_data, detector='superpoint') # Initialized with detector 'sift' for proper matching
-
-# Feature Matcher Module initialized with the ORB detector 
-feature_matcher = FeatureMatchFlannPair(cam_data=cam_data, detector='orb') # Initialized with detector 'orb' for proper matching
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-detected_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
+# Step 2: Detect Features must be completed prior!
+# Step 3: 
+reconstructed_scene.{module_name}(
+    RANSAC_threshold=0.008,
+    lowes_thresh=0.65,
+    )
 """     
         super().__init__(cam_data=cam_data,
                          module_name=module_name,
@@ -1494,22 +1469,17 @@ Function Call Parameters:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """
         example = f"""
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Matcher Module initialized with the SIFT detector
-feature_matcher = FeatureMatchBFPair(cam_data=cam_data, detector='sift') # Initialized with detector 'sift' for proper matching
-
-# Feature Matcher Module initialized with the ORB detector 
-feature = FeatureMatchBFPair(cam_data=cam_data, detector='orb') # Initialized with detector 'orb' for proper matching
-
-# Feature Matcher Module intialized with the FAST detector
-feature = FeatureMatchBFPair(cam_data=cam_data, detector='fast') # Initialized with detector 'orb' for proper matching
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-tracked_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
+# Step 2: Detect Features must be completed prior!
+# Step 3: 
+reconstructed_scene.{module_name}(
+    RANSAC_threshold=0.008,
+    lowes_thresh=0.65,
+    )
 """
 
         super().__init__(cam_data=cam_data,
