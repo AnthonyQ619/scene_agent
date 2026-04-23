@@ -6,16 +6,18 @@ from modules.optimization import BundleAdjustmentOptimizerLocal
 from modules.scenereconstruction import Sparse3DReconstructionMono
 from modules.visualize import VisualizeScene
 import os
+from modules.baseclass import SfMScene
 
 # Construct Modules with Initialized Arguments
 image_path = "/home/anthonyq/datasets/DTU/DTU/scan22"
 calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
 
+"""
 # STEP 1: Read in Camera Data
 from modules.cameramanager import CameraDataManager
 
 CDM = CameraDataManager(image_path=image_path,
-                        # max_images=10,
+                        max_images=10,
                         calibration_path=calibration_path)
 
 # Get Camera Data
@@ -60,8 +62,11 @@ from modules.featurematching import FeatureMatchBFTracking
 # Feature Tracking Module Initialization
 feature_tracker = FeatureMatchBFTracking(cam_data=camera_data,
                                          detector="sift",
-                                         RANSAC_threshold=0.008,
-                                         lowes_thresh=0.65)
+                                         k=2,
+                                         cross_check=False,
+                                         lowes_thresh=0.70,
+                                         RANSAC_threshold=0.015,
+                                         RANSAC_conf=0.999)
 
 # From estimated features, tracked features across multiple images
 tracked_features = feature_tracker(features=features)
@@ -72,7 +77,7 @@ from modules.scenereconstruction import Sparse3DReconstructionMono
 sparse_reconstruction = Sparse3DReconstructionMono(cam_data=camera_data,
                                                    min_observe=4,
                                                    min_angle=2.0,
-                                                   view="multi")
+                                                   multi_view=True)
 
 # Estimate sparse 3D scene from tracked features and camera poses
 sparse_scene = sparse_reconstruction(tracked_features, cam_poses)
@@ -93,21 +98,59 @@ from modules.visualize import VisualizeScene
 visualizer = VisualizeScene(server=True, img_path = os.path.dirname(os.path.abspath(__file__)) + '/feature_images/point_cloud.png')
 
 visualizer(optimal_scene)
-
+"""
 
 ## NEW SFM PIPELINE
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = Scene(image_path = image_path, 
-                            calibration_path = calibration_path)
+reconstructed_scene = SfMScene(image_path = image_path, 
+                                max_images = 30,
+                                calibration_path = calibration_path)
 
 # Step 2: Detect Features
-scene.FeatureDetectionSIFT(
-    max_keypoints=9000,
-    contrast_threshold=0.02,
+reconstructed_scene.FeatureDetectionSIFT(
+    max_keypoints=10000,
+    contrast_threshold=0.009,
     edge_threshold=20,
 )
+from modules.camerapose import CamPoseEstimatorEssentialToPnP
+# Step 3: Detect Feature Pairs
+reconstructed_scene.FeatureMatchLightGluePair(
+    detector='sift',   
+    RANSAC_threshold=0.02,
+    RANSAC_conf=0.999
+)
 
-# Step 3: Detect Feature Matches/Correspondences
-scene.FeatureMatchBFTracking(RANSAC_threshold=0.008,
-                             lowes_thresh=0.65)
+# Step 4: Detect/Estimate Camera Poses
+reconstructed_scene.CamPoseEstimatorEssentialToPnP(
+    iteration_count=150,
+    reprojection_error = 3.0,
+    optimizer = ("BundleAdjustmentOptimizerLocal", {
+        "max_num_iterations": 25,
+        "robust_loss": True,
+        "use_gpu": False
+    }),
+)
+
+# Step 5: Detect Feature Tracks
+reconstructed_scene.FeatureMatchBFTracking(
+    detector = "sift",
+    k=2,
+    cross_check=False,
+    lowes_thresh=0.70,
+    RANSAC_threshold=0.015,
+    RANSAC_conf=0.999
+)
+
+# Step 6: Estimate Sparse Reconstruction
+reconstructed_scene.Sparse3DReconstructionMono(
+    min_observe=3,
+    min_angle=2.0,
+    multi_view=True
+)
+
+# Step 7: Run Optimization
+reconstructed_scene.BundleAdjustmentOptimizerGlobal(
+    max_num_iterations=200,
+    use_gpu=False
+)
