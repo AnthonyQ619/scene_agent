@@ -97,10 +97,17 @@ visualizer(optimal_scene)
 
 ## NEW SFM PIPELINE
 
-feature_detector = FeatureDetectionSIFT(
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = Scene(image_path = image_path, 
+                            calibration_path = calibration_path)
+
+# Step 2: Detect Features
+scene.FeatureDetectionSIFT(
     max_keypoints=9000,
     contrast_threshold=0.02,
     edge_threshold=20,
 )
 
-scene = feature_detector(scene)
+# Step 3: Detect Feature Matches/Correspondences
+scene.FeatureMatchBFTracking(RANSAC_threshold=0.008,
+                             lowes_thresh=0.65)

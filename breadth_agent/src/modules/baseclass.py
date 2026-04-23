@@ -305,13 +305,43 @@ class KeypointRefinement():
     
 ##########################################################################################################
 
+# Define Decorator for Metric Functions
+def module_metric(func):
+    """Mark a method as a metric provider."""
+    func._is_metric_provider = True
+    return func
 
+class SparseSceneEstimation(ABC):
+    use_base_metrics = True
+    _registered_metric_methods: tuple[str, ...] = ()
 
-class SparseSceneEstimation():
-    def __init__(self, cam_data: CameraData):
-        self.module_name = "..."
-        self.description = "..."
-        self.example = "..."
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        metric_names = []
+
+        # inherit metrics from parent classes
+        for base in reversed(cls.__mro__[1:]):
+            metric_names.extend(getattr(base, "_registered_metric_methods", ()))
+
+        # add metrics declared directly in this subclass
+        for name, value in cls.__dict__.items():
+            if callable(value) and getattr(value, "_is_metric_provider", False):
+                metric_names.append(name)
+
+        # remove duplicates, preserve order
+        cls._registered_metric_methods = tuple(dict.fromkeys(metric_names))
+
+    def __init__(self, cam_data: CameraData,
+                 module_name: str,
+                 description: str,
+                 example: str):
+
+        # Define Module Name, Description, etc. 
+        # Under modules.
+        self.module_name = module_name
+        self.description = description
+        self.example = example
 
         # Setting up Calibration Data
         self.cam_data = cam_data
@@ -327,18 +357,18 @@ class SparseSceneEstimation():
         #self.image_path = sorted(glob.glob(image_path + "\\*"))[:10]
 
     def __call__(self, tracked_features: PointsMatched, cam_poses: CameraPose) -> Scene:
-
         return self.build_reconstruction(tracked_features, cam_poses)
     
+    @abstractmethod
     def build_reconstruction(self, 
                              tracked_features: PointsMatched,
                              cam_poses: CameraPose) -> Scene:
         """Implement Algorithm to reconstruct scene here."""
-        pass
+        raise NotImplementedError
 
     # Point Maps estimation must have this function follow with tracked features
     # Point Maps must be in the shape of 
-    def match_tracks_to_point_maps(self,
+    def match_tracks_to_point_maps(self, #Keep here
                                    tracked_features: PointsMatched,
                                    point_maps: np.ndarray,
                                    conf_maps: np.ndarray,
@@ -380,12 +410,12 @@ class SparseSceneEstimation():
 
                     # BAL Data Construction
                     point_ind = np.array([point_index for _ in range(views.shape[0])]).reshape((views.shape[0],1))
-                    norm_pts = self._normalize_points_for_BAL(views)#views[:, 1:])
-                    observation = np.hstack((np.vstack(views[:,0]), point_ind, norm_pts))#views[:,1:]))
+                    # norm_pts = self._normalize_points_for_BAL(views)#views[:, 1:])
+                    # observation = np.hstack((np.vstack(views[:,0]), point_ind, norm_pts))#views[:,1:]))
                     observation_pix = np.hstack((np.vstack(views[:,0]), point_ind, views[:, 1:]))
                     observations_pix.append(observation_pix)
-                    observations.append(observation)
-                    num_observations += views.shape[0] # Number of observations
+                    # observations.append(observation)
+                    # num_observations += views.shape[0] # Number of observations
 
                     # get 3D point
                     pred_point_3d = point_maps[frame][y, x]
@@ -394,40 +424,18 @@ class SparseSceneEstimation():
 
                     # Update Point Index
                     point_index += 1
-       
-        # Build BAL data
-        if self.multi_cam:
-            ba_data = BundleAdjustmentData(num_cameras=num_cameras,
-                                            num_points=points_3d.points3D.shape[0],
-                                            num_observations=num_observations,
-                                            observations=observations,
-                                            cameras=camera_poses,
-                                            points=points_3d.points3D,
-                                            dist=self.dist,
-                                            mono=False)
-        else:
-            ba_data = BundleAdjustmentData(num_cameras=num_cameras,
-                                            num_points=points_3d.points3D.shape[0],
-                                            num_observations=num_observations,
-                                            observations=observations,
-                                            cameras=camera_poses,
-                                            points=points_3d.points3D,
-                                            dist=[self.dist],
-                                            mono=True)
-
 
         scene = Scene(points3D = points_3d,
                       cam_poses = camera_poses.camera_pose,
                       observations= np.vstack(observations_pix),
                       representation = "point cloud",
-                      bal_data=ba_data,
+                    #   bal_data=ba_data,
                       sparse=True)
         return scene
     
-    # Normalize for BAL data optimization
-    def _normalize_points_for_BAL(self, view: np.ndarray): #pts1: np.ndarray):
+    # Helper Function to Normalize for 2D Points for 3D estimation if Features are used
+    def _normalize_points(self, view: np.ndarray): #KEEP but rename to normalize points
         cams, pts = view[:, 0], view[:, 1:]
-        #cam = int(cam)
         # Normalize Points without undistorting points for Bundle Adjustment Optimization
         if self.multi_cam:
             pts_norm = []
@@ -444,11 +452,12 @@ class SparseSceneEstimation():
 
         return pts_norm
     
+    # Metric Function for reprojection error calculation
     def _reprojection_error(self, 
                             point: np.ndarray, 
                             views: np.ndarray, 
                             cam_poses: list[np.ndarray]) -> float:
-        X_h = np.append(point, 1)
+        # X_h = np.append(point, 1)
         errors = []
         # print("POINT SHAPE:", X_h.shape)
         if self.multi_cam:
@@ -505,11 +514,37 @@ class SparseSceneEstimation():
 
             return np.mean(errors)
 
-class DenseSceneEstimation():
-    def __init__(self, cam_data: CameraData):
-        self.module_name = "..."
-        self.description = "..."
-        self.example = "..."
+class DenseSceneEstimation(ABC):
+    use_base_metrics = True
+    _registered_metric_methods: tuple[str, ...] = ()
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        metric_names = []
+
+        # inherit metrics from parent classes
+        for base in reversed(cls.__mro__[1:]):
+            metric_names.extend(getattr(base, "_registered_metric_methods", ()))
+
+        # add metrics declared directly in this subclass
+        for name, value in cls.__dict__.items():
+            if callable(value) and getattr(value, "_is_metric_provider", False):
+                metric_names.append(name)
+
+        # remove duplicates, preserve order
+        cls._registered_metric_methods = tuple(dict.fromkeys(metric_names))
+
+    def __init__(self, cam_data: CameraData,
+                 module_name: str,
+                 description: str,
+                 example: str):
+
+        # Define Module Name, Description, etc. 
+        # Under modules.
+        self.module_name = module_name
+        self.description = description
+        self.example = example
 
         # Setting up Calibration Data
         self.cam_data = cam_data
@@ -519,24 +554,20 @@ class DenseSceneEstimation():
         self.stereo = cam_data.stereo
         self.multi_cam = cam_data.multi_cam
 
-        # Setup Minimum Angle Check Function
-        # self.angle_check = TriangulationCheck(self.K_mat, self.dist)
-        
-        #self.image_path = sorted(glob.glob(image_path + "\\*"))[:10]
 
     def __call__(self, sparse_scene: Scene | None = None,
                  camera_poses: CameraPose | None = None) -> Scene:
 
         return self.build_reconstruction(sparse_scene = sparse_scene, 
                                          cam_poses = camera_poses)
-    
+    @abstractmethod
     def build_reconstruction(self, 
                              sparse_scene: Scene | None = None,
                              cam_poses: CameraPose | None = None) -> Scene:
         """Implement Algorithm to reconstruct scene here."""
-        pass
+        raise NotImplementedError
     
-    # For Point Map Reconstruction Models
+    # For Point Map Reconstruction Models, collect all Points!
     def collect_PM_points(self,
                           point_maps:np.ndarray,
                           conf_maps: np.ndarray =None, 
@@ -557,7 +588,7 @@ class DenseSceneEstimation():
 
         return np.concatenate(all_points, axis=0)
     
-    # Down sample voxels for better reconstruction
+    # Down sample voxels for better reconstruction of Point Map based Models
     def voxel_downsample(self,
                          points: np.ndarray, 
                          voxel_size: float =0.01):
@@ -577,7 +608,27 @@ class DenseSceneEstimation():
             assert isinstance(camera_poses, CameraPose), "Incorrect Parameterization. Ensure camera_poses parameter is a CameraPose type from the Pose Estimation Module."
         return sparse_scene
 
-class CameraPoseEstimatorClass():
+class CameraPoseEstimatorClass(ABC):
+    use_base_metrics = True
+    _registered_metric_methods: tuple[str, ...] = ()
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        metric_names = []
+
+        # inherit metrics from parent classes
+        for base in reversed(cls.__mro__[1:]):
+            metric_names.extend(getattr(base, "_registered_metric_methods", ()))
+
+        # add metrics declared directly in this subclass
+        for name, value in cls.__dict__.items():
+            if callable(value) and getattr(value, "_is_metric_provider", False):
+                metric_names.append(name)
+
+        # remove duplicates, preserve order
+        cls._registered_metric_methods = tuple(dict.fromkeys(metric_names))
+    
     def __init__(self, 
                  cam_data: CameraData,
                  module_name: str,
@@ -589,44 +640,109 @@ class CameraPoseEstimatorClass():
         self.description = description
         self.example = example
 
+        # Shared Camera data
         self.cam_data = cam_data
         self.image_list = copy.copy(cam_data.image_list)
         self.K_mat = cam_data.get_K()
         self.dist = cam_data.get_distortion()
 
-    # def _setup_calibration(self, image_scale: list[float] | None = None):
-    #     if image_scale is not None:
-    #         self.calibration.update_cal_img_shape(image_scale)
+        # Output container
+        self.camera_poses: CameraPose = CameraPose()
 
-    #     # print(image_scale)
-
-    #     if isinstance(self.calibration, Calibration):
-    #         self.stereo = self.calibration.stereo
-    #         self.K1 = self.calibration.K1
-    #         self.dist1 = self.calibration.distort
-    #         if self.stereo:
-    #             self.K2 = self.calibration.K2
-    #             self.dist2 = self.calibration.distort2
-    #     else:
-    #         self.stereo = False
-    #         self.K1 = None
-    #         self.dist1 = None
+        # Metric state
+        self._residual_means: list[float] = []
+        self._residual_medians: list[float] = []
         
     def __call__(self, 
                  feature_pairs: PointsMatched | None = None) -> CameraPose:
-        poses = CameraPose() # Empty Data Condainer 
+        # poses = CameraPose() # Empty Data Condainer 
 
-        poses = self._estimate_camera_poses(camera_poses=poses,
-                                            feature_pairs=feature_pairs)
-
-        return poses
-    
-    def _estimate_camera_poses(self, 
-                               camera_poses: CameraPose,
-                               feature_pairs: PointsMatched) -> CameraPose:
-        # Input Custom Pose Estimation Algorithm in this Function
+        # poses = self._estimate_camera_poses(camera_poses=poses,
+        #                                     feature_pairs=feature_pairs)
+        self._estimate_camera_poses(feature_pairs=feature_pairs)
+        self.calculate_metrics()
         
-        return camera_poses
+        return self.camera_poses
+    
+    @abstractmethod
+    def _estimate_camera_poses(self, feature_pairs: PointsMatched) -> None:
+        # Input Custom Pose Estimation Algorithm in this Function
+        raise NotImplementedError
+
+    def calculate_metrics(self) -> None:
+        event_msg = self._collect_metrics()
+        print(json.dumps(event_msg), flush=True)
+
+        with open("data.json", "w", encoding="utf-8") as f:
+            json.dump(event_msg, f, indent=4)
+
+    def _collect_metrics(self) -> dict:
+        metrics = {}
+
+        if self.use_base_metrics:
+            metrics.update(self._base_metric_calculation())
+
+        for method_name in self._registered_metric_methods:
+            method = getattr(self, method_name)
+            result = method()
+
+            if result is None:
+                continue
+            if not isinstance(result, dict):
+                raise TypeError(
+                    f"Metric method '{method_name}' must return dict | None, "
+                    f"got {type(result).__name__}"
+                )
+
+            overlap = set(metrics).intersection(result)
+            if overlap:
+                raise ValueError(
+                    f"Duplicate metric keys from '{method_name}': {sorted(overlap)}"
+                )
+
+            metrics.update(result)
+
+        return metrics
+
+    def _base_metric_calculation(self) -> dict:
+        num_poses = len(self.camera_poses.camera_pose)
+
+        if len(self._residual_means) == 0:
+            return {
+                "Number of Camera Poses": int(num_poses),
+                "Average Reprojection Error per Frame": None,
+                "Average Median Reprojection Error per Frame": None,
+            }
+
+        residual_error = float(np.mean(np.asarray(self._residual_means)))
+        residual_median = float(np.median(np.asarray(self._residual_medians)))
+
+        return {
+            "Number of Camera Poses": int(num_poses),
+            "Average Reprojection Error per Frame": residual_error,
+            "Average Median Reprojection Error per Frame": residual_median,
+        }
+
+
+    def _record_residual_metric(
+        self,
+        object_points: np.ndarray | None,
+        image_points: np.ndarray | None,
+        pose: np.ndarray | None,
+    ) -> None:
+        if object_points is None or image_points is None or pose is None:
+            return
+
+        if len(object_points) == 0 or len(image_points) == 0:
+            return
+
+        mean_error, median_error = self._metric_calculation_residuals(
+            object_points=object_points,
+            image_points=image_points,
+            pose=pose,
+        )
+        self._residual_means.append(float(mean_error))
+        self._residual_medians.append(float(median_error))
 
     def _metric_calculation_residuals(self, 
                                       object_points: np.ndarray, 
@@ -634,11 +750,13 @@ class CameraPoseEstimatorClass():
                                       pose: np.ndarray):
         R = pose[:, :3]
         T = pose[:, 3:]
-        proj, _ = cv2.projectPoints(object_points, R, T, self.K_mat, self.dist)
+        # proj, _ = cv2.projectPoints(object_points, R, T, self.K_mat, self.dist)
+        rvec, _ = cv2.Rodrigues(R)
+        proj, _ = cv2.projectPoints(object_points, rvec, T, self.K_mat, self.dist)
 
         residual_error = np.linalg.norm(image_points - proj.reshape(-1,2), axis=1)
-        error = np.mean(residual_error)
-        median_error = np.median(residual_error)
+        error = float(np.mean(residual_error))
+        median_error = float(np.median(residual_error))
 
         return error, median_error
 

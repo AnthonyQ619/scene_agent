@@ -226,10 +226,9 @@ class Sparse3DReconstructionVGGT(SparseSceneEstimation):
     def __init__(self,
                  cam_data: CameraData,
                  min_observe: int = 3):
-        super().__init__(cam_data = cam_data)
-
-        self.module_name = "Sparse3DReconstructionVGGT"
-        self.description = f"""
+        
+        module_name = "Sparse3DReconstructionVGGT"
+        description = f"""
 Sparsely reconstructs a 3D scene utilizing pre-processed information of camera poses and
 images of the scene. Camera Poses are estimated prior to thie module through the camera pose estimation 
 module, specifically from VGGT pose estimation. Features do NOT need to be tracked or matched between frames.
@@ -285,7 +284,7 @@ Module Output:
                 - points: np.ndarray              [N x 3] matrix containing the X, Y, Z coordinates of points. N = Number of total points.
 
 """
-        self.example = f"""
+        example = f"""
 Initialization:
 # Camera Pose Module Initialization
 pose_estimator = CamPoseEstimatorVGGTModel(cam_data = camera_data)
@@ -306,9 +305,11 @@ tracked_features = feature_tracker(features=features)
 # Estimate sparse 3D scene from tracked features and camera poses
 sparse_scene = sparse_reconstruction(camera_poses=cam_poses)
 """
-
-        # Initialize Model
-        # WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        super().__init__(cam_data = cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example)
+        
         # Initialize Model
         if os.name == 'nt':
             WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
@@ -317,18 +318,21 @@ sparse_scene = sparse_reconstruction(camera_poses=cam_poses)
             
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        # bfloat16 is supported on Ampere GPUs (Compute Capability 8.0+) 
-        self.dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
+        if self.device == "cuda":
+            # bfloat16 is supported on Ampere GPUs (Compute Capability 8.0+) 
+            self.dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
+        else:
+            self.dtype = torch.float32
 
         self.model = VGGT().to(self.device)
         self.model.load_state_dict(torch.load(WEIGHT_MODULE, weights_only=True))
+        self.model.eval()
 
         self.height, self.width = self.image_list[0].shape[:2]
-        # Load Images in correct format for VGGT inference
+         # Load Images in correct format for VGGT inference
         to_tensor = TF.ToTensor()
-        tensor_img_list = []
-        for ind in range(len(self.image_list)):
-            tensor_img_list.append(to_tensor(self.image_list[ind]))
+        tensor_img_list = [to_tensor(img) for img in self.image_list]
+
         self.images = torch.stack(tensor_img_list).to(self.device) 
 
         self.minimum_observation = min_observe
@@ -372,11 +376,6 @@ sparse_scene = sparse_reconstruction(camera_poses=cam_poses)
         torch.cuda.empty_cache() #Empty GPU cache
 
         return scene
-        # points3D = Points3D(points = point_map.reshape(-1, 3))
-
-        # return Scene(points3D=points3D, 
-        #              cam_poses=cam_poses.camera_pose, 
-        #              representation="point cloud")
     
 
 ###########################################################################################################
@@ -385,10 +384,8 @@ sparse_scene = sparse_reconstruction(camera_poses=cam_poses)
 class Sparse3DReconstructionStereo(SparseSceneEstimation):
     def __init__(self,
                  cam_data: CameraData):
-        super().__init__(cam_data=cam_data)
-
-        self.module_name = "Sparse3DReconstructionMono"
-        self.description = f"""
+        module_name = "Sparse3DReconstructionMono"
+        description = f"""
 Sparsely reconstructs a 3D scene utilizing pre-processed information of camera poses and
 detected features tracked across the scene. Camera Poses are estimated prior to thie module
 through the camera pose estimation module. Features matched, or tracked are estimated 
@@ -403,7 +400,7 @@ Use this module when specified for sparse reconstruction and calibration data is
 the data used is from a stereo camera specifically. This module is for reconstructing the scene 
 using the direct mathematical approach.
 """
-        self.example = f"""
+        example = f"""
 Initialization:
 image_path = ...
 calibration_path = ...
@@ -431,7 +428,7 @@ matched_features = feature_matcher(features=features) # To track features across
 # Estimate 3D scene using multi-view due to tracking features from multiple images in previous step
 sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two") 
 """
-        self.VIEWS = ["multi", "two"]
+        
 
     def __call__(self, points: PointsMatched, camera_poses: CameraPose, view: str | None = "multi") -> Scene:
         if view not in self.VIEWS:
@@ -584,15 +581,13 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
 
 class Sparse3DReconstructionMono(SparseSceneEstimation):
     def __init__(self, cam_data: CameraData, 
-                 view: str = "multi",
+                 multi_view: bool = True,
                  reproj_error: float = 3.0,
                  min_observe: int = 3,
                  min_angle: float = 1.0):
-        
-        super().__init__(cam_data=cam_data)
 
-        self.module_name = "Sparse3DReconstructionMono"
-        self.description = f"""
+        module_name = "Sparse3DReconstructionMono"
+        description = f"""
 Sparsely reconstructs a 3D scene utilizing pre-processed information of camera poses and
 detected features tracked across the scene. Camera Poses are estimated prior to thie module
 through the camera pose estimation module. Features matched, or tracked are estimated 
@@ -666,7 +661,7 @@ Module Output:
                 - cameras: list[np.ndarray]       [1 x 9] per element | List of cameras, with each row containing R(rodriguez), T, f, K1, K2 (k1 and k2 radial distortion)
                 - points: np.ndarray              [N x 3] matrix containing the X, Y, Z coordinates of points. N = Number of total points.
 """
-        self.example = f"""
+        example = f"""
 Initialization:
 sparse_reconstruction = Sparse3DReconstructionMono(cam_data = camera_data, view="multi", reproj_error = 2.0, min_observe = 3, min_angle = 1.5)
 
@@ -693,36 +688,32 @@ matched_features = feature_matcher(features=features) # Estimate Features across
 # Estimate 3D scene using two-view due to matching features across image pairs in previous step
 sparse_scene = sparse_reconstruction(matched_features, cam_poses) 
 """
-        self.VIEWS = ["multi", "two"]
-        self.view = view
+        
+        super().__init__(cam_data = cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example)
+        
+        self.multi_view = multi_view
         self.minimum_observation = min_observe # N-view functionality only
         self.min_angle = min_angle
         self.reproj_error_min = reproj_error
 
-        print("Image Shape:", cam_data.image_list[0].shape)
-        # self.angle_check = TriangulationCheck(calibration=calibration, min_angle=min_angle)
 
-    # tracked_features: PointsMatched, cam_poses: CameraPose
     def build_reconstruction(self, 
                  points: PointsMatched, 
                  camera_poses: CameraPose) -> Scene:
-
-        if self.view not in self.VIEWS:
-            message = 'Error: setting is not supported. Use one of ' + str(self.VIEWS) + ' instead to use this Reconstruction Module.'
-            raise Exception(message)
         
-        # points_3d = []
         points_3d = Points3D()
 
         # BAL File for Optimization Module
         num_observations = 0 
-        num_cameras = len(camera_poses.camera_pose)
         observations = []
         observations_pix = []
 
-        if self.view == self.VIEWS[0]: # Multi-view
+        if self.multi_view: # Multi-view
             if not points.multi_view:
-                message = 'Error: features are not tracked. Use the setting ' + str(self.VIEWS[1]) + ' instead to use this Reconstruction Module for pairwise feature matching.'
+                message = 'Error: features are not tracked. Use set multi_view to FALSE instead to use this Reconstruction Module for pairwise feature matching.'
                 raise Exception(message)
             
             point_index = 0
@@ -789,7 +780,7 @@ sparse_scene = sparse_reconstruction(matched_features, cam_poses)
             print(points.data_matrix.shape)
             print(point_index)
             return scene
-        elif self.view == self.VIEWS[1]: # Two-View
+        else: # Two-View
             if points.multi_view:
                 message = 'Error: features are tracked. Use the setting ' + str(self.VIEWS[0]) + ' instead to use this Reconstruction Module for feature tracking.'
                 raise Exception(message)
@@ -807,9 +798,6 @@ sparse_scene = sparse_reconstruction(matched_features, cam_poses)
 
             scene = Scene(points3D = points_3d,cam_poses = camera_poses, representation = "point cloud") 
             return scene
-    
-    # def min_angle_test(self):
-    #     pass
 
     # Triangulation of points (Monocular Camera) - 2View
     def triangulate_points_mono(self, pts1: np.ndarray, pts2: np.ndarray, camera_pose: list[np.ndarray]) -> np.ndarray:
@@ -827,9 +815,6 @@ sparse_scene = sparse_reconstruction(matched_features, cam_poses)
 
         X = cv2.triangulatePoints(P1mtx, P2mtx, pt1, pt2)
         X = (X[:-1]/X[-1]).T 
-
-        # pts3D = Points3D(points = X)
-        # return pts3D
 
         return X    
 
@@ -897,8 +882,8 @@ class Dense3DReconstructionVGGT(DenseSceneEstimation):
                  min_observe: int = 3):
         super().__init__(cam_data = cam_data)
 
-        self.module_name = "Dense3DReconstructionVGGT"
-        self.description = f"""
+        module_name = "Dense3DReconstructionVGGT"
+        description = f"""
 Densely reconstructs a 3D scene utilizing pre-processed information of camera poses and
 images of the scene (SKIP SPARSE RECONSTRUCTION - DO NOT USE SPARSE VGGT AND INSTEAD REPLACE WITH THIS MODULE). 
 Camera Poses are estimated prior to thie module through the camera pose estimation  module, specifically from VGGT 
@@ -941,7 +926,7 @@ Module Input:
 
 Module Output: Scene
 """
-        self.example = f"""
+        example = f"""
 Initialization:
 # Import Module 
 from modules.scenereconstruction import Dense3DReconstructionVGGT
@@ -956,14 +941,22 @@ dense_scene = dense_reconstruction(sparse_scene=None,
 """
 
         # Initialize Model
-        WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        if os.name == 'nt':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        elif os.name == 'posix':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
 
-        # bfloat16 is supported on Ampere GPUs (Compute Capability 8.0+) 
-        self.dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
+        device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        self.model = VGGT().to(self.device)
+        if device == "cuda":
+            # bfloat16 is supported on Ampere GPUs (Compute Capability 8.0+) 
+            self.dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
+        else:
+            self.dtype = torch.float32
+
+        self.model = VGGT().to(device)
         self.model.load_state_dict(torch.load(WEIGHT_MODULE, weights_only=True))
+        self.model.eval()
 
         self.height, self.width = self.image_list[0].shape[:2]
         # Load Images in correct format for VGGT inference
@@ -974,29 +967,6 @@ dense_scene = dense_reconstruction(sparse_scene=None,
         self.images = torch.stack(tensor_img_list).to(self.device) 
 
         self.minimum_observation = min_observe
-
-    def point_density(self, points):
-            mins = points.min(axis=0)
-            maxs = points.max(axis=0)
-            volume = np.prod(maxs - mins)
-            return len(points) / volume
-        
-    def coverage(self, points, voxel=0.05):
-        voxels = np.floor(points / voxel).astype(int)
-        return len(np.unique(voxels, axis=0))
-    
-
-    def depth_consistency(self, depth_maps):
-        """
-        depth_maps: list of (H, W) depth arrays
-        """
-        diffs = []
-        for i in range(depth_maps.shape[0] - 1):
-            d1, d2 = depth_maps[i], depth_maps[i+1]
-            mask = np.isfinite(d1) & np.isfinite(d2)
-            diffs.append(np.abs(d1[mask] - d2[mask]))
-
-        return np.mean(np.concatenate(diffs))
 
     def build_reconstruction(self, 
                              sparse_scene: Scene | None = None,
@@ -1050,6 +1020,28 @@ dense_scene = dense_reconstruction(sparse_scene=None,
         val = self.depth_consistency(depth_maps=depth_map)
         print("DEPTH CONSISTENCY", val)
         return scene
+    
+    def point_density(self, points):
+            mins = points.min(axis=0)
+            maxs = points.max(axis=0)
+            volume = np.prod(maxs - mins)
+            return len(points) / volume
+        
+    def coverage(self, points, voxel=0.05):
+        voxels = np.floor(points / voxel).astype(int)
+        return len(np.unique(voxels, axis=0))
+    
+    def depth_consistency(self, depth_maps):
+        """
+        depth_maps: list of (H, W) depth arrays
+        """
+        diffs = []
+        for i in range(depth_maps.shape[0] - 1):
+            d1, d2 = depth_maps[i], depth_maps[i+1]
+            mask = np.isfinite(d1) & np.isfinite(d2)
+            diffs.append(np.abs(d1[mask] - d2[mask]))
+
+        return np.mean(np.concatenate(diffs))
     
 class Dense3DReconstructionMono(DenseSceneEstimation):
     def __init__(self, 
