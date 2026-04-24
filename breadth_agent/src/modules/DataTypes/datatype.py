@@ -1,11 +1,11 @@
+from __future__ import annotations
 import numpy as np
 import torch
 import cv2
 import os
-import theseus as th
-import theseus.utils.examples as theg
-from theseus.utils.examples.bundle_adjustment.data import Camera, Observation
-from __future__ import annotations
+# import theseus as th
+# import theseus.utils.examples as theg
+# from theseus.utils.examples.bundle_adjustment.data import Camera, Observation
 
 import inspect
 from abc import ABC
