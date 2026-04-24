@@ -5,11 +5,15 @@ import os
 import theseus as th
 import theseus.utils.examples as theg
 from theseus.utils.examples.bundle_adjustment.data import Camera, Observation
+from __future__ import annotations
 
+import inspect
+from abc import ABC
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Union, Dict
+from typing import List, Optional, Tuple, Union, Dict, Any
 
 Obs = Tuple[int, int]  # (image_id, kp_idx)
+
 
 @dataclass
 class IncrementalSfMState:
@@ -35,6 +39,7 @@ class CameraData:
     # --- Image Data ---
     image_list: List[np.ndarray]        
     image_shape_old: Tuple[int, int]    # (width, height)
+    image_shape_new: Tuple[int, int]    # (width, height)
     image_scale: Tuple[float, float]    # (width, height)
 
     # --- Calibration ---
@@ -108,7 +113,6 @@ class CameraData:
 @dataclass
 class Points2D:
     points2D: np.ndarray        # Nx2 [np.float32] (Mono or Left image)
-    # points2D_stereo: np.ndarray  # Nx2 [np.float32] (Right Image if Stereo=True)
     descriptors: np.ndarray     # NxM [np.float32] (32, 128, or 256 Depending on Detector)
     scores: np.ndarray          # Nx1 [np.float32] 
     orientation: np.ndarray     # 1xN [np.float32] orientation of the feature detected (SIFT)
@@ -238,13 +242,13 @@ class Points3D:
     color: np.ndarray       # Point Color [r, g, b] : Nx3
     
     def __init__(self,  points: list[np.ndarray] | None = None, #np.array([[0.0, 0.0, 0.0]]), 
-                        color: list[np.ndarray] | None = np.array([0, 0, 0])):
+                        color: list[np.ndarray] | None = None): #np.array([0, 0, 0])):
         if points is None:
             self.points3D = None
         else:
             self.points3D = np.array(points)
 
-        self.color = np.array(color)
+        self.color = None #np.array(color)
 
     def update_points(self, 
                       points: list[np.ndarray], 
@@ -539,6 +543,22 @@ class BundleAdjustmentData:
             start_index = end_index
 
         return observation
+
+@dataclass
+class SceneState:
+    cam_data: CameraData
+
+    features: list[Points2D] | None = None
+    feature_pairs: PointsMatched | None = None
+    tracked_features: PointsMatched | None = None
+    camera_poses: CameraPose | None = None
+
+    sparse_scene: Scene | None = None
+    dense_scene: Scene | None = None
+    optimized_scene: Scene | IncrementalSfMState | None = None
+
+    last_output: Any = None
+    history: list[dict[str, Any]] = field(default_factory=list)
 
 @dataclass
 class Scene:

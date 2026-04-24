@@ -80,7 +80,7 @@ Module Output:
 
 Tool Example: 
 Initialization:
-sparse_reconstruction = Sparse3DReconstructionMono(cam_data = camera_data, reproj_error = 2.0, min_observe = 3, min_angle = 1.5)
+sparse_reconstruction = Sparse3DReconstructionMono(cam_data = camera_data, view="multi", reproj_error = 2.0, min_observe = 3, min_angle = 1.5)
 
 Function Use (multi-view):
 feature_tracker = FeatureMatchLightGlueTracking(detector="superpoint")
@@ -90,17 +90,20 @@ cam_poses = pose_estimator(features=features) # To Estimate Camera Poses from de
 tracked_features = feature_tracker(features=features) # To track features across multiple images 
 
 # Estimate 3D scene using multi-view due to tracking features from multiple images in previous step
-sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="multi") 
+sparse_scene = sparse_reconstruction(tracked_features, cam_poses) 
 
 Function Use (two-view):
+# Edit Initialization to view="two"
+sparse_reconstruction = Sparse3DReconstructionMono(cam_data = camera_data, view="two", reproj_error = 2.0, min_observe = 3, min_angle = 1.5)
+
 feature_matcher = FeatureMatchLightGluePair(cam_data = camera_data)
 
 cam_poses = pose_estimator(features=features) # To Estimate Camera Poses from detected features
 
-matched_features = feature_matcher(features=features) # To track features across multiple images 
+matched_features = feature_matcher(features=features) # Estimate Features across matching pairs
 
-# Estimate 3D scene using multi-view due to tracking features from multiple images in previous step
-sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two") 
+# Estimate 3D scene using two-view due to matching features across image pairs in previous step
+sparse_scene = sparse_reconstruction(matched_features, cam_poses) 
 
 
 ===+&+===
@@ -108,14 +111,14 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
 Tool Name: Sparse3DReconstructionVGGT
 
 Tool Description: 
-Sparsely, and densely, reconstructs a 3D scene utilizing pre-processed information of camera poses and
+Sparsely reconstructs a 3D scene utilizing pre-processed information of camera poses and
 images of the scene. Camera Poses are estimated prior to thie module through the camera pose estimation 
 module, specifically from VGGT pose estimation. Features do NOT need to be tracked or matched between frames.
 This module can reconstruct sparse 3D scenes specifically using a monocular camera. 
 This module can reconstruct sparse 3D scenes either through single view or multi-view scenes.
 This is determined by the how many images exist in the scene and how many poses were estimated from the previous
 module using the VGGT pose estimation tool specifically.
-Use this module when specified for sparse/dense reconstruction and the scene doesn't allow for many features to be detected
+Use this module when specified for ONLY SPARSE reconstruction and the scene doesn't allow for many features to be detected
 from classical feature detectors (SIFT or ORB). Utilize this module in conjuction with the VGGT pose estimation module in these cases
 where feature detection is low. This module is for reconstructing the scene using the deep learning approach. 
 Computation time should not matter when invoking this tool, but keep in mind of system constraints such as GPU memory.

@@ -1,0 +1,24 @@
+The problem at hand involves creating a 3D representation of an outdoor scene centered around a statue, using a series of images captured from a monocular camera. This is a Structure-from-Motion (SfM) problem where the goal is to reconstruct the 3D geometry of the statue and its surroundings from the provided set of images.
+
+Scene Description: 
+1. All three images are taken outdoors, as indicated by the presence of a statue and the architectural background.
+
+2. There appears to be consistent illumination across the three images, with no significant changes in lighting.
+
+3. The images contain high textured regions, particularly on the statue and the pedestal.
+
+4. The images appear to be taken with a monocular camera, as there are no indications of left/right stereo camera naming in the image paths.
+
+5. The camera shows slight incremental movement across the scene, focusing on the statue from similar vantage points, without extreme viewpoint changes.
+
+Problem Solution:
+To solve the Structure-from-Motion problem, the following steps should be executed sequentially: 
+1. **Feature Detection**: Identify key features in each image using algorithms that can detect distinctive points (e.g., SIFT, SURF, or ORB). 
+2. **Feature Description**: Compute descriptors for the detected features to characterize their visual appearance, facilitating robust matching between images. 
+3. **Feature Matching**: Match the features across the different images to establish correspondences, usually employing nearest neighbor search techniques. 
+4. **Geometric Verification**: Use techniques like RANSAC to filter out erroneous matches and retain only those that conform to a geometric transformation model (e.g., fundamental matrix estimation). 
+5. **Camera Pose Estimation**: Estimate the relative positions and orientations of the camera for each image based on the correspondences of the matched feature points. 
+6. **Bundle Adjustment**: Perform global optimization to refine the camera poses and the 3D points simultaneously, minimizing reprojection errors across all images to achieve a consistent and accurate reconstruction. 
+7. **3D Point Cloud Generation**: Construct a sparse 3D point cloud using the triangulated positions of the matching feature points. 
+8. **Dense Reconstruction**: Optionally, apply techniques such as Multi-View Stereo to densify the point cloud and create a more detailed 3D representation of the statue and its surroundings. 
+9. **Surface Reconstruction**: Create a mesh or surface model from the dense point cloud using methods such as Poisson surface reconstruction or Delaunay triangulation to visualize the final 3D representation.

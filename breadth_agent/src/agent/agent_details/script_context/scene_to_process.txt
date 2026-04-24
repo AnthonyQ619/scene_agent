@@ -7,8 +7,10 @@ GOAL RECONSTRUCTION: Dense Reconstruction
 
 STEP 1: Read in Camera data
 - Set the image path to the provided directory of images to the CameraDataManager to read, resize, and pre-process images for reconstruction
+  - image_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan14_normal_lighting
 - Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
   activate the parameter
+  - calibration_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz
 - Finally, call get_camera_data() function to have access to the camera data of images and calibration
 
 STEP 2: 
@@ -70,8 +72,10 @@ GOAL RECONSTRUCTION: Sparse Reconstruction
 
 STEP 1: Read in Camera data
 - Set the image path to the provided directory of images to the CameraDataManager to read, resize, and pre-process images for reconstruction
+  - image_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan21_normal_lighting
 - Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
   activate the parameter
+  - calibration_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz
 - Finally, call get_camera_data() function to have access to the camera data of images and calibration
 
 STEP 2: 
@@ -130,6 +134,7 @@ GOAL RECONSTRUCTION: Sparse Reconstruction
 
 STEP 1: Read in Camera data
 - Set the image path to the provided directory of images to the CameraDataManager to read, resize, and pre-process images for reconstruction
+    - image_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_illumination_change
 - Since no calibration path is provided, we ignore this parameter (This is a strong indication to utilize a tool that does calibration simultaneously)
 - Since no calibration calls for the VGGT pipeline, resize images into a square format for better VGGT optimization, and convert the size to (1024,1024)
 - Finally, call get_camera_data() function to have access to the camera data of images and calibration
@@ -174,10 +179,13 @@ Example Process:
 GOAL RECONSTRUCTION: Sparse Reconstruction
 - Scene: the stone-like statue is highly textured; the background surface is mostly low-textured/uniform (MIXED TEXTURED). and 
   soft, diffuse lighting with similar shadows. USE SUPERPOINT DUE TO LIGHTING CHANGES AND MIXED TEXTURE.
-STEP 1: Read in Camera data
+
+  STEP 1: Read in Camera data
 - Set the image path to the provided directory of images to the CameraDataManager to read, resize, and pre-process images for reconstruction
+  - image_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan118_normal_lighting
 - Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
   activate the parameter
+  - calibration_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz
 - Finally, call get_camera_data() function to have access to the camera data of images and calibration
 
 STEP 2: 
@@ -235,8 +243,10 @@ GOAL RECONSTRUCTION: Dense Reconstruction
 
 STEP 1: Read in Camera data
 - Set the image path to the provided directory of images to the CameraDataManager to read, resize, and pre-process images for reconstruction
+  - image_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\images\\dslr_images_undistorted
 - Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
   activate the parameter
+  - calibration_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\dslr_calibration_undistorted\\calibration_new.npz
 - Finally, call get_camera_data() function to have access to the camera data of images and calibration
 
 STEP 2: 
@@ -300,8 +310,10 @@ GOAL RECONSTRUCTION: Sparse Reconstruction
 
 STEP 1: Read in Camera data
 - Set the image path to the provided directory of images to the CameraDataManager to read, resize, and pre-process images for reconstruction
+  - image_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\Family
 - Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
   activate the parameter
+  - calibration_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\calibration_new_2048.npz
 - Finally, call get_camera_data() function to have access to the camera data of images and calibration
 
 STEP 2: 

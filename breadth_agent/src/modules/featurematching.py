@@ -1,5 +1,6 @@
 import sys
-sys.path.append("C:\\Users\\Anthony\\Documents\\Projects\\Matchers\\RoMa\\romatch")
+# import
+# sys.path.append("C:\\Users\\Anthony\\Documents\\Projects\\Matchers\\RoMa\\romatch")
 ############ TEMP SOLUTION FOR NOW #################
 import json
 import cv2
@@ -10,7 +11,7 @@ import glob
 from tqdm import tqdm
 from modules.DataTypes.datatype import Points2D, PointsMatched, CameraData
 from modules.models.matchers import LightGlue, SuperGlue
-from romatch import roma_outdoor, roma_indoor
+# from romatch import roma_outdoor, roma_indoor
 
 from modules.baseclass import FeatureMatching, FeatureTracking
 from collections.abc import Callable
@@ -28,6 +29,7 @@ import piexif
 class FeatureMatchSuperGlueTracking(FeatureTracking):
     def __init__(self, 
                  cam_data: CameraData,
+                 RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99, 
                  detector:str = 'superpoint', 
@@ -47,14 +49,9 @@ class FeatureMatchSuperGlueTracking(FeatureTracking):
             message = 'Error: detector is not supported. Use one of ' + str(SUPPORTED_FEATURES) + ' instead to use this Feature Matcher.'
             raise Exception(message)
 
-        super().__init__(detector=detector.lower(),
-                         cam_data=cam_data,
-                         RANSAC_threshold=RANSAC_threshold,
-                         RANSAC_conf=RANSAC_conf)
-        
-        self.module_name = "FeatureMatchSuperGlueTracking"
+        module_name = "FeatureMatchSuperGlueTracking"
 
-        self.description = f"""
+        description = f"""
 Detects point correspondance across multiple frames for feature tracking in case of multi-view 
 purposes. The feature matching algorithm used is the SuperGlue deep learning model trained 
 as a feature matcher. Unless specified directly, assume the features are detected using 
@@ -95,22 +92,28 @@ Function Call Parameters:
 - features (list[Points2D]): list of features detected per scene estimated from the feature detection module
 """ # TODO: Fill in details for the matcher. Be precise as we want the agent to know when exactly to use this
         
-        self.example = f"""
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+        example = f"""
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Matcher Module initialized with the SIFT detector
-feature_tracker = FeatureMatchSuperGlueTracking(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
-
-# Feature Matcher Module intialized with the SuperPoint detector
-feature_tracker = FeatureMatchSuperGlueTracking(cam_data = camera_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
+# Step 2: Detect Features must be completed prior!
+# Step 3/4: 
+reconstructed_scene.{module_name}(
+    RANSAC_threshold=0.008,
+    lowes_thresh=0.65,
+    )
 """
-
+        super().__init__(detector=detector,
+                         cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC_homography=RANSAC_homography,
+                         RANSAC_threshold=RANSAC_threshold)
+        
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
 
         config_settings = {
@@ -127,6 +130,8 @@ tracked_features = feature_tracker(features=features) # Features used from Featu
         torch.set_grad_enabled(False)
 
         matched_points = self.feature_tracker.match_full(features)
+
+        self.calculate_metrics(data_mat=matched_points.data_matrix, total_points=matched_points.point_count)
 
         return matched_points
     
@@ -157,6 +162,7 @@ tracked_features = feature_tracker(features=features) # Features used from Featu
 class FeatureMatchLightGlueTracking(FeatureTracking):
     def __init__(self, 
                  cam_data: CameraData,
+                 RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99, 
                  detector:str = 'superpoint', 
@@ -172,15 +178,10 @@ class FeatureMatchLightGlueTracking(FeatureTracking):
         if detector.lower() not in SUPPORTED_FEATURES:
             message = 'Error: detector is not supported. Use one of ' + str(SUPPORTED_FEATURES) + ' instead to use this Feature Matcher.'
             raise Exception(message)
-
-        super().__init__(detector=detector.lower(),
-                         cam_data=cam_data,
-                         RANSAC_threshold=RANSAC_threshold,
-                         RANSAC_conf=RANSAC_conf)
         
-        self.module_name = "FeatureMatchLightGlueTracking"
+        module_name = "FeatureMatchLightGlueTracking"
         
-        self.description = f"""
+        description = f"""
 Detects point correspondance across multiple frames to track features for multi-view purposes. 
 The feature matching algorithm used is the LightGlue deep learning model trained as a feature 
 matcher. Unless specified directly, assume the features are detected using the SuperPoint 
@@ -222,23 +223,29 @@ Function Call Parameters:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """ # TODO: Fill in details for the matcher. Be precise as we want the agent to know when exactly to use this
         
-        self.example = f"""
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+        example = f"""
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Matcher Module initialized with the SIFT detector
-feature_tracker = FeatureMatchLightGlueTracking(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
-
-# Feature Matcher Module intialized with the SuperPoint detector
-feature_tracker = FeatureMatchLightGlueTracking(cam_data = camera_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
-
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
+# Step 2: Detect Features must be completed prior!
+# Step 3/4: 
+reconstructed_scene.{module_name}(
+    RANSAC_threshold=0.008,
+    lowes_thresh=0.65,
+    )
 """
 
+        super().__init__(detector=detector,
+                         cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC_homography=RANSAC_homography,
+                         RANSAC_threshold=RANSAC_threshold)
+        
         self.matcher = LightGlue(features = self.detector, 
                                  n_layers = n_layers,
                                  flash = flash, 
@@ -256,6 +263,8 @@ tracked_features = feature_tracker(features=features) # Features used from Featu
         # feature_tracker = FeatureTracker(self.matcher_parser)
 
         matched_points = self.feature_tracker.match_full(features)
+
+        self.calculate_metrics(data_mat=matched_points.data_matrix, total_points=matched_points.point_count)
 
         return matched_points
     
@@ -315,18 +324,14 @@ class FeatureMatchFlannTracking(FeatureTracking):
                  cam_data: CameraData,
                  lowes_thresh: float = 0.75,
                  k: int = 2,
+                 RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99, 
                  detector:str = 'sift'):
 
-        super().__init__(detector.lower(), 
-                         cam_data=cam_data,
-                         RANSAC_conf=RANSAC_conf,
-                         RANSAC_threshold=RANSAC_threshold)
+        module_name = "FeatureMatchFlannTracking"
 
-        self.module_name = "FeatureMatchFlannTracking"
-
-        self.description = f"""
+        description = f"""
 Detects point correspondance across multiple frames to track features. The feature matching
 algorithm used is the Flann feature detector. Unless specified directly, assume the features
 are detected using the SIFT algorithm and initialize through the detector parameter. 
@@ -357,28 +362,31 @@ Function Call Parameters:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """
 
-        self.example = f"""
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+        example = f"""
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Tracker Module initialized with the SIFT detector
-feature_tracker = FeatureMatchFlannTracking(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
-
-# Feature Tracker Module initialized with the ORB detector 
-feature_tracker = FeatureMatchFlannTracking(cam_data = camera_data, detector='orb') # Initialized with detector 'orb' for proper matching
-
-# Feature Tracker Module intialized with the FAST detector
-feature_tracker = FeatureMatchFlannTracking(cam_data = camera_data, detector='fast') # Initialized with detector 'orb' for proper matching
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
+# Step 2: Detect Features must be completed prior!
+# Step 3/4: 
+reconstructed_scene.{module_name}(
+    RANSAC_threshold=0.008,
+    lowes_thresh=0.65,
+    )
 """
+        super().__init__(detector=detector,
+                         cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC_homography=RANSAC_homography,
+                         RANSAC_threshold=RANSAC_threshold)
 
         if self.detector in self.DETECTORS[:2]:
             FLANN_INDEX_KDTREE = 1
-            index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
+            index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 8)
         else: # Fast and Orb
             FLANN_INDEX_LSH = 6
             index_params = dict(algorithm = FLANN_INDEX_LSH,
@@ -386,7 +394,7 @@ tracked_features = feature_tracker(features=features) # Features used from Featu
                                 key_size = 12,     # 20
                                 multi_probe_level = 2) #2
         
-        search_params = dict(checks=50)   # or pass empty dictionary
+        search_params = dict(checks=64)   # or pass empty dictionary
 
         self.matcher = cv2.FlannBasedMatcher(index_params,search_params)
         self.lowes_thresh = lowes_thresh
@@ -441,18 +449,13 @@ class FeatureMatchBFTracking(FeatureTracking):
                  lowes_thresh: float = 0.75,
                  k: int = 2,
                  cross_check: bool = True,
+                 RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99,
                  GMS: bool = False):
-
-
-        super().__init__(detector.lower(), 
-                         cam_data=cam_data,
-                         RANSAC_conf=RANSAC_conf,
-                         RANSAC_threshold=RANSAC_threshold)
         
-        self.module_name = "FeatureMatchBFTracking"
-        self.description = f"""
+        module_name = "FeatureMatchBFTracking"
+        description = f"""
 Detects point correspondance between multiple frames to track any matching 
 features across the set of images. The feature matching algorithm used is the Brute-Force 
 feature detector. Unless specified directly, assume the features are detected using the SIFT 
@@ -473,8 +476,6 @@ Initalization Parameters:
      collection is the nearest and vice versa, i.e. the BFMatcher will only return consistent pairs. Such technique usually produces best results with 
      minimal number of outliers when there are enough matches. i.e only use when there's are lot of feature points
     - Default (bool): False
-- RANSAC: Determines whether to use RANSAC for outlier rejection of matched feature points. If False, uses FM_LMEDS, or the Least-Median-of-Squares (LMedS) algorithm.
-    - Default (bool): True
 - RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
      is considered an outlier and is not used for computing the final fundamental matrix.
     - Default (float): 1.0
@@ -488,26 +489,29 @@ Initalization Parameters:
 Function Call Parameters:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """
-        self.example = f"""
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+        example = f"""
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Matcher Module initialized with the SIFT detector
-feature_tracker = FeatureMatchBFTracking(cam_data=cam_data, detector='sift') # Initialized with detector 'sift' for proper matching
+# Step 2: Detect Features must be completed prior!
+# Step 3/4: 
+reconstructed_scene.{module_name}(
+    RANSAC_threshold=0.008,
+    lowes_thresh=0.65,
+    )
+"""     
+        super().__init__(detector=detector,
+                         cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC_homography=RANSAC_homography,
+                         RANSAC_threshold=RANSAC_threshold)
 
-# Feature Matcher Module initialized with the ORB detector 
-feature_tracker = FeatureMatchBFTracking(cam_data=cam_data, detector='orb') # Initialized with detector 'orb' for proper matching
-
-# Feature Matcher Module intialized with the SuperPoint detector
-feature_tracker = FeatureMatchBFTracking(cam_data=cam_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-tracked_features = feature_tracker(features=features) # Features used from Feature Detector Module are input to feature module
-"""
-
-        if self.detector ==  self.DETECTORS[0]:
+        if self.detector in self.DETECTORS[:2]:
             norm_type = cv2.NORM_L2
             self.matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
         else:
@@ -825,7 +829,7 @@ class FeatureMatchSuperGluePair(FeatureMatching):
                  match_threshold: float = 0.2, 
                  descriptor_dim: int = 256,
                  setting: str = 'indoor',
-                 RANSAC: bool = True,
+                 RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99):
         
@@ -839,16 +843,10 @@ class FeatureMatchSuperGluePair(FeatureMatching):
         if detector.lower() not in SUPPORTED_FEATURES:
             message = 'Error: detector is not supported. Use one of ' + str(SUPPORTED_FEATURES) + ' instead to use this Feature Matcher.'
             raise Exception(message)
-        
-        super().__init__(detector=detector.lower(), 
-                         cam_data=cam_data,
-                         RANSAC_conf=RANSAC_conf,
-                         RANSAC=RANSAC,
-                         RANSAC_threshold=RANSAC_threshold)
 
-        self.module_name = "FeatureMatchSuperGluePair"
+        module_name = "FeatureMatchSuperGluePair"
 
-        self.description = f"""
+        description = f"""
 Detects point correspondance between two sequential frames at once to detect matching 
 features across a set of images. The feature matching algorithm used is the SuperGlue deep
 learning model trained as a feature matcher. Unless specified directly, assume the features 
@@ -890,21 +888,29 @@ Function Call Parameters:
 - features (list[Points2D]): list of features detected per scene estimated from the feature detection module
 """ # TODO: Fill in details for the matcher. Be precise as we want the agent to know when exactly to use this
         
-        self.example = f"""
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+        example = f"""
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Matcher Module initialized with the SIFT detector
-feature_matcher = FeatureMatchSuperGluePair(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
-
-# Feature Matcher Module intialized with the SuperPoint detector
-feature_matcher = FeatureMatchSuperGluePair(cam_data = camera_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-matched_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
+# Step 2: Detect Features must be completed prior!
+# Step 3: 
+reconstructed_scene.{module_name}(
+    RANSAC_threshold=0.008,
+    lowes_thresh=0.65,
+    )
 """
+
+        super().__init__(cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC_homography=RANSAC_homography,
+                         RANSAC_threshold=RANSAC_threshold)
+        
+        self.detector = detector
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
 
@@ -930,7 +936,7 @@ matched_features = feature_matcher(features=features) # Features used from Featu
 
     #     return matched_points
     
-    def match_full(self, features: list[Points2D]) -> PointsMatched:
+    def find_correspondences(self, features: list[Points2D]) -> PointsMatched:
         torch.set_grad_enabled(False)
 
         img_size = features[0].image_size
@@ -982,10 +988,15 @@ matched_features = feature_matcher(features=features) # Features used from Featu
         # Get the last image feature set
         matched_points.img_features.append(features[-1].points2D)
 
-        avg_outliers, mean_ct, min_ct, max_ct = self._metric_calculation(matched_points) 
+        # mean_ct, inlier_yield, repeatability, gric_F, gric_H = self._metric_calculation(matched_points) 
 
-        event_msg = {"avg_outlier": avg_outliers, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
-        print(json.dumps(event_msg), flush=True)
+        # event_msg = {"Average Corresponding Features": mean_ct, "Inlier Yield per Frame": inlier_yield, 
+        #             "repeatability": repeatability, "gric_fundamental": gric_F, "gric_homography": gric_H}
+        # print(json.dumps(event_msg), flush=True)
+
+        # # Write to file
+        # with open('data.json', 'w', encoding='utf-8') as f:
+        #     json.dump({"Features Detected per Frame": event_msg_feats, "Feature Spatial Distribution per Frame": event_msg_coverage}, f, indent = 4)
 
         return matched_points
 
@@ -1023,7 +1034,7 @@ class FeatureMatchLightGluePair(FeatureMatching):
                  depth_confidence: float = 0.95,
                  width_confidence: float = 0.99, 
                  filter_threshold: float = 0.1,
-                 RANSAC: bool = True,
+                 RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99):
         
@@ -1033,15 +1044,8 @@ class FeatureMatchLightGluePair(FeatureMatching):
             message = 'Error: detector is not supported. Use one of ' + str(self.FORMATS) + ' instead to use this Feature Matcher.'
             raise Exception(message)
 
-        super().__init__(detector=detector.lower(), 
-                         cam_data=cam_data,
-                         RANSAC_conf=RANSAC_conf,
-                         RANSAC=RANSAC,
-                         RANSAC_threshold=RANSAC_threshold)
-        
-
-        self.module_name = "FeatureMatchLightGluePair"
-        self.description = f"""
+        module_name = "FeatureMatchLightGluePair"
+        description = f"""
 Detects point correspondance between two sequential frames at once to detect matching 
 features across a set of images. The feature matching algorithm used is the LightGlue deep
 learning model trained as a feature matcher. Unless specified directly, assume the features 
@@ -1085,22 +1089,30 @@ Function Call Parameters:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """ # TODO: Fill in details for the matcher. Be precise as we want the agent to know when exactly to use this
         
-        self.example = f"""
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+        example = f"""
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Matcher Module initialized with the SIFT detector
-feature_matcher = FeatureMatchLightGluePair(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
-
-# Feature Matcher Module intialized with the SuperPoint detector
-feature_matcher = FeatureMatchLightGluePair(cam_data = camera_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
-
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-matched_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
+# Step 2: Detect Features must be completed prior!
+# Step 3: 
+reconstructed_scene.{module_name}(
+    RANSAC_threshold=0.008,
+    lowes_thresh=0.65,
+    )
 """
+        
+        super().__init__(cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC_homography=RANSAC_homography,
+                         RANSAC_threshold=RANSAC_threshold)
+        
+        self.detector = detector
+        
         self.matcher = LightGlue(features=self.detector, 
                                  n_layers = n_layers,
                                  flash = flash, 
@@ -1119,7 +1131,7 @@ matched_features = feature_matcher(features=features) # Features used from Featu
 
     #     return matched_points
     
-    def match_full(self, features: list[Points2D]) -> PointsMatched:
+    def find_correspondences(self, features: list[Points2D]) -> PointsMatched:
         torch.set_grad_enabled(False)
 
         img_size = features[0].image_size
@@ -1174,8 +1186,8 @@ matched_features = feature_matcher(features=features) # Features used from Featu
             #                                         img1, img2, 
             #                                         torch.from_numpy(new_pt1.descriptors), 
             #                                         torch.from_numpy(new_pt2.descriptors))
-            print(len(idx1))
-            print(new_pt1.points2D.shape)
+            # print(len(idx1))
+            # print(new_pt1.points2D.shape)
             # inlier_pts1, inlier_pts2, F_mat = self.outlier_reject(new_pt1, new_pt2, scene)
             inlier_pts1, inlier_pts2, idx1_inliers, idx2_inliers, F = self.outlier_reject(new_pt1, new_pt2, idx1, idx2, scene)
             
@@ -1193,10 +1205,11 @@ matched_features = feature_matcher(features=features) # Features used from Featu
         # Get the last image feature set
         matched_points.img_features.append(features[-1].points2D)
 
-        avg_outliers, mean_ct, min_ct, max_ct = self._metric_calculation(matched_points) 
+        # mean_ct, inlier_yield, repeatability, gric_F, gric_H = self._metric_calculation(matched_points) 
 
-        event_msg = {"avg_outlier": avg_outliers, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
-        print(json.dumps(event_msg), flush=True)
+        # event_msg = {"avg_feats": mean_ct, "inlier_yield": inlier_yield, 
+        #             "repeatability": repeatability, "gric_fundamental": gric_F, "gric_homography": gric_H}
+        # print(json.dumps(event_msg), flush=True)
 
         return matched_points
 
@@ -1240,19 +1253,13 @@ class FeatureMatchFlannPair(FeatureMatching):
                  cam_data: CameraData, 
                  detector:str = 'sift',
                  k: int = 2,
-                 RANSAC: bool = True,
+                 RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99,
                  lowes_thresh: float = 0.75):
 
-        super().__init__(detector=detector.lower(), 
-                         cam_data=cam_data,
-                         RANSAC_conf=RANSAC_conf,
-                         RANSAC=RANSAC,
-                         RANSAC_threshold=RANSAC_threshold)
-
-        self.module_name = "FeatureMatchFlannPair"
-        self.description = f"""
+        module_name = "FeatureMatchFlannPair"
+        description = f"""
 Detects point correspondance between two sequential frames at once to detect matching 
 features across a set of images. The feature matching algorithm used is the Flann feature 
 detector. Use this feature matcher for when a Nearest Neighbor algorithm is called for 
@@ -1286,26 +1293,30 @@ Initialization Parameters:
 Function Call Parameters:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """
-        self.example = f"""
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+        example = f"""
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Matcher Module initialized with the SIFT detector
-feature_matcher = FeatureMatchFlannPair(cam_data=cam_data, detector='sift') # Initialized with detector 'sift' for proper matching
-
-# Feature Matcher Module initialized with the SuperPoint detector
-feature_matcher = FeatureMatchFlannPair(cam_data=cam_data, detector='superpoint') # Initialized with detector 'sift' for proper matching
-
-# Feature Matcher Module initialized with the ORB detector 
-feature_matcher = FeatureMatchFlannPair(cam_data=cam_data, detector='orb') # Initialized with detector 'orb' for proper matching
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-detected_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
-"""
+# Step 2: Detect Features must be completed prior!
+# Step 3: 
+reconstructed_scene.{module_name}(
+    RANSAC_threshold=0.008,
+    lowes_thresh=0.65,
+    )
+"""     
+        super().__init__(cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC_homography=RANSAC_homography,
+                         RANSAC_threshold=RANSAC_threshold)
+        
+        self.detector = detector
         # print(self.detector)
-        if self.detector in self.DETECTORS[:2]:
+        if detector in ["sift", "sp", "superpoint"]:
             FLANN_INDEX_KDTREE = 1
             index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
         else: # Fast and Orb
@@ -1334,7 +1345,7 @@ detected_features = feature_matcher(features=features) # Features used from Feat
 
     #     return matched_points
     
-    def match_full(self, features: list[Points2D]) -> PointsMatched:
+    def find_correspondences(self, features: list[Points2D]) -> PointsMatched:
         img_size = features[0].image_size
         img_scale = features[0].reshape_scale
         matched_points = PointsMatched(pairwise_matches=[], 
@@ -1368,11 +1379,6 @@ detected_features = feature_matcher(features=features) # Features used from Feat
 
         # Get the last image feature set
         matched_points.img_features.append(features[-1].points2D)
-
-        avg_outliers, mean_ct, min_ct, max_ct = self._metric_calculation(matched_points) 
-
-        event_msg = {"avg_outlier": avg_outliers, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
-        print(json.dumps(event_msg), flush=True)
 
         return matched_points
 
@@ -1419,20 +1425,14 @@ class FeatureMatchBFPair(FeatureMatching):
                  detector:str = 'sift',
                  k: int = 2,
                  cross_check: bool = True,
-                 RANSAC: bool = True,
+                 RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 1.0,
                  RANSAC_conf: float = 0.99,
                  GMS: bool = False,
                  lowes_thresh: float = 0.75):
 
-        super().__init__(detector=detector.lower(), 
-                         cam_data=cam_data,
-                         RANSAC_threshold=RANSAC_threshold,
-                         RANSAC=RANSAC,
-                         RANSAC_conf=RANSAC_conf)
-
-        self.module_name = "FeatureMatchBFPair"
-        self.description = f"""
+        module_name = "FeatureMatchBFPair"
+        description = f"""
 Detects point correspondance between two sequential frames at a time to detect matching 
 features across a set of images. The feature matching algorithm used is the Brute-Force 
 feature detector. Unless specified directly, assume the features are detected using the SIFT 
@@ -1468,26 +1468,31 @@ Initalization Parameters:
 Function Call Parameters:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """
-        self.example = f"""
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+        example = f"""
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Matcher Module initialized with the SIFT detector
-feature_matcher = FeatureMatchBFPair(cam_data=cam_data, detector='sift') # Initialized with detector 'sift' for proper matching
-
-# Feature Matcher Module initialized with the ORB detector 
-feature = FeatureMatchBFPair(cam_data=cam_data, detector='orb') # Initialized with detector 'orb' for proper matching
-
-# Feature Matcher Module intialized with the FAST detector
-feature = FeatureMatchBFPair(cam_data=cam_data, detector='fast') # Initialized with detector 'orb' for proper matching
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-tracked_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
+# Step 2: Detect Features must be completed prior!
+# Step 3: 
+reconstructed_scene.{module_name}(
+    RANSAC_threshold=0.008,
+    lowes_thresh=0.65,
+    )
 """
 
-        if self.detector ==  self.DETECTORS[0]:
+        super().__init__(cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC_homography=RANSAC_homography,
+                         RANSAC_threshold=RANSAC_threshold)
+        
+        self.detector = detector
+
+        if self.detector in ["sift", "sp", "superpoint"]:
             norm_type = cv2.NORM_L2
         else:
             norm_type = cv2.NORM_HAMMING
@@ -1512,7 +1517,7 @@ tracked_features = feature_matcher(features=features) # Features used from Featu
    
     #     return matched_points
     
-    def match_full(self, features: list[Points2D]) -> PointsMatched:
+    def find_correspondences(self, features: list[Points2D]) -> PointsMatched:
         img_size = features[0].image_size
         img_scale = features[0].reshape_scale
         matched_points = PointsMatched(pairwise_matches=[], 
@@ -1541,11 +1546,6 @@ tracked_features = feature_matcher(features=features) # Features used from Featu
             matched_points.img_features.append(pt1.points2D)
         # Get the last image feature set
         matched_points.img_features.append(features[-1].points2D)
-
-        avg_outliers, mean_ct, min_ct, max_ct = self._metric_calculation(matched_points) 
-
-        event_msg = {"avg_outlier": avg_outliers, "avg_feats": mean_ct, "min_feats": min_ct, "max_feats": max_ct}
-        print(json.dumps(event_msg), flush=True)
 
         return matched_points
 

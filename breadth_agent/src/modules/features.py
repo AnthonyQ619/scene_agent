@@ -123,8 +123,7 @@ class FeatureDetectionSIFT(FeatureClass):
                  contrast_threshold: float = 0.04,
                  edge_threshold: int = 10,
                  sigma: float = 1.6):
-        #super().__init__(image_path)
-        super().__init__(cam_data)
+
         """
         Detect Features (Keypoints and Descriptors) using the SIFT algorithm
 
@@ -137,8 +136,10 @@ class FeatureDetectionSIFT(FeatureClass):
                     scores:         [N x 1] np.float32
                     image_size:     [1 x 2] np.int64
         """
-        self.module_name = "FeatureDetectionSIFT"
-        self.description = f"""
+
+        module_name = "FeatureDetectionSIFT"
+
+        description = f"""
 Detects existing keypoints(features) and descriptors in images using the feature detector 
 SIFT. This Feature Detector is used when accurate and robust feature detection with
 detailed description generation based algorithms are the priority. USE THIS MODULE in cases
@@ -158,7 +159,7 @@ from the image resolution.
 - contrast_threshold: The contrast threshold used to filter out weak features in semi-uniform (low-contrast) regions. 
 The larger the threshold, the less features are produced by the detector. NOTE: The contrast threshold will be divided 
 by nOctaveLayers when the filtering is applied.
-    - Default (flaot): 0.04
+    - Default (float): 0.04
 - edge_threshold: The threshold used to filter out edge-like features. Note that the its meaning is different from the 
 contrastThreshold, i.e. the larger the edgeThreshold, the more features are produced.
     - Default (int): 10
@@ -175,45 +176,39 @@ Module Output:
             image_size:     [1 x 2] np.int64
 """
         
-        self.example = f"""
+        example = f"""
 Initialization of Module: 
-feature_detector = FeatureDetectionSIFT(cam_data = camera_data, max_keypoints = 2000) 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-Function call of Module:  
-features = feature_detector()
+# Step 2: Detect Features
+reconstructed_scene.FeatureDetectionSIFT(
+    max_keypoints=9000,
+    contrast_threshold=0.02,
+    edge_threshold=20,
+    )
 """
         
-
+        # Set up Initialization
+        super().__init__(cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example)
+        
+        
         self.detector = cv2.SIFT_create(nfeatures = max_keypoints,
                                         nOctaveLayers = n_octave_layers,
                                         contrastThreshold = contrast_threshold,
                                         edgeThreshold =edge_threshold,
                                         sigma = sigma)
 
-        # self.image_reshape, self.reshape_scale = self._det_img_shape(self.image_path[0],
-        #                                                              image_reshape)
-        # print(self.image_reshape)
-        # print(self.reshape_scale)
+        # Verifying Images are read accordingly
         print("Number of Images", len(self.image_list))
         print("New Image Scale", self.image_scale)
 
-        # Update Image Scale accordingly
-        # cam_data.update_calibration(self.image_scale)
 
-        # self.image_reshape = None
-        # self.reshape_scale = [1.0, 1.0]
-        # print(self.reshape_scale)
-        # if image_reshape is not None:
-        #     img = self.image_path[0]
-        #     h, w = cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2GRAY).shape[:2]
-        #     h_new, w_new = image_reshape
-        #     self.reshape_scale = [w_new / w, h_new / h]
-        #     self.image_rehsape = image_reshape
-        # else:
-        #     self.reshape_scale = [1.0, 1.0]
-        #     self.image_rehsape = None
-
-    def __call__(self) -> list[Points2D]:
+    def _detect_features(self) -> list[Points2D]:
 
         # New Version
         # if self.image_reshape is not None:
@@ -251,82 +246,9 @@ features = feature_detector()
                                     reshape_scale=self.image_scale,
                                     scale=scale,
                                     orientation=ori))
-        
-        # Output Metric
-        mean_ct, min_count, max_count = self._metric_calculation()
-        event_msg = {"avg": mean_ct, "min": min_count, "max": max_count}
-        print(json.dumps(event_msg), flush=True)
 
         return self.features
     
-    # def _detect_resize(self) -> list[Points2D]:
-    #     features = []
-    #     eps=1e-7
-        
-    #     for i in tqdm(range(len(self.image_path))): # len(self.image_path)
-    #     # img in self.image_path:
-    #         img = self.image_path[i]
-    #         im_gray = cv2.resize(cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2GRAY),
-    #                              self.image_reshape, 
-    #                              interpolation=cv2.INTER_AREA)
-
-    #         kp, des = self.detector.detectAndCompute(im_gray, None)
-    #         pts = np.array([kp[i].pt for i in range(len(kp))], np.float32)
-    #         des = np.float32(des)
-    #         # apply the Hellinger kernel by first L1-normalizing and taking the
-    #         # square-root
-    #         des /= (des.sum(axis=1, keepdims=True) + eps)
-    #         des = np.sqrt(des)
-
-    #         scores = np.vstack(np.array([kp[i].response for i in range(len(kp))], np.float32))
-    #         scale = np.array([[kp[i].size for i in range(len(kp))]], np.float32)
-    #         ori = np.array([[kp[i].angle for i in range(len(kp))]], np.float32)
-    #         image_size = np.array([im_gray.shape[1], im_gray.shape[0]])
-            
-    #         features.append(Points2D(points2D = pts, 
-    #                                 descriptors = des,
-    #                                 scores = scores, 
-    #                                 image_size = image_size,
-    #                                 reshape_scale=self.reshape_scale,
-    #                                 scale=scale,
-    #                                 orientation=ori))
-            
-    #     return features
-
-    # def _detect_base(self) -> list[Points2D]:
-    #     features = []
-    #     eps=1e-7
-
-    #     #for i in tqdm(range(len(self.image_path))): # len(self.image_path)
-    #     for i in range(len(self.image_list)):
-    #     # img in self.image_path:
-    #         img = self.image_list[i] #self.image_path[i]
-    #         im_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) #cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2GRAY)
-
-    #         kp, des = self.detector.detectAndCompute(im_gray, None)
-    #         pts = np.array([kp[i].pt for i in range(len(kp))], np.float32)
-    #         des = np.float32(des)
-    #         # apply the Hellinger kernel by first L1-normalizing and taking the
-    #         # square-root
-    #         des /= (des.sum(axis=1, keepdims=True) + eps)
-    #         des = np.sqrt(des)
-
-    #         scores = np.vstack(np.array([kp[i].response for i in range(len(kp))], np.float32))
-    #         scale = np.array([[kp[i].size for i in range(len(kp))]], np.float32)
-    #         ori = np.array([[kp[i].angle for i in range(len(kp))]], np.float32)
-    #         image_size = np.array([im_gray.shape[1], im_gray.shape[0]])
-            
-    #         features.append(Points2D(points2D = pts, 
-    #                                 descriptors = des,
-    #                                 scores = scores, 
-    #                                 image_size = image_size,
-    #                                 reshape_scale=self.image_scale,
-    #                                 scale=scale,
-    #                                 orientation=ori))
-            
-    #     return features
-    
-
 class FeatureDetectionORB(FeatureClass):
     def __init__(self, #image_path:str | None,
                  cam_data: CameraData,
@@ -338,8 +260,6 @@ class FeatureDetectionORB(FeatureClass):
                  set_nms_allowed_points: int = 3000,
                  set_nms_tolerance: float = 0.1):
         
-        #super().__init__(image_path)
-        super().__init__(cam_data)
         """
         Detect Features (Keypoints and Descriptors) using the ORB algorithm
 
@@ -353,10 +273,9 @@ class FeatureDetectionORB(FeatureClass):
                     image_size: [1 x 2] np.int64
         """
 
-        self.module_name = "FeatureDetectionORB"
-#- image_path (str): the image path in which the images are stored and to utilize for scene building
+        module_name = "FeatureDetectionORB"
 
-        self.description = f"""
+        description = f"""
 Detects existing keypoints(features) and descriptors in images using the feature detector 
 ORB. This Feature Detector is used when efficiency is the priority as ORB utilizes faster feature detection
 and description generation based algorithms. USE THIS MODULE when the image contains well textured objects with 
@@ -368,13 +287,15 @@ Initialization Parameters:
 - max_keypoints: Maximum number of Keypoints to detect per image from the feature detector
     - Default (int): 1024
 - edge_threshold: This is size of the border where the features are not detected. It should roughly match the patchSize parameter
+  This prevents finding features too close to the image boundary where descriptors might not be computed correctly
     - Default (int): 31
 - WTA_K: The number of points that produce each element of the oriented BRIEF descriptor.
     - Default (int): 2
 - fast_threshold: This is the value to determine the pixel threshold for brightness, or dimness, that is used to estimate a point is a corner.
+  A lower value will detect more potential corners, while a higher value will be more selective.
     - Default (int): 20
 - set_nms: Utilize Non-Maximum Supression on detected feature points to create a uniform distribution of points and avoid clusters. 
-Useful in cases of highly textured regions and need a larger distance between points, but significantly increases time complexity.
+  Useful in cases of highly textured regions and need a larger distance between points, but significantly increases time complexity.
     - Default (bool): False
 - set_nms_allowed_points: number of points to search in algorithm. Ensure it is less that max_points to detect.
     - Defauilt (int): 3000
@@ -390,44 +311,46 @@ Module Output:
             image_size: [1 x 2] np.int64
 """
         
-        self.example = f"""
+        example = f"""
 Initialization of Module: 
-image_reader = ImageProcessor(image_path=image_path)
-images = image_reader(calibration_data)
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-feature_detector = FeatureDetectionORB(cam_data = camera_data, max_keypoints = 2000) 
-
-Function call of Module:  
-features = feature_detector()
-
+# Step 2: Detect Features
+reconstructed_scene.FeatureDetectionORB(
+    max_keypoints=9000,
+    contrast_threshold=0.02,
+    edge_threshold=20,
+    )
 """        
+        # Set up Initialization
+        super().__init__(cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example)
+
+
         err_msg = f"Value of the parameter of WTA_K is {WTA_K}. Ensure parameter value of 1, 2, 3, or 4. WTA_K can not be any other value."
         assert (WTA_K < 5 and WTA_K > 0), err_msg
-        # print(self.image_path)
 
         self.detector = cv2.ORB_create(nfeatures = max_keypoints,
                                        WTA_K = WTA_K,
                                        fastThreshold = fast_threshold,
                                        edgeThreshold = edge_threshold)
+
         self.nms = set_nms
         self.set_nms_allowed_points = set_nms_allowed_points
         self.set_nms_tolerance = set_nms_tolerance
-        # Update Calibration if Images are Resized
-        # cam_data.update_calibration(self.image_scale)
 
-    def __call__(self) -> list[Points2D]:
-        # for i in tqdm(range(len(self.image_path))): # len(self.image_path)
-        # # img in self.image_path:
-        #     img = self.image_path[i]
-        #     im_gray = cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2GRAY)
+    def _detect_features(self) -> list[Points2D]:
+        
         for i in tqdm(range(len(self.image_list)), desc="Detecting Features"):
-        # img in self.image_path:
-            img = self.image_list[i] #self.image_path[i]
-            im_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+            img = self.image_list[i] 
+            im_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) # Convert Images to Gray
 
             kp, des = self.detector.detectAndCompute(im_gray, None)
             
-            # print(des.shape)
             if self.nms: 
                 sorted_indices = sorted(range(len(kp)), key=lambda x: kp[x].response, reverse=True)
                 kp = sorted(kp, key=lambda x: x.response, reverse=True)
@@ -449,7 +372,6 @@ features = feature_detector()
                 scale = np.array([[kp[i].size for i in range(len(kp))]], np.float32)
                 ori = np.array([[kp[i].angle for i in range(len(kp))]], np.float32)
 
-            #des = des.astype(np.float32)
             image_size = np.array([im_gray.shape[1], im_gray.shape[0]])
 
             self.features.append(Points2D(points2D = pts, 
@@ -460,16 +382,8 @@ features = feature_detector()
                                           image_size = image_size,
                                           reshape_scale=self.image_scale,
                                           binary_desc=True))
-        
-
-        # Output Metric
-        mean_ct, min_count, max_count = self._metric_calculation()
-        event_msg = {"avg": mean_ct, "min": min_count, "max": max_count}
-        print(json.dumps(event_msg), flush=True)
-
         return self.features
 
-            
 class FeatureDetectionFAST(FeatureClass):
     def __init__(self, image_path:str | None,
                  image_reshape: tuple[int, int] | None = None):
@@ -553,7 +467,6 @@ class FeatureDetectionSP(FeatureClass):
     def __init__(self, 
                  cam_data: CameraData,
                  max_keypoints: int = 1024):
-        super().__init__(cam_data)
         """
         Detect Features (Keypoints and Descriptors) using the SuperPoint Deep Learning Model
 
@@ -569,9 +482,9 @@ class FeatureDetectionSP(FeatureClass):
                     image_size:     [1 x 2] np.int64
         """
 
+        module_name = "FeatureDetectionSP"
 
-        self.module_name = "FeatureDetectionSP"
-        self.description = f"""
+        description = f"""
 Detects existing keypoints(features) and descriptors in images using a Deep Learning Model Feature
 Detector denoted as SuperPoint.
 This Feature Detector is utilized in cases where diffuse lighting materials exist in scenes, images of 
@@ -601,29 +514,39 @@ Module Output:
             image_size: [1 x 2] np.int64
 """
 
-        self.example = f"""
-Initialization: 
-feature_detector = FeatureDetectionSP(cam_data = camera_data, max_keypoints=2000) 
+        example = f"""
+Initialization of Module: 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-Function call:  
-features = feature_detector()
+# Step 2: Detect Features
+reconstructed_scene.FeatureDetectionSP(
+    max_keypoints=9000,
+    contrast_threshold=0.02,
+    edge_threshold=20,
+    )
 """     
+
+        # Set up Initialization
+        super().__init__(cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example)
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # 'mps', 'cpu'
 
         self.detector = SuperPoint(max_num_keypoints=max_keypoints).eval().to(self.device) 
 
-    def __call__(self) -> list[Points2D]:
+    def _detect_features(self) -> list[Points2D]:
+        
         for i in tqdm(range(len(self.image_list)),
                       desc="Detecting Features"): # len(self.image_path)
             
-        # img in self.image_path:
             img = self.image_list[i]
-            # img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-            #img_read, scale = load_image(img, self.image_reshape) # Need Image Shape
             img_torch = numpy_image_to_torch(img)
-            # print(img_torch.shape)
-            # Keypoints
+        
+            # Detect Keypoints
             features = self.detector.extract(img_torch.to(self.device))
             
             keypoints = features['keypoints'].cpu().numpy().squeeze()
@@ -632,17 +555,12 @@ features = feature_detector()
 
             image_size = np.array([img_torch.shape[2], img_torch.shape[1]])
             
-            # print(keypoints.shape)
-            # print(desc.shape)
             self.features.append(Points2D(points2D = keypoints, 
                                         descriptors = desc,
                                         scores = scores, 
                                         image_size = image_size,
                                         reshape_scale=self.image_scale))
         
-        # Output Metric
-        mean_ct, min_count, max_count = self._metric_calculation()
-        event_msg = {"avg": mean_ct, "min": min_count, "max": max_count}
-        print(json.dumps(event_msg), flush=True)
+        # Output Metric Handled in set __Call__ functions
 
         return self.features

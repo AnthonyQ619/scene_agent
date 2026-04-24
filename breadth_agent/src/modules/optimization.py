@@ -1,11 +1,13 @@
+import pycolmap
 import logging
 import os
 import pathlib
 import shutil
 import time
 from typing import Dict, List, Type
+from pathlib import Path
 
-import hydra
+# import hydra
 import omegaconf
 import numpy as np
 import cv2
@@ -14,14 +16,25 @@ import copy
 import torch
 import re
 
-import theseus as th
-import theseus.utils.examples as theg
+# import theseus as th
+# import theseus.utils.examples as theg
 
-import os
-os.add_dll_directory(r"C:\\Users\\Anthony\\Desktop\\VCPKG\\vcpkg\\installed\\x64-windows\\bin")
-os.add_dll_directory(r"C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4\\bin")
-os.add_dll_directory(r"C:\\Program Files\\NVIDIA cuDSS\\v0.7\\bin\\12")
-import pycolmap
+# Hide Warnings
+# os.environ["GLOG_log_dir"] = r"C:\Users\Anthony\Documents\Projects\scene_agent\breadth_agent\results"
+# os.environ["GLOG_logtostderr"] = "0"
+# os.environ["GLOG_alsologtostderr"] = "0"
+
+# os.environ["GLOG_minloglevel"] = "0"        # keep INFO/WARNING in files
+# os.environ["GLOG_stderrthreshold"] = "2"    # NOTHING below FATAL goes to terminal
+
+# os.add_dll_directory(r"C:\\Users\\Anthony\\Desktop\\VCPKG\\vcpkg\\installed\\x64-windows\\bin")
+# os.add_dll_directory(r"C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4\\bin")
+# os.add_dll_directory(r"C:\\Program Files\\NVIDIA cuDSS\\v0.7\\bin\\12")
+
+import sys
+print(sys.executable)
+
+# import pycolmap
 
 from modules.DataTypes.datatype import Scene, CameraData, PointsMatched, Points3D, CameraPose, Calibration, IncrementalSfMState
 from modules.baseclass import OptimizationClass
@@ -40,21 +53,17 @@ class BundleAdjustmentOptimizerLocal(OptimizationClass):
         gpu_index: int = 0,
         robust_loss: bool = True,
     ):
-        super().__init__(cam_data=cam_data,
-                         refine_focal_length=refine_focal_length,
-                         refine_principal_point=refine_principal_point,
-                         refine_extra_params=refine_extra_params,
-                         max_num_iterations=max_num_iterations,
-                         use_gpu=use_gpu,
-                         gpu_index=gpu_index,
-                         robust_loss=robust_loss)
-        
-        # Set up window size and min_track_length 
-        self.window_size = window_size
-        self.min_track_len = min_track_len
+           
+                        #  refine_focal_length=refine_focal_length,
+                        #  refine_principal_point=refine_principal_point,
+                        #  refine_extra_params=refine_extra_params,
+                        #  max_num_iterations=max_num_iterations,
+                        #  use_gpu=use_gpu,
+                        #  gpu_index=gpu_index,
+                        #  robust_loss=robust_loss)
 
-        self.module_name = "BundleAdjustmentOptimizerLocal"
-        self.description = f"""
+        module_name = "BundleAdjustmentOptimizerLocal"
+        description = f"""
 Local Optimization tool using the bundle adjustment optimization algorithm to optimize the reconstructed sparse 
 scene using the 3D estimated points, 2D feature tracks for each 3D estimated point, and estimated camera poses of the 
 monocular camera scene to optimize the reprojection error loss of each estimated 3D point WITH the PURPOSE to CORRECT DRIFT
@@ -91,7 +100,7 @@ Function Calls:
    - Default: NOT used for this module.
 """
 
-        self.example = f"""
+        example = f"""
 Initialization: 
 from modules.optimization import BundleAdjustmentOptimizerLocal
 
@@ -116,39 +125,43 @@ pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data,
 cam_poses = pose_estimator(feature_pairs=feature_pairs)
 
 """
+        super().__init__(cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example)
         
+        # Set up Internal Parameters/Settigns for Bundle Adjustment
+        self.refine_focal_length = refine_focal_length
+        self.refine_principal_point = refine_principal_point
+        self.refine_extra_params = refine_extra_params
+        self.max_num_iterations = max_num_iterations
+        self.use_gpu = use_gpu
+        self.gpu_index = gpu_index
+        self.robust_loss = robust_loss
 
-    def optimize(self, 
-                 state: IncrementalSfMState, 
-                 new_image_id: int):
-
+        # Set up window size and min_track_length 
+        self.window_size = window_size
+        self.min_track_len = min_track_len
+    
+    def _optimize_scene(self, 
+                        state: IncrementalSfMState, 
+                        new_image_id: int) -> IncrementalSfMState:
+        # return super()._optimize_scene(current_scene) 
+        # --- Step 1 - Build Reconstruction ---
         recon, window = self._build_reconstruction(state, new_image_id)
+        # --- Step 2 - Set BA Solver Options and Config settings --- 
+        ba_opts, config = self._build_adjuster(recon, window)
 
-        # --- BA config: include all registered images ---
-        config = pycolmap.BundleAdjustmentConfig()
-        for image_id in recon.reg_image_ids():  # registered images
-            config.add_image(image_id)
-        # --- BA config: Fix the first camera for stability
-        config.set_constant_rig_from_world_pose(int(window[0]))
+        # --- Step 3: Build and Run Solver with Options/Config/Reconstruction ---
+        # bundle_adjuster = pycolmap.create_default_bundle_adjuster(ba_opts, config, recon)
+        # summary = bundle_adjuster.solve()
+        new_state = self._solve_poses(state, ba_opts, config, recon, window)
 
-
-        # --- BA options ---
-        ba_opts = pycolmap.BundleAdjustmentOptions()
-        ba_opts.refine_focal_length = self.refine_focal_length
-        ba_opts.refine_principal_point = self.refine_principal_point
-        ba_opts.refine_extra_params = self.refine_extra_params
-
-        # GPU knobs (only used when supported in your build)
-        ba_opts.use_gpu = bool(self.use_gpu)
-        ba_opts.gpu_index = str(self.gpu_index)
-
-        # Ceres solver options (requires PyCeres installed in your environment)
-        ba_opts.solver_options.max_num_iterations = int(self.max_num_iterations)
-
-        # Optional robust loss
-        if self.robust_loss:
-            ba_opts.loss_function_type = pycolmap.LossFunctionType.CAUCHY
-
+        return new_state
+    
+    def _solve_poses(self, state: IncrementalSfMState, 
+                     ba_opts, config, recon, window) -> IncrementalSfMState:
+        # Solve and Optimize given Scene
         bundle_adjuster = pycolmap.create_default_bundle_adjuster(ba_opts, config, recon)
         _ = bundle_adjuster.solve()
 
@@ -160,8 +173,86 @@ cam_poses = pose_estimator(feature_pairs=feature_pairs)
             R = T.rotation.matrix()
             t = np.asarray(T.translation).reshape(3, 1)
             state.poses[img_id] = np.hstack([R, t])
-
+        
         return state
+
+    def _build_adjuster(self, recon, window):
+        # --- BA config: include all registered images ---
+        config = pycolmap.BundleAdjustmentConfig()
+        for image_id in recon.reg_image_ids():  # registered images
+            config.add_image(image_id)
+        # --- BA config: Fix the first camera for stability
+        config.set_constant_rig_from_world_pose(int(window[0]))
+
+        # --- BA options ---
+        ba_opts = pycolmap.BundleAdjustmentOptions()
+        ba_opts.refine_focal_length = self.refine_focal_length
+        ba_opts.refine_principal_point = self.refine_principal_point
+        ba_opts.refine_extra_params = self.refine_extra_params
+
+        # GPU knobs (only used when supported in your build)
+        if self.use_gpu:
+            ba_opts.use_gpu = bool(self.use_gpu)
+            ba_opts.gpu_index = str(self.gpu_index)
+
+        # Ceres solver options (requires PyCeres installed in your environment)
+        # was ba_opts.solver_options.max_num_iterations = int(self.max_num_iterations) 
+        ba_opts.ceres.solver_options.max_num_iterations = int(self.max_num_iterations) 
+
+        # Optional robust loss
+        if self.robust_loss:
+            # Was: ba_opts.loss_function_type = pycolmap.LossFunctionType.CAUCHY
+            ba_opts.ceres.loss_function_type = pycolmap.LossFunctionType.CAUCHY
+
+        return ba_opts, config
+    
+    # def optimize(self, 
+    #              state: IncrementalSfMState, 
+    #              new_image_id: int):
+
+    #     recon, window = self._build_reconstruction(state, new_image_id)
+
+    #     # --- BA config: include all registered images ---
+    #     config = pycolmap.BundleAdjustmentConfig()
+    #     for image_id in recon.reg_image_ids():  # registered images
+    #         config.add_image(image_id)
+    #     # --- BA config: Fix the first camera for stability
+    #     config.set_constant_rig_from_world_pose(int(window[0]))
+
+
+    #     # --- BA options ---
+    #     ba_opts = pycolmap.BundleAdjustmentOptions()
+    #     ba_opts.refine_focal_length = self.refine_focal_length
+    #     ba_opts.refine_principal_point = self.refine_principal_point
+    #     ba_opts.refine_extra_params = self.refine_extra_params
+
+    #     # GPU knobs (only used when supported in your build)
+    #     if self.use_gpu:
+    #         ba_opts.use_gpu = bool(self.use_gpu)
+    #         ba_opts.gpu_index = str(self.gpu_index)
+
+    #     # Ceres solver options (requires PyCeres installed in your environment)
+    #     # was ba_opts.solver_options.max_num_iterations = int(self.max_num_iterations) 
+    #     ba_opts.ceres.solver_options.max_num_iterations = int(self.max_num_iterations) 
+
+    #     # Optional robust loss
+    #     if self.robust_loss:
+    #         # Was: ba_opts.loss_function_type = pycolmap.LossFunctionType.CAUCHY
+    #         ba_opts.ceres.loss_function_type = pycolmap.LossFunctionType.CAUCHY
+
+    #     bundle_adjuster = pycolmap.create_default_bundle_adjuster(ba_opts, config, recon)
+    #     _ = bundle_adjuster.solve()
+
+    #     # --- Export optimized results back into your Scene ---
+    #     # Write refined poses back into state
+    #     for img_id in window:
+    #         img = recon.image(int(img_id))
+    #         T = img.cam_from_world()
+    #         R = T.rotation.matrix()
+    #         t = np.asarray(T.translation).reshape(3, 1)
+    #         state.poses[img_id] = np.hstack([R, t])
+
+    #     return state
 
     def _build_reconstruction(self, 
                               state: IncrementalSfMState, 
@@ -339,6 +430,7 @@ class BundleAdjustmentOptimizerGlobal(OptimizationClass):
     def __init__(
         self,
         cam_data: CameraData,
+        output_dir: str | None = None,
         refine_focal_length: bool = False,
         refine_principal_point: bool = False,
         refine_extra_params: bool = False,
@@ -347,17 +439,17 @@ class BundleAdjustmentOptimizerGlobal(OptimizationClass):
         gpu_index: int = 0,
         robust_loss: bool = True,
     ):
-        super().__init__(cam_data=cam_data,
-                         refine_focal_length=refine_focal_length,
-                         refine_principal_point=refine_principal_point,
-                         refine_extra_params=refine_extra_params,
-                         max_num_iterations=max_num_iterations,
-                         use_gpu=use_gpu,
-                         gpu_index=gpu_index,
-                         robust_loss=robust_loss)
+        # super().__init__(cam_data=cam_data,
+        #                  refine_focal_length=refine_focal_length,
+        #                  refine_principal_point=refine_principal_point,
+        #                  refine_extra_params=refine_extra_params,
+        #                  max_num_iterations=max_num_iterations,
+        #                  use_gpu=use_gpu,
+        #                  gpu_index=gpu_index,
+        #                  robust_loss=robust_loss)
 
-        self.module_name = "BundleAdjustmentOptimizerGlobal"
-        self.description = f"""
+        module_name = "BundleAdjustmentOptimizerGlobal"
+        description = f"""
 Global Optimization tool using the bundle adjustment optimization algorithm to optimize the reconstructed sparse 
 scene using the 3D estimated points, 2D feature tracks for each 3D estimated point, and estimated camera poses of the 
 monocular camera scene to optimize the reprojection error loss of each estimated 3D point. The output is a newly 
@@ -398,7 +490,7 @@ Function Calls:
         - Output: scene (Optimized)
 """
 
-        self.example = f"""
+        example = f"""
 Initialization: 
 from modules.optimization import BundleAdjustmentOptimizerGlobal
 
@@ -410,9 +502,26 @@ Function Call:
 # Run Optimizer
 optimal_scene = optimizer(sparse_scene)
 """
+        super().__init__(cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example)
+        
+        # Set up Internal Parameters/Settigns for Bundle Adjustment
+        self.refine_focal_length = refine_focal_length
+        self.refine_principal_point = refine_principal_point
+        self.refine_extra_params = refine_extra_params
+        self.max_num_iterations = max_num_iterations
+        self.use_gpu = use_gpu
+        self.gpu_index = gpu_index
+        self.robust_loss = robust_loss
+
+        # Define workspace location
+        self.output_dir = output_dir
 
         # Define the workspace for Sparse Reconstruction
-        self.directory_path = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace\\sparse"
+        self.directory_path = Path(__file__).resolve().parents[2]
+        self.directory_path = str(self.directory_path / "results" / "workspace" / "sparse") #C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace\\sparse"
         if os.path.exists(self.directory_path):
             # Delete the directory and all its contents
             shutil.rmtree(self.directory_path)
@@ -420,27 +529,40 @@ optimal_scene = optimizer(sparse_scene)
         # Recreate an empty directory
         os.makedirs(self.directory_path)
 
-    def optimize(self, 
-                 scene: Scene):
-                #  points: PointsMatched, 
-                #  camera_poses: CameraPose, 
-                #  cam_data: CameraData):
-        """
-        scene.points3D.points3D: (N,3) float
-        camera_poses.camera_pose[i]: (3,4) cam_from_world for frame i
-        points.data_matrix: (M,4) [track_id, frame_num, x, y]  (pixels)
-        """
-        # if not points.multi_view:
-        #     raise ValueError("BA requires multi-view tracks (points.multi_view=True).")
+    def _optimize_scene(self, current_scene: Scene) -> Scene:
+        # return super()._optimize_scene(current_scene) 
+        # --- Step 1 - Build Reconstruction ---
+        recon, trackid_to_point3Did = self._build_reconstruction(current_scene)
+        # --- Step 2 - Set BA Solver Options and Config settings --- 
+        ba_opts, config = self._build_adjuster(recon)
 
-        recon, trackid_to_point3Did = self._build_reconstruction(scene)
+        # --- Step 3: Build and Run Solver with Options/Config/Reconstruction ---
+        # bundle_adjuster = pycolmap.create_default_bundle_adjuster(ba_opts, config, recon)
+        # summary = bundle_adjuster.solve()
+        summary = self._solve(ba_opts, config, recon)
 
+        # --- Step 4: Export optimized results back into the Scene ---
+        self._write_back_to_scene(current_scene, recon, trackid_to_point3Did)
+
+        # Write reconstructed scene to workspace (Sparse Scene Currently)
+        recon.write(self.directory_path)
+
+        return current_scene #, summary
+    
+    def _solve(self, ba_opts, config, recon):
+        bundle_adjuster = pycolmap.create_default_bundle_adjuster(ba_opts, config, recon)
+        return bundle_adjuster.solve()
+
+    def _build_adjuster(self, recon):
         # --- BA config: include all registered images ---
         config = pycolmap.BundleAdjustmentConfig()
         for image_id in recon.reg_image_ids():  # registered images
             config.add_image(image_id)
         # --- BA config: Fix the first camera for stability
-        config.set_constant_rig_from_world_pose(recon.reg_image_ids()[0])
+        reg_ids = recon.reg_image_ids()
+        if len(reg_ids) > 0:
+            # config.set_constant_rig_from_world_pose(recon.reg_image_ids()[0])
+            config.set_constant_rig_from_world_pose(reg_ids[0])
 
 
         # --- BA options ---
@@ -450,26 +572,18 @@ optimal_scene = optimizer(sparse_scene)
         ba_opts.refine_extra_params = self.refine_extra_params
 
         # GPU knobs (only used when supported in your build)
-        ba_opts.use_gpu = bool(self.use_gpu)
-        ba_opts.gpu_index = str(self.gpu_index)
+        if self.use_gpu:
+            ba_opts.use_gpu = bool(self.use_gpu)
+            ba_opts.gpu_index = str(self.gpu_index)
 
         # Ceres solver options (requires PyCeres installed in your environment)
-        ba_opts.solver_options.max_num_iterations = int(self.max_num_iterations)
+        ba_opts.ceres.solver_options.max_num_iterations = int(self.max_num_iterations) 
 
         # Optional robust loss
         if self.robust_loss:
-            ba_opts.loss_function_type = pycolmap.LossFunctionType.CAUCHY
-
-        bundle_adjuster = pycolmap.create_default_bundle_adjuster(ba_opts, config, recon)
-        summary = bundle_adjuster.solve()
-
-        # --- Export optimized results back into your Scene ---
-        self._write_back_to_scene(scene, recon, trackid_to_point3Did)
-
-        # Write reconstructed scene to workspace (Sparse Scene!)
-        recon.write(self.directory_path)
-
-        return scene #, summary
+            ba_opts.ceres.loss_function_type = pycolmap.LossFunctionType.CAUCHY
+        
+        return ba_opts, config
 
     def _build_reconstruction(self, 
                               scene: Scene):
@@ -507,8 +621,23 @@ optimal_scene = optimizer(sparse_scene)
                         model = pycolmap.CameraModelId.PINHOLE
                         params = np.array([fx, fy, cx, cy], np.float64)
                     else:
-                        model = pycolmap.CameraModelId.OPENCV
-                        params = np.array([fx, fy, cx, cy, *d], np.float64)
+                        # model = pycolmap.CameraModelId.OPENCV
+                        # params = np.array([fx, fy, cx, cy, *d], np.float64)
+                        d = np.asarray(dist, dtype=np.float64).ravel()
+
+                        if len(d) == 4:
+                            # k1, k2, p1, p2
+                            model = pycolmap.CameraModelId.OPENCV
+                            params = np.array([fx, fy, cx, cy, d[0], d[1], d[2], d[3]], dtype=np.float64)
+                        elif len(d) == 5:
+                            # OpenCV often gives k1, k2, p1, p2, k3
+                            # drop k3 and use OPENCV
+                            model = pycolmap.CameraModelId.OPENCV
+                            params = np.array([fx, fy, cx, cy, d[0], d[1], d[2], d[3]], dtype=np.float64)
+                        elif len(d) == 8:
+                            # k1, k2, p1, p2, k3, k4, k5, k6
+                            model = pycolmap.CameraModelId.FULL_OPENCV
+                            params = np.array([fx, fy, cx, cy, *d], dtype=np.float64)
 
                     cam = pycolmap.Camera(
                         camera_id=next_camera_id,
@@ -528,17 +657,33 @@ optimal_scene = optimizer(sparse_scene)
             rig = pycolmap.Rig()
             rig.rig_id = 1
 
-            for cam_id in camera_map.values():
+            # for cam_id in camera_map.values():
+            #     sensor = pycolmap.sensor_t()
+            #     sensor.type = pycolmap.SensorType.CAMERA
+            #     sensor.id = cam_id
+            #     rig.add_sensor(sensor)
+            cam_ids = list(camera_map.values())
+
+            for i, cam_id in enumerate(cam_ids):
                 sensor = pycolmap.sensor_t()
                 sensor.type = pycolmap.SensorType.CAMERA
                 sensor.id = cam_id
-                rig.add_sensor(sensor)
+
+                if i == 0:
+                    # Make first camera the reference sensor
+                    rig.add_ref_sensor(sensor)
+
+                    # # Optional but explicit: reference sensor has identity transform
+                    # rig.set_sensor_from_rig(sensor, pycolmap.Rigid3d())
+                else:
+                    # Additional sensors need an explicit pose wrt rig
+                    rig.add_sensor(sensor, pycolmap.Rigid3d())
 
             # choose a reference sensor (first camera)
-            ref = pycolmap.sensor_t()
-            ref.type = pycolmap.SensorType.CAMERA
-            ref.id = list(camera_map.values())[0]
-            rig.add_ref_sensor(ref)
+            # ref = pycolmap.sensor_t()
+            # ref.type = pycolmap.SensorType.CAMERA
+            # ref.id = list(camera_map.values())[0]
+            # rig.add_ref_sensor(ref)
 
             recon.add_rig(rig)
         else:
@@ -689,11 +834,11 @@ optimal_scene = optimizer(sparse_scene)
 
         return recon, trackid_to_point3Did
 
-
     def _write_back_to_scene(self, 
                             scene: Scene,
                             recon,
-                            trackid_to_point3Did):
+                            trackid_to_point3Did) -> None:
+        
         # Update camera poses: pull optimized cam_from_world from each image
         num_frames = len(scene.cam_poses)
 
@@ -711,366 +856,66 @@ optimal_scene = optimizer(sparse_scene)
             p3d = recon.point3D(p3did)
             xyzs[tid] = p3d.xyz  # (3,)
 
-        
-class BundleAdjustmentOptimizerLeastSquares(OptimizationClass):
-    def __init__(self, 
-                 cam_data: CameraData,
-                 max_iterations: int = 10, 
-                 step_size: float = 0.1, 
-                 learning_rate: float = 0.1,
-                 num_epochs: int = 20,
-                 optimizer_cls: str = "LevenbergMarquardt"
-                 ):
-        super().__init__(cam_data = cam_data)
-        
-        self.optimizer_choices = ["LevenbergMarquardt", "GaussNewton"]
+    # def optimize(self, 
+    #              scene: Scene):
+    #             #  points: PointsMatched, 
+    #             #  camera_poses: CameraPose, 
+    #             #  cam_data: CameraData):
+    #     """
+    #     scene.points3D.points3D: (N,3) float
+    #     camera_poses.camera_pose[i]: (3,4) cam_from_world for frame i
+    #     points.data_matrix: (M,4) [track_id, frame_num, x, y]  (pixels)
+    #     """
+    #     # if not points.multi_view:
+    #     #     raise ValueError("BA requires multi-view tracks (points.multi_view=True).")
 
-        assert (optimizer_cls in self.optimizer_choices), "Must Choose Optimizer from supported classes: LevenbergMarquardt or GaussNewton"
+    #     recon, trackid_to_point3Did = self._build_reconstruction(scene)
 
-        self.module_name = "BundleAdjustmentOptimizerLeastSquares"
-        self.description = f"""
-Global Optimization tool using the non-linear least square optimization algorithm to optimize the reconstructed sparse 
-scene using the 3D estimated points, 2D feature tracks for each 3D estimated point, and estimated camera poses of the 
-monocular camera scene to optimize the reprojection error loss of each estimated 3D point. This tool applies the algorithm
-Bundle Adjustment to globally optimize the scene. The output is a newly optimize sparse 3D reconstructed scene. The algorithm
-optimizes the 3D points, camera poses, and distortion parameters of the calibrated camera. This algorithm keeps the focal length
-of the original calibration by normalizing the detected 2D feature points prior to optimization.
+    #     # --- BA config: include all registered images ---
+    #     config = pycolmap.BundleAdjustmentConfig()
+    #     for image_id in recon.reg_image_ids():  # registered images
+    #         config.add_image(image_id)
+    #     # --- BA config: Fix the first camera for stability
+    #     config.set_constant_rig_from_world_pose(recon.reg_image_ids()[0])
 
-Initialization Parameters:
-- calibration: Data type that stores the camera's calibration data initialized from the calibration 
-reader module
-    - default (Calibration): None - Include in initialization for usage
-- scene: Data type that stores the camera pose and 3D point information of the reconstructed scene.
-    - default (Scene): None - Include in initialization for usage
 
-Function Calls:
-- Function: prep_optimizer
-    - Parameters:
-        - max_iterations: Maximum number of iterations to run the bundle adjustment algorithm (larger number 
-        guarantees convergence -- between 40 and 50 iterations)
-            - Default (int) = 10,
-        - ratio_known_cameras: Used if ground truth cameras are known prior, which can be used to optimize the reconstructed scen
-        in training cases. Input should be percentage of known cameras (input < 1.0)
-            - Default (float) = 0.0
-        - optimizer_cls: Optimzer class utilized in the bundle adjustment algorithm. Levenberg-Marquardt is default due to 
-        utilizing the non-linear least square optimization algorithm. Use Gauss Newton if initial data is less noisy and 
-        can use a more aggressive optimizer, but it is less robust to outliers. 
-            - Default (str) = "LevenbergMarquardt"
-            - Options (str) ] ["LevenbergMarquardt", "GaussNewton"]
+    #     # --- BA options ---
+    #     ba_opts = pycolmap.BundleAdjustmentOptions()
+    #     ba_opts.refine_focal_length = self.refine_focal_length
+    #     ba_opts.refine_principal_point = self.refine_principal_point
+    #     ba_opts.refine_extra_params = self.refine_extra_params
 
-- Function: Module call (Python __call__ function)
-    - Parameters:
-        -ba_file: Path to BAL file generated from SceneReconstruction module that stores the data from the reconstructed
-        scene for bundle adjustment application.
-            - Default (str): Not Applicable. Needs input to run.
-"""
+    #     # GPU knobs (only used when supported in your build)
+    #     # ba_opts.use_gpu = bool(self.use_gpu)
+    #     # ba_opts.gpu_index = str(self.gpu_index)
 
-        self.example = f"""
-Initialization: 
-optimizer = BundleAdjustmentOptimizerLeastSquares(scene=sparse_scene, 
-                                                  cam_data=camera_data)
-optimizer.prep_optimizer(ratio_known_cameras=0.0, 
-                         max_iterations=30, 
-                         num_epochs=1, 
-                         step_size=0.1,
-                         optimizer_cls="GaussNewton")
+    #     # # Ceres solver options (requires PyCeres installed in your environment)
+    #     # ba_opts.solver_options.max_num_iterations = int(self.max_num_iterations)
 
-Function Call: 
-optimal_scene = optimizer(bal_path)
-"""
-        # Logger
-        logging.basicConfig(level=logging.INFO)
-        self.log = logging.getLogger(__name__)
+    #     # # Optional robust loss
+    #     # if self.robust_loss:
+    #     #     ba_opts.loss_function_type = pycolmap.LossFunctionType.CAUCHY
 
-        # Setup Path for Saving Results
-        result_dir = "results/scene_data"
-        file_path = os.path.realpath(__file__).split('\\')
-        file_path[0] = file_path[0] + "\\"
-        home_dir = pathlib.Path(os.path.join(*file_path[:7])) # Sets Path to Breadth_agent
-        self.results_path = home_dir / result_dir
+    #     # GPU knobs (only used when supported in your build)
+    #     if self.use_gpu:
+    #         ba_opts.use_gpu = bool(self.use_gpu)
+    #         ba_opts.gpu_index = str(self.gpu_index)
 
-        # Get Device
-        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    #     # Ceres solver options (requires PyCeres installed in your environment)
+    #     ba_opts.ceres.solver_options.max_num_iterations = int(self.max_num_iterations) 
 
-        config_settings = {"inner_optim": {
-                                "optimizer_cls": optimizer_cls,
-                                "max_iters": max_iterations,
-                                "step_size": step_size,
-                                "backward_mode": "implicit",
-                                "verbose": True,
-                                "track_err_history": True,
-                                "keep_step_size": True,
-                                "regularize": True,
-                                "ratio_known_cameras": 0.0,
-                                "reg_w": 1e-4},
-                            "outer_optim": {
-                                "lr": learning_rate,
-                                "num_epochs": num_epochs},
-                            "hydra": {
-                                    "run":{
-                                        "dir": "examples/outputs"}}}
-        
-        self.cfg = omegaconf.OmegaConf.create(config_settings)
+    #     # Optional robust loss
+    #     if self.robust_loss:
+    #         ba_opts.ceres.loss_function_type = pycolmap.LossFunctionType.CAUCHY
 
-        # End of Initialization
+    #     bundle_adjuster = pycolmap.create_default_bundle_adjuster(ba_opts, config, recon)
+    #     summary = bundle_adjuster.solve()
 
-    ################################## HELPER FUNCTIONS ##################################
-    # Copyright (c) Meta Platforms, Inc. and affiliates.
-    #
-    # This source code is licensed under the MIT license found in the
-    # LICENSE file in the root directory facebookresearch/theseus
-    # Credit belongs to Facebook Research Team with Theseus library Examples:Bundle Adjustment
+    #     # --- Export optimized results back into your Scene ---
+    #     self._write_back_to_scene(scene, recon, trackid_to_point3Did)
+
+    #     # Write reconstructed scene to workspace (Sparse Scene!)
+    #     recon.write(self.directory_path)
+
+    #     return scene #, summary
     
-    def print_histogram(self,
-        ba: theg.BundleAdjustmentDataset, var_dict: Dict[str, torch.Tensor], msg: str
-    ):
-        # print(ba.observations)
-        self.log.info(msg)
-        histogram = theg.ba_histogram(
-            cameras=[
-                theg.Camera(
-                    th.SE3(tensor=var_dict[c.pose.name]),
-                    c.focal_length,
-                    c.calib_k1,
-                    c.calib_k2,
-                )
-                for c in ba.cameras
-            ],
-            points=[th.Point3(tensor=var_dict[pt.name]) for pt in ba.points],
-            observations=ba.observations,
-        )
-        for line in histogram.split("\n"):
-            self.log.info(line)
-
-
-    # loads (the only) batch
-    def get_batch(self,
-                ba: theg.BundleAdjustmentDataset,
-                orig_poses: Dict[str, torch.Tensor],
-                orig_points: Dict[str, torch.Tensor],
-                ) -> Dict[str, torch.Tensor]:
-        
-        retv = {}
-        for cam in ba.cameras:
-            retv[cam.pose.name] = orig_poses[cam.pose.name].clone()
-        for pt in ba.points:
-            retv[pt.name] = orig_points[pt.name].clone()
-        return retv
-
-    def save_epoch(self,
-                results_path: pathlib.Path,
-                epoch: int,
-                log_loss_radius: th.Vector,
-                theseus_outputs: Dict[str, torch.Tensor],
-                info: th.optimizer.OptimizerInfo,
-                loss_value: float,
-                total_time: float):
-        
-        def _clone(t_):
-            return t_.detach().cpu().clone()
-
-        results = {
-            "log_loss_radius": _clone(log_loss_radius.tensor),
-            "theseus_outputs": dict((s, _clone(t)) for s, t in theseus_outputs.items()),
-            "err_history": info.err_history,  # type: ignore
-            "loss": loss_value,
-            "total_time": total_time,
-        }
-        torch.save(results, results_path / f"results_epoch{epoch}.pt")
-    # End
-    ################################## HELPER FUNCTIONS ##################################
-
-    def __call__(self,
-                 scene: Scene) -> Scene:
-
-        # Setup Theseus BA dataset -- Read BAL dataset
-        ba = copy.deepcopy(scene.bal_data.dataset) #theg.BundleAdjustmentDataset.load_from_file(ba_file) # Look into switching this
-
-        # hyper parameters (ie outer loop's parameters) -> Not needed
-        log_loss_radius = th.Vector(1, name="log_loss_radius", dtype=torch.float64)
-
-        # Set up objective
-        objective = th.Objective(dtype=torch.float64)
-
-        pose_check = set()
-        weight = th.ScaleCostWeight(torch.tensor(1.0).to(dtype=ba.cameras[0].pose.dtype, device=self.device))
-        for obs in ba.observations:
-            cam = ba.cameras[obs.camera_index]
-            cost_function = th.eb.Reprojection(
-                camera_pose=cam.pose,
-                world_point=ba.points[obs.point_index],
-                focal_length=cam.focal_length,
-                calib_k1=cam.calib_k1,
-                calib_k2=cam.calib_k2,
-                image_feature_point=obs.image_feature_point,
-                weight=weight,
-            )
-            robust_cost_function = th.RobustCostFunction(
-                cost_function,
-                th.HuberLoss,
-                log_loss_radius,
-                name=f"robust_{cost_function.name}",
-            )
-            objective.add(robust_cost_function)
-            #objective.add
-        dtype = objective.dtype
-
-        # Add regularization
-        if self.cfg.inner_optim.regularize:
-            zero_point3 = th.Point3(dtype=dtype, name="zero_point")
-            identity_se3 = th.SE3(dtype=dtype, name="zero_se3")
-            w = np.sqrt(self.cfg.inner_optim.reg_w)
-            damping_weight = th.ScaleCostWeight(w * torch.ones(1, dtype=dtype, device=self.device))
-            for name, var in objective.optim_vars.items():
-                target: th.Manifold
-                if isinstance(var, th.SE3):
-                    target = identity_se3
-                elif isinstance(var, th.Point3):
-                    target = zero_point3
-                else:
-                    assert False
-                objective.add(
-                    th.Difference(var, target, damping_weight, name=f"reg_{name}")
-                )
-
-        # Create optimizer
-        optimizer_cls: Type[th.NonlinearLeastSquares] = getattr(
-            th, self.cfg.inner_optim.optimizer_cls
-        )
-        # optimizer_cls: Type[th.LevenbergMarquardt] = getattr(
-        #     th, self.cfg.inner_optim.optimizer_cls
-        # )
-        
-        optimizer = optimizer_cls(
-            objective,
-            max_iterations=self.cfg.inner_optim.max_iters,
-            step_size=self.cfg.inner_optim.step_size,
-        )
-
-        # Set up Theseus layer
-        theseus_optim = th.TheseusLayer(optimizer)
-        theseus_optim = theseus_optim.to(device=self.device)
-
-        # copy the poses/pts to feed them to each outer iteration
-        orig_poses = {cam.pose.name: cam.pose.tensor.clone().to(self.device) for cam in ba.cameras}
-        orig_points = {pt.name: pt.tensor.clone() for pt in ba.points}
-        print("CAMERAS", pose_check)
-        # print(orig_poses)
-
-        # Outer optimization loop
-        loss_radius_tensor = torch.nn.Parameter(torch.tensor([3.0], dtype=torch.float64, device=self.device))
-        model_optimizer = torch.optim.Adam([loss_radius_tensor], lr=self.cfg.outer_optim.lr)
-
-        num_epochs = self.cfg.outer_optim.num_epochs
-
-        theseus_inputs = self.get_batch(ba, orig_poses, orig_points)
-        theseus_inputs["log_loss_radius"] = loss_radius_tensor.unsqueeze(1).clone()
-
-        # with torch.no_grad():
-        #     #camera_loss_ref = self.camera_loss(ba, camera_pose_vars).item()
-        #     reproj_loss = self.reprojection_loss(ba, theseus_inputs)
-        # # self.log.info(f"CAMERA LOSS (no learning):  {camera_loss_ref: .3f}")
-        # reproj_loss = objective.error_metric() 
-        # reproj_loss = loss.sum()
-        # self.log.info(f"Reprojection Loss (no learning):  {reproj_loss: .3f}")
-
-        self.print_histogram(ba, theseus_inputs, "Input histogram:")
-
-        for epoch in range(num_epochs):
-            self.log.info(f" ******************* EPOCH {epoch} ******************* ")
-            start_time = time.time_ns()
-            model_optimizer.zero_grad()
-            theseus_inputs["log_loss_radius"] = loss_radius_tensor.unsqueeze(1).clone()
-
-            theseus_outputs, info = theseus_optim.forward(
-                input_tensors=theseus_inputs,
-                optimizer_kwargs={
-                    "verbose": self.cfg.inner_optim.verbose,
-                    "track_err_history": self.cfg.inner_optim.track_err_history,
-                    "backward_mode": self.cfg.inner_optim.backward_mode,
-                    "__keep_final_step_size__": self.cfg.inner_optim.keep_step_size,
-                },
-            )
-
-            # print(theseus_outputs)
-            # objective.update(theseus_outputs)
-            loss = objective.error_metric(input_tensors=theseus_outputs) #(self.camera_loss(ba, camera_pose_vars) - camera_loss_ref) / camera_loss_ref
-            loss = loss.sum()
-            # loss = self.reprojection_loss(ba, theseus_outputs=theseus_outputs)
-            # print(loss)
-            # print(loss.device)
-            # loss.backward()
-            # print("AFTER BACK PROP")
-            # model_optimizer.step()
-            loss_value = torch.sum(loss.cpu().detach()).item()
-            end_time = time.time_ns()
-            
-            # Calibration Check -> Focal Length should be 1, distortion params should be 0
-            for c in ba.cameras:
-                print("Focal Length", c.focal_length,
-                      "Distortion 1:", c.calib_k1,
-                      "Distortion 2:", c.calib_k2)
-            # self.print_histogram(ba, theseus_outputs, "Output histogram:")
-            self.log.info(
-                f"Epoch: {epoch} Loss: {loss_value} "
-                f"Kernel Radius: exp({loss_radius_tensor.data.item()})="
-                f"{torch.exp(loss_radius_tensor.data).item()}"
-            )
-            self.log.info(f"Epoch took {(end_time - start_time) / 1e9: .3f} seconds")
-
-            self.save_epoch(
-                self.results_path,
-                epoch,
-                log_loss_radius,
-                theseus_outputs,
-                info,
-                loss_value,
-                end_time - start_time,
-            )
-
-        poses = []
-        # poses_track = set()
-        points_3d = Points3D()
-
-        # Rebuild Scene Datatype
-        # for obs in ba.observations:
-        #     cam = ba.cameras[obs.camera_index]
-
-        #     cam_pose_tensor = theseus_outputs[cam.pose.name]  # shape (6,) or (batch,6)
-        #     if cam.pose.name not in poses_track:
-        #         print("Here")
-        #         pose = cam_pose_tensor.cpu().detach().numpy()
-        #         poses.append(pose)
-        #         poses_track.add(cam.pose.name)
-              
-        #     world_point = theseus_outputs[ba.points[obs.point_index].name].cpu().detach().numpy()  # shape (3,) or (batch,3)
-        #     points_3d.update_points(world_point)
-        print(theseus_outputs.keys())
-        for key in theseus_outputs.keys():
-            if 'Cam' in key:
-                pose = theseus_outputs[key].cpu().detach().numpy()
-                poses.append(pose)
-            if 'Pt' in key:
-                # print(obs.point_index)
-                # print("KEY", int(re.findall(r'\d+',key)[0]))
-                world_point = theseus_outputs[ba.points[int(re.findall(r'\d+',key)[0])].name].cpu().detach().numpy()  # shape (3,) or (batch,3)
-                points_3d.update_points(world_point)#.astype(float))
-        
-        # print(theseus_outputs)
-        # print(theseus_outputs.keys())
-        # print(len(poses))
-        print("Number of 3D Points", points_3d.points3D.shape)
-        new_scene = Scene(points3D = points_3d,
-                          cam_poses = poses,
-                          representation = "point cloud")
-        
-        # print(points_3d.points3D)
-        return new_scene
-    
-    # def _create_result_path(self, result_dir: str) -> pathlib.Path:
-    #     file_path = os.path.realpath(__file__).split('\\')
-    #     file_path[0] = file_path[0] + "\\"
-    #     home_dir = pathlib.Path(os.path.join(*file_path[:7])) # Sets Path to Breadth_agent
-    #     result_path = home_dir / result_dir
-
-    #     return result_path

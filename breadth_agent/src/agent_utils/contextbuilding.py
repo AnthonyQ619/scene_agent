@@ -101,7 +101,7 @@ def build_full_length_context_files(context_file_path: str, num = 1):
     if not os.path.isdir(CURRENT_PATH + "\\script_context"):
         os.mkdir(CURRENT_PATH + "\\script_context")
 
-    file_to_write_s_to_p = open(CURRENT_PATH + "\\script_context\\scene_to_process.txt", 'w')
+    file_to_write_proc = open(CURRENT_PATH + "\\script_context\\process.txt", 'w')
     file_to_write_p_to_c = open(CURRENT_PATH + "\\script_context\\process_to_scripts.txt", 'w')
 
     context_files = sorted(glob.glob(context_file_path + "\\test_sfm_t*"))[:num]
@@ -126,18 +126,17 @@ def build_full_length_context_files(context_file_path: str, num = 1):
         content = script.read()
 
         split_text = content.split("# ==#$#==")
-        scene_desc = split_text[0].lstrip().rstrip().replace('"""','').replace("\n", "")
-        process_desc = split_text[1].lstrip().rstrip().replace('"""','')#.replace("\n", "")
-        code_desc = split_text[2]
+        # scene_desc = split_text[0].lstrip().rstrip().replace('"""','').replace("\n", "")
+        process_desc = split_text[0].lstrip().rstrip().replace('"""','')#.replace("\n", "")
+        code_desc = split_text[1]
 
-        file_to_write_s_to_p.writelines(["Example Scene:\n" + scene_desc + "\n", 
-                                         "==#$#==\nExample Process:\n" + process_desc + "\n==$#$==\n"])
+        file_to_write_proc.writelines([f"Example Procedure {i + 1}:\n{process_desc}\n==$#$==\n"])
         file_to_write_p_to_c.writelines(["Example Process:\n" + process_desc + "\n",
                                          "==#$#==\nExample Code:\n" + code_desc + "\n==$#$==\n"])
                                          
 
 
-    file_to_write_s_to_p.close()
+    file_to_write_proc.close()
     file_to_write_p_to_c.close()
 
 def build_embedded_description_db(file_path: str):
@@ -226,7 +225,7 @@ if __name__ == "__main__":
         build_embedded_description_db(path_to_file)
     elif arg == "full_script":
         path_to_files = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\tests\\context_tests"
-        build_full_length_context_files(path_to_files, num=6)
+        build_full_length_context_files(path_to_files, num=8)
     elif arg == "test" or arg == "t":
         path_to_file = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent_utils\\script_context\\embed_description_list.txt"
 

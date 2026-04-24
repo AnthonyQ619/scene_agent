@@ -1,19 +1,23 @@
-from modules.utilities.utilities import CalibrationReader
+# from modules.optimization import BundleAdjustmentOptimizerLocal
+# from modules.utilities.utilities import CalibrationReader
 from modules.features import FeatureDetectionSIFT, FeatureDetectionSP, FeatureDetectionORB
+# from modules.optimization import BundleAdjustmentOptimizerLocal
 from modules.featurematching import (FeatureMatchFlannPair, 
                                      FeatureMatchLoftrPair, 
                                      FeatureMatchBFPair,
-                                     FeatureMatchLightGluePair, 
+                                     FeatureMatchLightGluePair,
                                      FeatureMatchLightGlueTracking,
                                      FeatureMatchSuperGluePair,
                                      FeatureMatchRoMAPair)
+from modules.optimization import BundleAdjustmentOptimizerLocal
 from modules.camerapose import CamPoseEstimatorEssentialToPnP, CamPoseEstimatorVGGTModel
-from modules.visualize import VisualizeScene
+from modules.visualize import VisualizeScene, VisualizePose
 from modules.cameramanager import CameraDataManager
 import glob
 import cv2
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
+import os
 
 import open3d as o3d
 import open3d.visualization.gui as gui
@@ -25,8 +29,8 @@ import matplotlib.pyplot as plt
 # Construct Modules with Initialized Arguments
 # image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_low_lighting"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
+image_path = "/home/anthonyq/datasets/DTU/DTU/scan20/images"
+calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
 # image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
 # calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\Structure-from-Motion\\calibration_new.npz"
 # image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\images\\dslr_images_undistorted"
@@ -43,7 +47,8 @@ from modules.cameramanager import CameraDataManager
 
 CDM = CameraDataManager(image_path=image_path,
                         calibration_path=calibration_path,
-                        target_resolution=(480, 640))
+                        max_images=10)
+                        # target_resolution=(480, 640))
 
 # Get Camera Data
 camera_data = CDM.get_camera_data()
@@ -57,12 +62,12 @@ from modules.features import FeatureDetectionORB
 #                                         set_nms_allowed_points=8000,
 #                                         set_nms_tolerance = 0.2
 #                                         )
-# feature_detector = FeatureDetectionSIFT(cam_data=camera_data, 
-#                                         max_keypoints=9000,
-#                                         contrast_threshold=0.02,
-#                                         edge_threshold=50)
-feature_detector = FeatureDetectionSP(cam_data=camera_data,
-                                      max_keypoints=5000)
+feature_detector = FeatureDetectionSIFT(cam_data=camera_data, 
+                                        max_keypoints=9000,
+                                        contrast_threshold=0.02,
+                                        edge_threshold=20)
+# feature_detector = FeatureDetectionSP(cam_data=camera_data,
+#                                       max_keypoints=5000)
 # Detect Features for all Images
 features = feature_detector()
 
@@ -74,18 +79,18 @@ features = feature_detector()
 #                                         RANSAC_threshold=0.07,
 #                                         lowes_thresh=0.75)
 
-from modules.featurematching import FeatureMatchBFPair
+from modules.featurematching import FeatureMatchBFPair, FeatureMatchLightGluePair
 # Pairwise Feature Matching Module Initialization
-# feature_matcher = FeatureMatchBFPair(detector='orb', 
-#                                      cam_data=camera_data,
-#                                      RANSAC_threshold
-#                                      =0.05,
-#                                      lowes_thresh=0.8)
+feature_matcher = FeatureMatchLightGluePair(detector='sift', 
+                                     cam_data=camera_data,
+                                     RANSAC_threshold=0.02,
+                                     RANSAC_conf=0.999)
+                                    #  lowes_thresh=0.8)
 # feature_matcher = FeatureMatchFlannPair(detector="sift", 
 #                                      cam_data=camera_data,
 #                                      RANSAC_threshold=0.03)
-feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
-                                            RANSAC_threshold=0.03)
+# feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
+#                                             RANSAC_threshold=0.03)
 
 # Detect Image Pair Correspondences for Pose Estimation
 feature_pairs = feature_matcher(features=features)
@@ -94,7 +99,10 @@ feature_pairs = feature_matcher(features=features)
 from modules.optimization import BundleAdjustmentOptimizerLocal
 
 # Build Optimizer
-optimizer = BundleAdjustmentOptimizerLocal(max_num_iterations=20)
+optimizer_local = BundleAdjustmentOptimizerLocal(max_num_iterations=20,
+                                                 window_size=5,
+                                                 cam_data=camera_data,
+                                                 use_gpu=False)
 
 # Run Optimizer
 # optimal_scene, _ = optimizer.optimize(sparse_scene, 
@@ -106,10 +114,15 @@ pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data,
                                                 reprojection_error=3.0,
                                                 iteration_count=300,
                                                 confidence=0.995,
-                                                optimizer=optimizer)
+                                                optimizer=optimizer_local)
 
 # From estimated features, estimate the camera poses for all image frames
 cam_poses = pose_estimator(feature_pairs=feature_pairs)
+
+# visualize = VisualizePose()
+# visualize(pose_data = cam_poses, 
+#           server = True, 
+#           file_name = os.path.dirname(os.path.abspath(__file__)) + '/feature_images/cam_poses.png')
 # # Feature Module Initialization
 # feature_detector = FeatureDetectionSIFT(cam_data=cam_data,
 #                                       max_keypoints=3000,
@@ -149,28 +162,28 @@ for i in range(len(cam_poses.camera_pose)):
 
 new_point_cloud = np.array(new_point_cloud).squeeze()
 print(new_point_cloud.shape)
-print(new_point_cloud)
-pcd = o3d.geometry.PointCloud()
-pcd.points = o3d.utility.Vector3dVector(new_point_cloud)
+# print(new_point_cloud)
+# pcd = o3d.geometry.PointCloud()
+# pcd.points = o3d.utility.Vector3dVector(new_point_cloud)
 
-gui.Application.instance.initialize()
+# gui.Application.instance.initialize()
 
-window = gui.Application.instance.create_window("Mesh-Viewer", 1024, 750)
+# window = gui.Application.instance.create_window("Mesh-Viewer", 1024, 750)
 
-scene = gui.SceneWidget()
-scene.scene = rendering.Open3DScene(window.renderer)
+# scene = gui.SceneWidget()
+# scene.scene = rendering.Open3DScene(window.renderer)
 
-window.add_child(scene)
+# window.add_child(scene)
 
-matGT = rendering.MaterialRecord()
-matGT.shader = 'defaultUnlit'
-matGT.point_size = 7.0
-matGT.base_color = np.ndarray(shape=(4,1), buffer=np.array([0.0, 0.0, 1.0, 1.0]), dtype=float)
+# matGT = rendering.MaterialRecord()
+# matGT.shader = 'defaultUnlit'
+# matGT.point_size = 7.0
+# matGT.base_color = np.ndarray(shape=(4,1), buffer=np.array([0.0, 0.0, 1.0, 1.0]), dtype=float)
 
-scene.scene.add_geometry("mesh_name2", pcd, matGT)
-scene.scene.add_geometry("mesh_name3", o3d.geometry.TriangleMesh.create_coordinate_frame(), rendering.MaterialRecord())
+# scene.scene.add_geometry("mesh_name2", pcd, matGT)
+# scene.scene.add_geometry("mesh_name3", o3d.geometry.TriangleMesh.create_coordinate_frame(), rendering.MaterialRecord())
 
-bounds = pcd.get_axis_aligned_bounding_box()
-scene.setup_camera(60, bounds, bounds.get_center())
+# bounds = pcd.get_axis_aligned_bounding_box()
+# scene.setup_camera(60, bounds, bounds.get_center())
 
-gui.Application.instance.run()  # Run until user closes window
+# gui.Application.instance.run()  # Run until user closes window

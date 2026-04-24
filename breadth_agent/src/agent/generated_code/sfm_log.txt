@@ -1,0 +1,146 @@
+<class 'numpy.ndarray'>
+Reading Images:   0%|          | 0/20 [00:00<?, ?it/s]Reading Images:  10%|#         | 2/20 [00:00<00:01, 10.82it/s]Reading Images:  20%|##        | 4/20 [00:00<00:01, 10.87it/s]Reading Images:  30%|###       | 6/20 [00:00<00:01, 10.89it/s]Reading Images:  40%|####      | 8/20 [00:00<00:01, 10.92it/s]Reading Images:  50%|#####     | 10/20 [00:00<00:00, 10.82it/s]Reading Images:  60%|######    | 12/20 [00:01<00:00, 10.61it/s]Reading Images:  70%|#######   | 14/20 [00:01<00:00, 10.65it/s]Reading Images:  80%|########  | 16/20 [00:01<00:00, 10.70it/s]Reading Images:  90%|######### | 18/20 [00:01<00:00, 10.80it/s]Reading Images: 100%|##########| 20/20 [00:01<00:00, 10.98it/s]Reading Images: 100%|##########| 20/20 [00:01<00:00, 10.84it/s]
+Detecting Features:   0%|          | 0/20 [00:00<?, ?it/s]Detecting Features:   5%|5         | 1/20 [00:00<00:06,  2.73it/s]Detecting Features:  25%|##5       | 5/20 [00:00<00:01, 12.63it/s]Detecting Features:  45%|####5     | 9/20 [00:00<00:00, 18.71it/s]Detecting Features:  60%|######    | 12/20 [00:00<00:00, 21.48it/s]Detecting Features:  75%|#######5  | 15/20 [00:00<00:00, 23.79it/s]Detecting Features:  90%|######### | 18/20 [00:00<00:00, 25.22it/s]Detecting Features: 100%|##########| 20/20 [00:00<00:00, 20.35it/s]
+{"avg": 3129.7, "min": 2015, "max": 3727}
+Loaded SuperGlue model ("indoor" weights)
+Detecting Correspondences:   0%|          | 0/19 [00:00<?, ?it/s]Detecting Correspondences:   5%|5         | 1/19 [00:00<00:03,  5.83it/s]Detecting Correspondences:  11%|#         | 2/19 [00:00<00:02,  7.67it/s]Detecting Correspondences:  16%|#5        | 3/19 [00:00<00:01,  8.42it/s]Detecting Correspondences:  21%|##1       | 4/19 [00:00<00:01,  8.60it/s]Detecting Correspondences:  26%|##6       | 5/19 [00:00<00:01,  9.04it/s]Detecting Correspondences:  32%|###1      | 6/19 [00:00<00:01,  9.08it/s]Detecting Correspondences:  37%|###6      | 7/19 [00:00<00:01,  8.84it/s]Detecting Correspondences:  42%|####2     | 8/19 [00:00<00:01,  8.62it/s]Detecting Correspondences:  47%|####7     | 9/19 [00:01<00:01,  8.72it/s]Detecting Correspondences:  53%|#####2    | 10/19 [00:01<00:01,  8.99it/s]Detecting Correspondences:  58%|#####7    | 11/19 [00:01<00:00,  9.10it/s]Detecting Correspondences:  63%|######3   | 12/19 [00:01<00:00,  8.85it/s]Detecting Correspondences:  68%|######8   | 13/19 [00:01<00:00,  8.48it/s]Detecting Correspondences:  74%|#######3  | 14/19 [00:01<00:00,  8.19it/s]Detecting Correspondences:  79%|#######8  | 15/19 [00:01<00:00,  7.93it/s]Detecting Correspondences:  84%|########4 | 16/19 [00:01<00:00,  7.76it/s]Detecting Correspondences:  89%|########9 | 17/19 [00:02<00:00,  7.14it/s]Detecting Correspondences:  95%|#########4| 18/19 [00:02<00:00,  6.46it/s]Detecting Correspondences: 100%|##########| 19/19 [00:02<00:00,  6.35it/s]Detecting Correspondences: 100%|##########| 19/19 [00:02<00:00,  7.80it/s]
+{"avg_outlier": 12.947368421052632, "avg_feats": 1660.2105263157894, "min_feats": 974, "max_feats": 2056}
+Estimating Camera Poses:   0%|          | 0/18 [00:00<?, ?it/s]I20260305 11:09:44.551148 537028 bundle_adjustment.cc:1253] Bundle adjustment report
+    Residuals : 13430
+   Parameters : 5040
+   Iterations : 31
+         Time : 0.173637 [s]
+ Initial cost : 0.463936 [px]
+   Final cost : 0.390435 [px]
+  Termination : NO_CONVERGENCE
+
+Estimating Camera Poses:  17%|#6        | 3/18 [00:00<00:02,  6.60it/s]Estimating Camera Poses:  28%|##7       | 5/18 [00:00<00:01,  8.40it/s]I20260305 11:09:45.468405 537028 bundle_adjustment.cc:1253] Bundle adjustment report
+    Residuals : 27802
+   Parameters : 8730
+   Iterations : 31
+         Time : 0.417289 [s]
+ Initial cost : 0.623487 [px]
+   Final cost : 0.547128 [px]
+  Termination : NO_CONVERGENCE
+
+Estimating Camera Poses:  39%|###8      | 7/18 [00:01<00:02,  4.24it/s]Estimating Camera Poses:  56%|#####5    | 10/18 [00:01<00:01,  5.85it/s]I20260305 11:09:46.862296 537028 bundle_adjustment.cc:1253] Bundle adjustment report
+    Residuals : 40168
+   Parameters : 11934
+   Iterations : 31
+         Time : 0.699103 [s]
+ Initial cost : 0.769724 [px]
+   Final cost : 0.647391 [px]
+  Termination : NO_CONVERGENCE
+
+Estimating Camera Poses:  61%|######1   | 11/18 [00:02<00:02,  2.82it/s]Estimating Camera Poses:  78%|#######7  | 14/18 [00:03<00:00,  4.52it/s]WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+W0000 00:00:1772737788.147959  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737788.158060  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737788.196254  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737788.233396  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737788.332006  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737788.341090  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737788.375223  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737788.408142  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737788.417153  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+I20260305 11:09:48.418482 537028 bundle_adjustment.cc:1253] Bundle adjustment report
+    Residuals : 41388
+   Parameters : 12489
+   Iterations : 31
+         Time : 0.664459 [s]
+ Initial cost : 0.82622 [px]
+   Final cost : 0.581331 [px]
+  Termination : NO_CONVERGENCE
+
+Estimating Camera Poses:  89%|########8 | 16/18 [00:04<00:00,  2.63it/s]Estimating Camera Poses: 100%|##########| 18/18 [00:04<00:00,  3.85it/s]
+Tracking Points:   0%|          | 0/19 [00:00<?, ?it/s]Tracking Points:  21%|##1       | 4/19 [00:00<00:00, 36.86it/s]Tracking Points:  42%|####2     | 8/19 [00:00<00:00, 22.63it/s]Tracking Points:  68%|######8   | 13/19 [00:00<00:00, 30.04it/s]Tracking Points:  89%|########9 | 17/19 [00:00<00:00, 32.44it/s]Tracking Points: 100%|##########| 19/19 [00:00<00:00, 31.61it/s]
+MAX TRACK LENGTH: 20
+{"avg track length": 3.5327486046246723, "avg_outlier": 6.315789473684211, "avg_feats": 1170.3157894736842, "min_feats": 936, "max_feats": 1456}
+Image Shape: (1024, 1024, 3)
+  0%|          | 0/8779 [00:00<?, ?it/s]  3%|2         | 253/8779 [00:00<00:03, 2444.20it/s]  6%|5         | 498/8779 [00:00<00:06, 1195.79it/s]  7%|7         | 651/8779 [00:00<00:07, 1058.70it/s]  9%|8         | 774/8779 [00:00<00:09, 881.72it/s]  10%|9         | 873/8779 [00:00<00:08, 881.27it/s] 11%|#1        | 977/8779 [00:00<00:08, 917.81it/s] 16%|#6        | 1428/8779 [00:01<00:04, 1823.81it/s] 21%|##        | 1800/8779 [00:01<00:03, 2323.39it/s] 26%|##6       | 2300/8779 [00:01<00:02, 3053.69it/s] 31%|###1      | 2738/8779 [00:01<00:01, 3412.34it/s] 36%|###5      | 3135/8779 [00:01<00:01, 3566.55it/s] 40%|####      | 3523/8779 [00:01<00:01, 3641.38it/s] 48%|####8     | 4252/8779 [00:01<00:00, 4698.90it/s] 55%|#####5    | 4851/8779 [00:01<00:00, 5070.68it/s] 63%|######2   | 5530/8779 [00:01<00:00, 5570.17it/s] 69%|######9   | 6095/8779 [00:01<00:00, 5528.07it/s] 81%|########  | 7109/8779 [00:02<00:00, 6888.60it/s] 90%|######### | 7926/8779 [00:02<00:00, 7268.23it/s]100%|##########| 8779/8779 [00:02<00:00, 3906.58it/s]
+W0000 00:00:1772737792.421840  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.422362  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.426428  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.426913  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.428583  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.429060  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.431902  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.433578  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.434067  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.434552  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.438598  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.440276  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.440762  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.442445  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.444112  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.445777  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.446254  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.449116  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.449610  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.451304  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.452969  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.453451  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.456313  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.456793  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.458468  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.461323  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.461802  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.463483  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.465188  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.465667  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.467330  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.468995  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.470656  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.471133  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.473978  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.475650  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.476133  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.478986  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.479463  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.482357  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.482842  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.484518  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.486181  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.487842  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.489542  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.490027  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.492887  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.493372  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.496233  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.496729  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.497213  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.500102  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.502966  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.504635  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.505121  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.507971  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.508446  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.508920  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.512981  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.513466  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.515141  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.515616  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.519637  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.520125  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.521801  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.524670  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.525151  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+W0000 00:00:1772737792.525630  537028 levenberg_marquardt_strategy.cc:124] Linear solver failure. Failed to compute a step: Eigen failure. Unable to perform dense Cholesky factorization.
+I20260305 11:09:52.526871 537028 bundle_adjustment.cc:1253] Bundle adjustment report
+    Residuals : 2266
+   Parameters : 1014
+   Iterations : 151
+         Time : 0.131931 [s]
+ Initial cost : 0.541991 [px]
+   Final cost : 0.420567 [px]
+  Termination : NO_CONVERGENCE
+
+(1133, 4)
+(31016, 4)
+328
+Traceback (most recent call last):
+  File "C:\Users\Anthony\Documents\Projects\scene_agent\breadth_agent\src\agent\generated_code\temp_gen_code.py", line 103, in <module>
+    visualizer.visualize_pose(optimal_scene.cam_poses)
+  File "C:\Users\Anthony\Documents\Projects\scene_agent\breadth_agent\src\modules\visualize.py", line 88, in visualize_pose
+    for i in range(len(cam_poses.camera_pose)):
+                       ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'camera_pose'

@@ -16,26 +16,44 @@ import random
 from tqdm import tqdm
 import os
 import shutil
+from pathlib import Path
 # from baseclass import ImageProcessorClass
 
 
 class CameraDataManager():
     def __init__(self, 
                  image_path: str,
+                 max_images: int | None = None,
                  calibration_path: str | None = None,
                  target_resolution: Tuple[int, int] | None = None):
         
-        image_files = sorted(glob.glob(image_path + "\\*"))[:20]
+        if max_images is None:
+            if os.name == 'nt':
+                image_files = sorted(glob.glob(image_path + "\\*"))#[:5]
+            else:
+                image_files = sorted(glob.glob(image_path + "/*"))
+        else:
+            if os.name == 'nt':
+                image_files = sorted(glob.glob(image_path + "\\*"))#[:max_images]
+            else:
+                image_files = sorted(glob.glob(image_path + "/*"))
+            if len(image_files) > max_images:
+                image_files = image_files[:max_images]
 
-        self.directory_path = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace"
+        print(image_files)
+        self.directory_path = Path(__file__).resolve().parents[2]
+        self.directory_path = str(self.directory_path / "results" / "workspace") 
+        # self.directory_path = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace"
         if os.path.exists(self.directory_path):
             # Delete the directory and all its contents
             shutil.rmtree(self.directory_path)
-            # print(f"Existing directory '{directory_path}' removed.")
 
         # Recreate an empty directory
         os.makedirs(self.directory_path)
-        self.image_dir = self.directory_path + "\\images"
+        if os.name == 'nt':
+            self.image_dir = self.directory_path + "\\images"
+        else:
+            self.image_dir = self.directory_path + "/images"
         # Recreate an empty image directory
         os.makedirs(self.image_dir)
 
@@ -49,9 +67,10 @@ class CameraDataManager():
             intrinsics, distortions, extrinsic = self._read_calibration(cal_file_path=calibration_path)
             calibrated = True
 
-        image_list, image_scale, image_shape_old = self._read_images(image_path=image_files,
-                                                                     target_resolution=target_resolution,
-                                                                     is_cal=calibrated)
+        image_list, image_scale, image_shape_old, image_shape_new = self._read_images(image_path=image_files,
+                                                                                      max_size=1600,
+                                                                                      target_resolution=target_resolution,
+                                                                                      is_cal=calibrated)
         
         # intrinsics, distortions, extrinsic = self._read_calibration(cal_file_path=calibration_path)
         stereo = False
@@ -64,6 +83,7 @@ class CameraDataManager():
 
         self.cam_data = CameraData(image_list=image_list,
                                    image_shape_old=image_shape_old,
+                                   image_shape_new=image_shape_new,
                                    image_scale=image_scale,
                                    intrinsics=intrinsics,
                                    distortions=distortions,
@@ -108,6 +128,7 @@ class CameraDataManager():
  
     def _read_images(self, 
                      image_path: str,
+                     max_size: int,
                      target_resolution: Tuple[int, int] | None = None,
                      is_cal: bool = False) -> tuple[List[np.ndarray],
                                                         Tuple[float, float],
@@ -152,21 +173,39 @@ class CameraDataManager():
                 image_list.append(square_img_np)
                 
                 # Write Image to Colmap Workspace
-                square_img.save(f"{self.image_dir}\\{i:06d}.png")
+                if os.name == 'nt':
+                    file_name = f"{self.image_dir}\\{i:06d}.png"
+                else:
+                    file_name = f"{self.image_dir}/{i:06d}.png"
+                square_img.save(file_name)
+                # square_img.save(f"{self.image_dir}\\{i:06d}.png")
 
             image_scale = (scale, scale)
             image_shape_old = (width, height)
+            image_shape_new = (target_res, target_res)
         else:
             img = image_path[0]
             image = Image.open(img)
             image = ImageOps.exif_transpose(image)
             w, h = image.size
             image = image.convert("RGB") # Confirm image is in RGB
-            
+
+            # Get largest dim of image
+            max_dim = max(h, w)
+ 
             if target_resolution is not None:
                 h_new, w_new = target_resolution #TODO: ENSURE EVERYTHING IS (W, H), including RESHAPE PARAM
                 scale = (w_new / w, h_new / h)
                 target_res = (w_new, h_new)
+            # elif max_dim <= max_size: # No resize needed
+            #     scale = (1.0, 1.0)
+            #     target_res = (w, h)
+            # else:
+            #     scale_pt = max_size / max_dim
+            #     new_w = int(round(w * scale_pt))
+            #     new_h = int(round(h * scale_pt))
+            #     scale = (scale_pt, scale_pt)
+            #     target_res = (new_w, new_h)
             elif h > 1800 or w > 1800:
                 if h > w:
                     h_new, w_new = (1600, 1200)
@@ -184,6 +223,7 @@ class CameraDataManager():
            
             image_scale = scale
             image_shape_old = (w, h)
+            image_shape_new = target_res
 
             # Read Images
             for i in tqdm(range(len(image_path)), desc="Reading Images"):
@@ -199,9 +239,13 @@ class CameraDataManager():
                 image_list.append(image_np)
 
                 # Write Image to Colmap Workspace
-                image.save(f"{self.image_dir}\\{i:06d}.png")
+                if os.name == 'nt':
+                    file_name = f"{self.image_dir}\\{i:06d}.png"
+                else:
+                    file_name = f"{self.image_dir}/{i:06d}.png"
+                image.save(file_name)
 
-        return image_list, image_scale, image_shape_old
+        return image_list, image_scale, image_shape_old, image_shape_new
             
     def get_camera_data(self) -> CameraData:
         return self.cam_data

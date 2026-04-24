@@ -68,8 +68,6 @@ def predict_tracks(
         max_query_pts, extractor_method=keypoint_extractor, device=device
     )
 
-    query_frame_indexes_N = [i for i in range(len(query_frame_indexes))]
-    print(query_frame_indexes)
     pred_tracks = []
     pred_vis_scores = []
     pred_confs = []
@@ -81,7 +79,7 @@ def predict_tracks(
     if fine_tracking:
         print("For faster inference, consider disabling fine_tracking")
 
-    for query_index in query_frame_indexes_N:
+    for query_index in query_frame_indexes:
         print(f"Predicting tracks for query frame {query_index}")
         pred_track, pred_vis, pred_conf, pred_point_3d, pred_color = _forward_on_query(
             query_index,
