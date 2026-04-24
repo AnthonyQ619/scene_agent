@@ -511,7 +511,7 @@ reconstructed_scene.{module_name}(
                          RANSAC_homography=RANSAC_homography,
                          RANSAC_threshold=RANSAC_threshold)
 
-        if self.detector ==  self.DETECTORS[0]:
+        if self.detector in self.DETECTORS[:2]:
             norm_type = cv2.NORM_L2
             self.matcher = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
         else:

@@ -104,7 +104,7 @@ visualizer(optimal_scene)
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(image_path = image_path, 
-                                max_images = 30,
+                                max_images = 15,
                                 calibration_path = calibration_path)
 
 # Step 2: Detect Features
@@ -115,11 +115,18 @@ reconstructed_scene.FeatureDetectionSIFT(
 )
 from modules.camerapose import CamPoseEstimatorEssentialToPnP
 # Step 3: Detect Feature Pairs
-reconstructed_scene.FeatureMatchLightGluePair(
-    detector='sift',   
-    RANSAC_threshold=0.02,
-    RANSAC_conf=0.999
-)
+reconstructed_scene.FeatureMatchFlannPair(detector="sift",
+                                        k=2,
+                                        lowes_thresh=0.78,
+                                        RANSAC_homography=False,
+                                        RANSAC_threshold=0.02,
+                                        RANSAC_conf=0.999)
+
+# FeatureMatchLightGluePair(
+#     detector='sift',   
+#     RANSAC_threshold=0.02,
+#     RANSAC_conf=0.999
+# )
 
 # Step 4: Detect/Estimate Camera Poses
 reconstructed_scene.CamPoseEstimatorEssentialToPnP(

@@ -7,7 +7,7 @@ import time
 from typing import Dict, List, Type
 from pathlib import Path
 
-import hydra
+# import hydra
 import omegaconf
 import numpy as np
 import cv2
@@ -16,8 +16,8 @@ import copy
 import torch
 import re
 
-import theseus as th
-import theseus.utils.examples as theg
+# import theseus as th
+# import theseus.utils.examples as theg
 
 # Hide Warnings
 # os.environ["GLOG_log_dir"] = r"C:\Users\Anthony\Documents\Projects\scene_agent\breadth_agent\results"

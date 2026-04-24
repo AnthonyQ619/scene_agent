@@ -3,7 +3,7 @@ import glob
 import os
 import cv2
 from pathlib import Path
-from modules.utilities import image_builder
+from modules.utilities import image_builder, resize_dataset, clean_dir
 import glob
 
 class Generator:
@@ -58,6 +58,21 @@ class Generator:
 
         #     context_str += f"Example {i + 1}:\n" + scene + "\n" + procedure + "\n"
 
+        # Image Analyzer Desc
+        system_desc_img = system_desc = f"""
+        You are an expert set to evaluate the set of incoming images. Given an image prompt (which can range from images rotating outside in of an object
+        to a video walking along a path in an indoor or outdoor scene), you are supposed to describe every facet of the scene in plain english. For your response, 
+        you need to describe the following characteristics of the scene. Specifically, be descriptive, but brief. Maximumg of 75 words per category:
+
+        1. Determine if the images are of scenes outdoors or indoors environments. 
+        2. Determine if there are consistent illumination changes across the set of images evaluated in the scene or objects of interest.
+        3. Describe key features of the scene, specifically [For this category, ensure each sub-category is limited to 50 words]
+            3.1 if the scene rotates around an object or moves along in a forward direction
+            3.2 contains an object of interest in the scene at all times, or no consistent object at all in the scene
+            3.3 Background of the scene exhibits any information that can be reconstructed, or depth disparity of object is extreme to background.
+        4. Across the sequence of images, determine if movement includes any extreme viewpoint changes, or if the camera gradually moves across the scene in increments.
+        """
+
         # Fixed System Description for the API
         system_desc = f"""
 You are an expert in generating Structure from Motion solution pipelines in Computer Vision. Given a subset of images of the given scene, whether camera 
@@ -104,10 +119,19 @@ any code, ONLY WRITTEN TEXT SIMILAR TO THE PROVIDED CONTEXT EXAMPLES THE GIVEN P
                             model_name = model,
                             reasoning_effort = reasoning_effort,
                             temperature = temperature)
+
+        self.image_analysis = LLM(system_desc = system_desc_img,
+                            response_format = "text",
+                            model_name = model,
+                            reasoning_effort = reasoning_effort,
+                            temperature = temperature)
         
         # Build In-Context image examples here
-        img_path = os.path.join(self.CWD, 'agent_details', 'image_context')
-        self.image_paths = sorted(glob.glob(img_path + "\\*"))
+        img_path = os.path.join(self.CWD, 'agent_details', 'image_context') # MAKE THIS MORE PATH ORIENTED
+        self.image_paths = sorted(glob.glob(img_path + "/*"))
+
+        temp_path = "/home/anthonyq/datasets/DTU/DTU/scan10/images"
+        self.dataset_path = sorted(glob.glob(temp_path + "/*")) # MAKE THIS MORE PATH ORIENTED (LIBRARY)
 
     def __call__(self, query, query_imgs):
         # full_query = self.prompter_llm(query) + '\n' + image_analysis
@@ -123,10 +147,15 @@ is the given scene from the user to generate a procedure for.
 The followiing information is provided to guide your chosen sub-modules for each step of the generated procedure.
 {query}
 """
-
-
+        # print(self.dataset_path)
+        resized_dir, resized_img_list = resize_dataset(image_path=self.dataset_path[:30],
+                                                       max_size=350)
+        image_analysis_response = self.image_analysis("Read the set of images", image_paths=resized_img_list)
+        clean_dir(resized_dir)
         # image_path = sorted(glob.glob(query_imgs + "\\*"))
         # Use equivalent params from context builder images
+        print("RESPONSE: ", image_analysis_response)
+        # print("QUERY IMAGE LIST:", query_imgs)
         new_img = image_builder(image_path=query_imgs, 
                                 max_size=350, 
                                 k=5)

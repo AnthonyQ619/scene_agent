@@ -44,16 +44,21 @@ def plot_features(img_path: str, pts:np.ndarray, image_size):
 # calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
 # image_path = "/home/anthonyq/datasets/DTU/DTU/scan22"
 # calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
-image_path = "/home/anthonyq/datasets/tanks_and_temples/Francis"
-calibration_path = "/home/anthonyq/datasets/tanks_and_temples/calibration_new_1920.npz"
+# image_path = "/home/anthonyq/datasets/tanks_and_temples/Francis"
+# calibration_path = "/home/anthonyq/datasets/tanks_and_temples/calibration_new_1920.npz"
+
+image_path = "/home/anthonyq/datasets/DTU/DTU/scan22"
+calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
 
 camera_data = CameraDataManager(image_path=image_path,
-                                max_images = 5,
+                                max_images = 15,
                                 calibration_path=calibration_path).get_camera_data()
 # Feature Module Initialization
 # calibration_data = CalibrationReader(calibration_path).get_calibration()
-# feature_detector = FeatureDetectionSIFT(cam_data=camera_data,
-#                                         max_keypoints=12000)
+feature_detector = FeatureDetectionSIFT(cam_data=camera_data,
+                                        max_keypoints=10000,
+                                        contrast_threshold=0.009,
+                                        edge_threshold=20)
 # feature_detector = FeatureDetectionORB(cam_data=camera_data, 
 #                                         max_keypoints=20000,
 #                                         fast_threshold=20,
@@ -62,35 +67,44 @@ camera_data = CameraDataManager(image_path=image_path,
 #                                         # set_nms_tolerance = 0.2
 #                                         )
 
-feature_detector = FeatureDetectionSP(cam_data=camera_data, 
-                                        max_keypoints=5000)
+# feature_detector = FeatureDetectionSP(cam_data=camera_data, 
+#                                         max_keypoints=5000)
 # feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
-#                                             detector="superpoint")
+#                                             detector="superpoint",
+#                                             RANSAC_homography=True,
+#                                             RANSAC_threshold=0.015,
+#                                             RANSAC_conf=0.999)
 # feature_matcher = FeatureMatchSuperGluePair(cam_data=camera_data,
 #                                             detector='superpoint', 
-#                                             setting='indoor')
-feature_tracker = FeatureMatchLightGlueTracking(cam_data=camera_data, 
-                                                detector="superpoint",
-                                                RANSAC_threshold=0.015,
-                                                RANSAC_conf=0.999)
+#                                             setting='indoor',
+#                                             RANSAC_homography = True,
+#                                             RANSAC_threshold=0.015,
+#                                             RANSAC_conf=0.999)
+# feature_tracker = FeatureMatchLightGlueTracking(cam_data=camera_data, 
+#                                                 detector="superpoint",
+#                                                 RANSAC_homography = False,
+#                                                 RANSAC_threshold=0.015,
+#                                                 RANSAC_conf=0.999)
 # feature_tracker = FeatureMatchFlannTracking(cam_data=camera_data, 
-#                                             detector="sift",
+#                                             detector="superpoint",
 #                                             lowes_thresh=0.70,
+#                                             RANSAC_homography = True,
 #                                             RANSAC_threshold=0.015,
 #                                             RANSAC_conf=0.999)
 # feature_tracker = FeatureMatchBFTracking(cam_data=camera_data,
-#                                          detector="sift",
+#                                          detector="superpoint",
 #                                          k=2,
 #                                          cross_check=False,
 #                                          lowes_thresh=0.70,
+#                                          RANSAC_homography = True,
 #                                          RANSAC_threshold=0.015,
 #                                          RANSAC_conf=0.999)
 
-feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
-                                            detector="superpoint",
-                                            RANSAC_homography = False,
-                                            RANSAC_threshold=0.02,
-                                            RANSAC_conf=0.999)
+# feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
+#                                             detector="superpoint",
+#                                             RANSAC_homography = False,
+#                                             RANSAC_threshold=0.02,
+#                                             RANSAC_conf=0.999)
 
 # feature_matcher = FeatureMatchSuperGluePair(cam_data=camera_data,
 #                                             detector="superpoint",
@@ -99,28 +113,30 @@ feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
 # feature_matcher = FeatureMatchBFPair(detector="sift", 
 #                                      cam_data=camera_data,
 #                                      cross_check=False,
-#                                      RANSAC_threshold=0.05,
+#                                      RANSAC_homography=False,
+#                                      RANSAC_threshold=0.01,
 #                                      lowes_thresh=0.750)
 
-# feature_matcher = FeatureMatchFlannPair(cam_data=camera_data,
-#                                         detector="sift",
-#                                         k=2,
-#                                         lowes_thresh=0.78,
-#                                         RANSAC=True,
-#                                         RANSAC_threshold=0.02,
-#                                         RANSAC_conf=0.999)
+feature_matcher = FeatureMatchFlannPair(cam_data=camera_data,
+                                        detector="sift",
+                                        k=2,
+                                        lowes_thresh=0.78,
+                                        RANSAC_homography=False,
+                                        RANSAC_threshold=0.02,
+                                        RANSAC_conf=0.999)
 # feature_matcher = FeatureMatchRoMAPair(img_path=image_path, setting="outdoor")
-# feature_tracker = FeatureMatchSuperGlueTracking(cam_data=camera_data,
-#                                                 detector='superpoint', 
-#                                                 setting='indoor',
-#                                                 RANSAC_threshold=0.01)
+feature_tracker = FeatureMatchSuperGlueTracking(cam_data=camera_data,
+                                                detector='superpoint', 
+                                                setting='indoor',
+                                                RANSAC_homography=True,
+                                                RANSAC_threshold=0.01)
 
 # Solution Pipeline 
 detected_features = feature_detector()
 # print(detected_features)
 
 
-tracks = True
+tracks = False
 vis = True
 server = True
 pair = True

@@ -16,6 +16,7 @@ import random
 from tqdm import tqdm
 import os
 import shutil
+from pathlib import Path
 # from baseclass import ImageProcessorClass
 
 
@@ -40,11 +41,12 @@ class CameraDataManager():
                 image_files = image_files[:max_images]
 
         print(image_files)
-        self.directory_path = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace"
+        self.directory_path = Path(__file__).resolve().parents[2]
+        self.directory_path = str(self.directory_path / "results" / "workspace") 
+        # self.directory_path = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace"
         if os.path.exists(self.directory_path):
             # Delete the directory and all its contents
             shutil.rmtree(self.directory_path)
-            # print(f"Existing directory '{directory_path}' removed.")
 
         # Recreate an empty directory
         os.makedirs(self.directory_path)
@@ -171,7 +173,12 @@ class CameraDataManager():
                 image_list.append(square_img_np)
                 
                 # Write Image to Colmap Workspace
-                square_img.save(f"{self.image_dir}\\{i:06d}.png")
+                if os.name == 'nt':
+                    file_name = f"{self.image_dir}\\{i:06d}.png"
+                else:
+                    file_name = f"{self.image_dir}/{i:06d}.png"
+                square_img.save(file_name)
+                # square_img.save(f"{self.image_dir}\\{i:06d}.png")
 
             image_scale = (scale, scale)
             image_shape_old = (width, height)
@@ -232,7 +239,11 @@ class CameraDataManager():
                 image_list.append(image_np)
 
                 # Write Image to Colmap Workspace
-                image.save(f"{self.image_dir}\\{i:06d}.png")
+                if os.name == 'nt':
+                    file_name = f"{self.image_dir}\\{i:06d}.png"
+                else:
+                    file_name = f"{self.image_dir}/{i:06d}.png"
+                image.save(file_name)
 
         return image_list, image_scale, image_shape_old, image_shape_new
             

@@ -1082,6 +1082,7 @@ class FeatureMatching(PipelineModule, ABC):
         repeatabilities = []
         for pair in range(len(matched_points)):
             pt_set = matched_points[pair]
+            print(pt_set)
             pt_set_A = pt_set[:, :2]
             pt_set_B = pt_set[:, 2:]
 

@@ -1,4 +1,4 @@
-from code_refinement_agent import CodeRefinementLLM
+# from code_refinement_agent import CodeRefinementLLM
 from core.imageanalyzer import ImageAnalyzer
 from core.generator import Generator
 from core.compiler import Compiler
@@ -305,6 +305,7 @@ Use Calibration Path in Code: {prompt['calibration']}
         print(procedure)
         # PLANNER #
 
+        """
         # PROGRAM SYNTHESIS #
         t0 = time.time()
         code = self.compiler(procedure)
@@ -350,20 +351,21 @@ Use Calibration Path in Code: {prompt['calibration']}
 
         log_file.close()
 
-        # return refined_code
+        # return refined_code"""
+        return True
 
 
 
 # Initial Params
-api_path = 'C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent\\agent_details\\tool_context'
+api_path = '/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/agent_details/tool_context'
 log_file = "sfm_log.txt"
-script_dir_testing = 'C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent\\generated_code'
-instruction_path = 'C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent\\agent_details\\agent_instructions\\prompt_enh_examples.txt'
+script_dir_testing = '/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/generated_code'
+instruction_path = '/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/agent_details/agent_instructions/prompt_enh_examples.txt'
 
 # Prompt
-image_path = r"C:\Users\Anthony\Documents\Projects\datasets\sfm_dataset\Experiments\co3dv2\orange\374_42196_84367\images"
-calibration_path = r"C:\Users\Anthony\Documents\Projects\datasets\sfm_dataset\Experiments\co3dv2\orange\calibration_new_374_42196_84367.npz"
-reconstruction_type = "Pose Reconstruction"
+image_path = r"/home/anthonyq/datasets/DTU/DTU/scan10/images"
+calibration_path = r"/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
+reconstruction_type = "Sparse Reconstruction"
 gpu_mem = "12gb"
 temp_prompt = {'images':image_path, 
                 'calibration':calibration_path, 
