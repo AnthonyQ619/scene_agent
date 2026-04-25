@@ -59,16 +59,14 @@ the SuperPoint deep learning feature detector algorithm and initialize through t
 parameter. Use this matching module when features need to be matched in images where the 
 scene contains low-lit enviornment or illumination changes occur in the scene 
 (Outdoors for example), and run time is NOT A CONCERN, or when specified directly.
-This matcher excels in Nighttime setting with SuperPoint as the detector, but other detectors
-can be utilized for efficiency purposes.
+This matcher excels in Nighttime setting with SuperPoint as the detector.
 
 Model is trained both for indoor and outdoor setting. When not specified, assume indoor
 setting to properly initialize the model.
 
-Other supported detectors are: SIFT and SuperPoint
+At this time, this deep learning feature trakcer is only usable with SuperPoint.
 
-Initialization Parameters:
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+Initialization/Function Parameters:
 - detector (str): Name of Feature Detector that was used to estimate the features provided.
     - default (str): superpoint
 - sinkhorn_iterations: number iterations for running the Sinkhorn Algorithm in the model for optimal
@@ -88,21 +86,29 @@ stage
 - RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
     - Default (float): 0.99
 
-Function Call Parameters:
+Function Call Parameters - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IN USE:
 - features (list[Points2D]): list of features detected per scene estimated from the feature detection module
 """ # TODO: Fill in details for the matcher. Be precise as we want the agent to know when exactly to use this
         
         example = f"""
-Initialization of Module: 
+Initialization modules
+from modules.baseclass import SfMScene
+from modules.features import FeatureDetectionSP
+from modules.featurematching import {module_name}
+
+# Start SfM Pipeline 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(image_path = image_path, 
                             calibration_path = calibration_path)
 
-# Step 2: Detect Features must be completed prior!
-# Step 3/4: 
+# Step 2 (Detect Features) must be completed prior!
+# Step 3/4: Track features, (typically done as the fourth step in most pipelines)
 reconstructed_scene.{module_name}(
-    RANSAC_threshold=0.008,
-    lowes_thresh=0.65,
+    detector="superpoint",
+    setting="indoor",
+    RANSAC_homography=False,
+    RANSAC_threshold=0.02,
+    RANSAC_conf=0.999
     )
 """
         super().__init__(detector=detector,
@@ -192,8 +198,7 @@ and faster run time is REQUIRED, or when specified directly in this scenario.
 
 Other supported detectors are: SIFT and SuperPoint
 
-Initialization Parameters:
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+Initialization/Funcrtion Parameters:
 - detector (str): Name of Feature Detector that was used to estimate the features provided.
     - Default (str): SIFT
 - n_layers: Number of stacked self+cross attention layers. Reduce this value for faster inference 
@@ -216,24 +221,29 @@ without any impact on accuracy.
     - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
 - RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
     - Default (float): 0.99
-Other supported detectors are: SIFT and SuperPoint
 
-Function Call Parameters:
-
+Function Call Parameters - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IN USE:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """ # TODO: Fill in details for the matcher. Be precise as we want the agent to know when exactly to use this
         
         example = f"""
-Initialization of Module: 
+Initialization modules
+from modules.baseclass import SfMScene
+from modules.features import FeatureDetectionSP
+from modules.featurematching import {module_name}
+
+# Start SfM Pipeline 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(image_path = image_path, 
                             calibration_path = calibration_path)
 
-# Step 2: Detect Features must be completed prior!
-# Step 3/4: 
+# Step 2 (Detect Features) must be completed prior!
+# Step 3/4: Track features, (typically done as the fourth step in most pipelines)
 reconstructed_scene.{module_name}(
-    RANSAC_threshold=0.008,
-    lowes_thresh=0.65,
+    detector="superpoint",
+    RANSAC_homography=False,
+    RANSAC_threshold=0.02,
+    RANSAC_conf=0.999
     )
 """
 
@@ -337,13 +347,15 @@ algorithm used is the Flann feature detector. Unless specified directly, assume 
 are detected using the SIFT algorithm and initialize through the detector parameter. 
 Other supported detectors are: SIFT, ORB, SuperPoint, and FAST.
 
-SuperPoint and Sift share the same parameters, whereas ORB and FAST share the same parameters.
+SuperPoint and Sift share the same parameters, whereas ORB contains different parameters.
 
-Use this module in the case a faster feature matcher is needed for tracking features, in which
-this module utilizes a nearest neighbor method for fast matching.
+Use this module in the case a faster feature tracking module is needed for estimating feature tracks, 
+in which this module utilizes a nearest neighbor method for fast matching across image pairs. Faster than 
+BruteForce, but slower than ML based matchers. This matcher is less accurate than Brute-Force in tracks, but 
+can sometimes be more accurate than ML detectors in certain conditions for feature tracking. 
 
-Initialization Parameters: 
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+
+Initialization/Function Parameters: 
 - detector: String representing the name of the feature detector used for the features provided.
     - Default (str): SIFT
 - k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing with lowes threshold.
@@ -358,21 +370,30 @@ Initialization Parameters:
      below a specific threshold
     - Default (float): 0.75
 
-Function Call Parameters:
+Function Call Parameters - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IN USE:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """
 
         example = f"""
-Initialization of Module: 
+Initialization modules
+from modules.baseclass import SfMScene
+from modules.features import FeatureDetectionSIFT
+from modules.featurematching import {module_name}
+
+# Start SfM Pipeline 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(image_path = image_path, 
                             calibration_path = calibration_path)
 
-# Step 2: Detect Features must be completed prior!
-# Step 3/4: 
+# Step 2 (Detect Features) must be completed prior!
+# Step 3/4: Track features, (typically done as the fourth step in most pipelines)
 reconstructed_scene.{module_name}(
-    RANSAC_threshold=0.008,
-    lowes_thresh=0.65,
+    detector="sift",
+    k=2,
+    lowes_thresh=0.78,
+    RANSAC_homography=False,
+    RANSAC_threshold=0.02,
+    RANSAC_conf=0.999
     )
 """
         super().__init__(detector=detector,
@@ -460,13 +481,13 @@ Detects point correspondance between multiple frames to track any matching
 features across the set of images. The feature matching algorithm used is the Brute-Force 
 feature detector. Unless specified directly, assume the features are detected using the SIFT 
 algorithm and initialize through the detector parameter. 
-Other supported detectors are: SIFT, ORB, SuperPoint, and FAST. 
+Other supported detectors are: SIFT, ORB, and SuperPoint. 
 
-Use this Feature Matching Module when fast, real time, feature matching needs to be 
-conducted. This is less accurate than Flann and the ML models, but is much faster.
+Use this Feature Matching Module when needing very accurate feature tracks, however this is an 
+exhaustive search for correspondence points, so robustness is dependent on the feature detector
+descriptors. This is more accurate than Flann, but less robust to ML matchers in certain conditions.
 
-Initalization Parameters:
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+Initalization/Function Parameters:
 - detector: String representing the name of the feature detector used for the features provided.
     - Default (str): SIFT
 - k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing with lowes threshold.
@@ -486,20 +507,29 @@ Initalization Parameters:
      below a specific threshold
     - Default (float): 0.75
 
-Function Call Parameters:
+Function Call Parameters - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IN USE:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """
         example = f"""
-Initialization of Module: 
+Initialization modules
+from modules.baseclass import SfMScene
+from modules.features import FeatureDetectionSIFT
+from modules.featurematching import {module_name}
+
+# Start SfM Pipeline 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(image_path = image_path, 
                             calibration_path = calibration_path)
 
-# Step 2: Detect Features must be completed prior!
-# Step 3/4: 
+# Step 2 (Detect Features) must be completed prior!
+# Step 3/4: Track features, (typically done as the fourth step in most pipelines)
 reconstructed_scene.{module_name}(
-    RANSAC_threshold=0.008,
-    lowes_thresh=0.65,
+    detector="sift",
+    k=2,
+    lowes_thresh=0.78,
+    RANSAC_homography=False,
+    RANSAC_threshold=0.02,
+    RANSAC_conf=0.999
     )
 """     
         super().__init__(detector=detector,
@@ -859,10 +889,9 @@ This matcher excels in Nighttime setting with SuperPoint as the detector.
 Model is trained both for indoor and outdoor setting. When not specified, assume indoor
 setting to properly initialize the model.
 
-Other supported detectors are: SIFT and SuperPoint.
+At this time, this deep learning matcher is only usable with SuperPoint.
 
-Initialization Parameters:
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+Initialization/Function Parameters:
 - detector (str): Name of Feature Detector that was used to estimate the features provided.
     - default (str): superpoint
 - sinkhorn_iterations: number iterations for running the Sinkhorn Algorithm in the model for optimal
@@ -884,21 +913,29 @@ stage
 - RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
     - Default (float): 0.99
 
-Function Call Parameters:
+Function Call Parameters - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IN USE:
 - features (list[Points2D]): list of features detected per scene estimated from the feature detection module
 """ # TODO: Fill in details for the matcher. Be precise as we want the agent to know when exactly to use this
         
         example = f"""
-Initialization of Module: 
+Initialization modules
+from modules.baseclass import SfMScene
+from modules.features import FeatureDetectionSP
+from modules.featurematching import {module_name}
+
+# Start SfM Pipeline 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(image_path = image_path, 
                             calibration_path = calibration_path)
 
-# Step 2: Detect Features must be completed prior!
+# Step 2 (Detect Features) must be completed prior!
 # Step 3: 
 reconstructed_scene.{module_name}(
-    RANSAC_threshold=0.008,
-    lowes_thresh=0.65,
+    detector="superpoint",
+    setting="indoor",
+    RANSAC_homography=False,
+    RANSAC_threshold=0.02,
+    RANSAC_conf=0.999
     )
 """
 
@@ -1056,8 +1093,7 @@ the scene (Outdoors for example) with faster run time being REQUIRED, or when sp
 
 Other supported detectors are: SIFT and SuperPoint
 
-Initialization Parameters:
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+Initialization/Function Parameters:
 - detector (str): Name of Feature Detector that was used to estimate the features provided.
     - Default (str): SIFT
 - n_layers: Number of stacked self+cross attention layers. Reduce this value for faster inference 
@@ -1082,24 +1118,29 @@ without any impact on accuracy.
     - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
 - RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
     - Default (float): 0.99
-Other supported detectors are: SIFT and SuperPoint
 
-Function Call Parameters:
-
+Function Call Parameters - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IN USE:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """ # TODO: Fill in details for the matcher. Be precise as we want the agent to know when exactly to use this
         
         example = f"""
-Initialization of Module: 
+Initialization modules
+from modules.baseclass import SfMScene
+from modules.features import FeatureDetectionSP
+from modules.featurematching import {module_name}
+
+# Start SfM Pipeline 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(image_path = image_path, 
                             calibration_path = calibration_path)
 
-# Step 2: Detect Features must be completed prior!
+# Step 2 (Detect Features) must be completed prior!
 # Step 3: 
 reconstructed_scene.{module_name}(
-    RANSAC_threshold=0.008,
-    lowes_thresh=0.65,
+    detector="superpoint",
+    RANSAC_homography=False,
+    RANSAC_threshold=0.02,
+    RANSAC_conf=0.999
     )
 """
         
@@ -1265,15 +1306,16 @@ features across a set of images. The feature matching algorithm used is the Flan
 detector. Use this feature matcher for when a Nearest Neighbor algorithm is called for 
 and speed is a necessary requirement. Unless specified directly, assume the features 
 are detected using the SIFT algorithm and initialize through the detector parameter. 
-Other supported detectors are: SIFT, ORB, SuperPoint, and FAST.
+Other supported detectors are: SIFT, ORB, and SuperPoint.
 
-SuperPoint and Sift share the same parameters, whereas ORB and FAST share the same parameters.
+SuperPoint and Sift share the same parameters, whereas ORB contains different parameters.
 
 Use this module in the case a faster feature matcher is needed for feature pair correspondences, 
-in which this module utilizes a nearest neighbor method for fast matching.
+in which this module utilizes a nearest neighbor method for fast matching. Faster than BruteForce, but 
+slower than ML based matchers. This matcher is less accurate than Brute-Force, but can sometimes be more 
+accurate than ML detectors in certain conditions. 
 
-Initialization Parameters: 
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+Initialization/Function Parameters: 
 - detector: String representing the name of the feature detector used for the features provided.
     - Default (str): SIFT
 - k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing with lowes threshold.
@@ -1290,20 +1332,29 @@ Initialization Parameters:
      below a specific threshold
     - Default (float): 0.75
 
-Function Call Parameters:
+Function Call Parameters - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IN USE:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """
         example = f"""
-Initialization of Module: 
+Initialization modules
+from modules.baseclass import SfMScene
+from modules.features import FeatureDetectionSIFT
+from modules.featurematching import {module_name}
+
+# Start SfM Pipeline 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(image_path = image_path, 
                             calibration_path = calibration_path)
 
-# Step 2: Detect Features must be completed prior!
+# Step 2 (Detect Features) must be completed prior!
 # Step 3: 
 reconstructed_scene.{module_name}(
-    RANSAC_threshold=0.008,
-    lowes_thresh=0.65,
+    detector="sift",
+    k=2,
+    lowes_thresh=0.78,
+    RANSAC_homography=False,
+    RANSAC_threshold=0.02,
+    RANSAC_conf=0.999
     )
 """     
         super().__init__(cam_data=cam_data,
@@ -1439,11 +1490,12 @@ feature detector. Unless specified directly, assume the features are detected us
 algorithm and initialize through the detector parameter. 
 Other supported detectors are: SIFT, ORB, SuperPoint, and FAST. 
 
-Use this Feature Matching Module when fast, real time, feature matching needs to be 
-conducted. This is less accurate than Flann and the ML models, but is much faster.
+Use this Feature Matching Module when you need highly accurate matches as this an exhaustive 
+matcher to check 1-1 for every other match to find the closest matches. This is slower than
+Flann and Other ML matchers, but more accurate than flann and can be more accurate than ML 
+matchers in certain conditions.
 
-Initalization Parameters:
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+Initalization/Function Parameters:
 - detector: String representing the name of the feature detector used for the features provided.
     - Default (str): SIFT
 - k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing with lowes threshold.
@@ -1465,20 +1517,29 @@ Initalization Parameters:
      below a specific threshold
     - Default (float): 0.75
 
-Function Call Parameters:
+Function Call Parameters - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IN USE:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 """
         example = f"""
-Initialization of Module: 
+Initialization modules
+from modules.baseclass import SfMScene
+from modules.features import FeatureDetectionSIFT
+from modules.featurematching import {module_name}
+
+# Start SfM Pipeline 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(image_path = image_path, 
                             calibration_path = calibration_path)
 
-# Step 2: Detect Features must be completed prior!
+# Step 2 (Detect Features) must be completed prior!
 # Step 3: 
 reconstructed_scene.{module_name}(
-    RANSAC_threshold=0.008,
-    lowes_thresh=0.65,
+    detector="sift",
+    k=2,
+    lowes_thresh=0.78,
+    RANSAC_homography=False,
+    RANSAC_threshold=0.02,
+    RANSAC_conf=0.999
     )
 """
 
