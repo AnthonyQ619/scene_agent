@@ -870,7 +870,6 @@ class Dense3DReconstructionVGGT(DenseSceneEstimation):
     def __init__(self,
                  cam_data: CameraData,
                  min_observe: int = 3):
-        super().__init__(cam_data = cam_data)
 
         module_name = "Dense3DReconstructionVGGT"
         description = f"""
@@ -948,15 +947,15 @@ reconstructed_scene.{module_name}()
         elif os.name == 'posix':
             WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        if device == "cuda":
+        if self.device == "cuda":
             # bfloat16 is supported on Ampere GPUs (Compute Capability 8.0+) 
             self.dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
         else:
             self.dtype = torch.float32
 
-        self.model = VGGT().to(device)
+        self.model = VGGT().to(self.device)
         self.model.load_state_dict(torch.load(WEIGHT_MODULE, weights_only=True))
         self.model.eval()
 

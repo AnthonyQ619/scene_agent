@@ -115,11 +115,11 @@ reconstructed_scene = SfMScene(image_path = image_path,
 reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     iteration_count=150,
     reprojection_error = 3.0,
-    optimizer = ("BundleAdjustmentOptimizerLocal", {
+    optimizer = ("BundleAdjustmentOptimizerLocal", {{
         "max_num_iterations": 25,
         "robust_loss": True,
         "use_gpu": False
-    }),
+    }}),
 )
 """
         super().__init__(cam_data=cam_data,

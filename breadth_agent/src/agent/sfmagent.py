@@ -240,7 +240,7 @@ The goal is to output the same python code that is provided but only make the ab
                             temperature = 0.8)
         
     def __call__(self, prompt):
-        log_file = open(self.script_dir + "\\time_log.txt", 'w')
+        log_file = open(self.script_dir + "/time_log.txt", 'w')
 
 #         t0 = time.time()
 #         result = self.analyzer(prompt['images'])
@@ -296,7 +296,7 @@ Use Calibration Path in Code: {prompt['calibration']}
         log_file.write("GENERATOR LLM (PROCEDURE GENERATRION):\n" + str(t1-t0) + "\n")
 
         # Save the Procedure Generation
-        temp_file = open(self.script_dir + "\\gen_procedure.txt", 'w', encoding="utf-8")
+        temp_file = open(self.script_dir + "/gen_procedure.txt", 'w', encoding="utf-8")
 
         temp_file.write(procedure)
 
@@ -305,7 +305,7 @@ Use Calibration Path in Code: {prompt['calibration']}
         print(procedure)
         # PLANNER #
 
-        """
+        
         # PROGRAM SYNTHESIS #
         t0 = time.time()
         code = self.compiler(procedure)
@@ -313,12 +313,12 @@ Use Calibration Path in Code: {prompt['calibration']}
         log_file.write("COMPILER LLM (CODE GENERATRION):\n" + str(t1-t0) + "\n")
 
         # Save the initial Code
-        temp_file = open(self.script_dir + "\\gen_code.py", 'w', encoding="utf-8")
+        temp_file = open(self.script_dir + "/gen_code.py", 'w', encoding="utf-8")
 
         temp_file.write(code)
 
         temp_file.close()
-
+        """
         t0 = time.time()
         refined_code = self.debugger(code)
         t1 = time.time()

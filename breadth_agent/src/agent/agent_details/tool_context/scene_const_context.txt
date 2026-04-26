@@ -5,24 +5,26 @@ Tool Name: Sparse3DReconstructionMono
 
 Tool Description: 
 Sparsely reconstructs a 3D scene utilizing pre-processed information of camera poses and
-detected features tracked across the scene. Camera Poses are estimated prior to thie module
-through the camera pose estimation module. Features matched, or tracked are estimated 
-prior to this module through the feature matcher module. 
+detected features tracked across the scene. Camera Poses are estimated prior to this module
+through the camera pose estimation module. Features are matched, or tracked, prior to this module 
+through the feature matching/tracking module. 
+
 This module can reconstruct sparse 3D scenes specifically using a monocular camera as primary sensor. 
-This is determined by the data used and the parameter 'view' on module function call. 
 This module can reconstruct sparse 3D scenes either through multi-view or two-view triangulation.
 This is determined by the method used to find matching features.
+Features that are Tracked (Hence a FeatureTracking module is called prior to this step), set multi-view
+to True. If Features are Matched (a FeatureMatching module is called prior with no tracking module called), 
+set multi_view to False.
+
 Use this module when specified for sparse reconstruction and calibration data is provided,
 with the camera being used is a monocular camera, and when enough features are detected in the scene. 
 This can apply for scenes with high textured with good lighting, but also scenes that do not apply if 
 the prerequisite for enough features detected are met. The module is for reconstructing the 
 scene using the direct mathematical (Classical) approach.
 
-Initialization Parameters:
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
-- view: Method used to trace feature points across frames (Two-View [Image Pairs] or Multi-View [Tracking])
-    - Default (str): multi
-    - Options: ["multi", "two"]
+Initialization/Function Parameters:
+- view: Method used to trace feature points across frames (Two-View [Corresponding Pairs] or Multi-View [Tracking])
+    - Default (bool): True
 - min_observe: The minimum number of observations (number of tracked feature points) needed to conduct a 3D 
 point estimation. Note: this must be greater than 2
     - Default (int): 3 
@@ -33,13 +35,13 @@ the more accurate the 3D point (Maximum of 4.0)
 - reproj_error: Maximum reprojection error accepted for a potential 3D point estimation to keep in a point cloud. Error is measured in pixel coordinates.
     - Default (float): 3.0
 
-Function Call Parameters:
+Function Call Inputs - Handled Internally from SfMScene in the common API Workflow:
 - cam_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
 specifically from the CameraPoseEstimation modules. 
 - tracked_features (PointsMatched): Feature points tracked across multiple frames to allow Multi-View 3D point estimation. Feature Tracks are 
 estimated from the FeatureTracking modules.
 
-Module Input:
+Module Input - Handled Internally from SfMScene in the common API Workflow:
     PointsMatched (Matched Features across image pairs)
         # General Data Information for Feature Matches
         image_size: np.ndarray              [1 x 2] [np.int64] (Simply Image Shape: (W, H))
@@ -57,7 +59,7 @@ Module Input:
         rotations: list[np.ndarray]     [3 x 3] (np.float) Rotation matrices for each corresponding frame (Derived from camera_pose)
         translations: list[np.ndarray]  [3 x 1] (np.float) Translation matrices for each corresponding frame (Derived from camera_pose)
 
-Module Output:
+Module Output - Handled Internally from SfMScene in the common API Workflow:
     Scene:
         points3D: Points3D 
             Points3D
@@ -67,43 +69,33 @@ Module Output:
         observations: np.ndarray            [M x 4] matrix for each point observation where M=num_of_observations, and each row = [frame, 3d_point_ind, pix_x, pix_y]
         depth_maps: list[np.ndarray]        List[[H x W]] List of Depth Maps per frame, formated as HeightxWidth of image shape
         sparse: bool                        Used to determine if current scene is sparse or dense
-        bal_data: BundleAdjustmentData      Data stored in the BAL format, and write file to reconstructed scene
-            BundleAdjustmentData
-                - num_cameras: int                Number of cameras in the scene (Not number of observerations)
-                - num_points: int                 Number of 3D Points
-                - num_observations: int           Number of observations.
-                - camera_int: list[np.ndarray]    [3 x 3] Camera Intrinsics, for each cam_i in list contains calibration matrix
-                - observations: np.ndarray        [M x 4] matrices for each point observation where M=num_of_observations, and each row = [frame, 3d_point_ind, norm_x, norm_y]
-                - cameras: list[np.ndarray]       [1 x 9] per element | List of cameras, with each row containing R(rodriguez), T, f, K1, K2 (k1 and k2 radial distortion)
-                - points: np.ndarray              [N x 3] matrix containing the X, Y, Z coordinates of points. N = Number of total points.
 
 
 Tool Example: 
 Initialization:
-sparse_reconstruction = Sparse3DReconstructionMono(cam_data = camera_data, view="multi", reproj_error = 2.0, min_observe = 3, min_angle = 1.5)
+from modules.features import ...
+from modules.featurematching import ... (Pair Module), ... (Tracking Module)
+from modules.camerapose import ...
+from modules.scenereconstruction import Sparse3DReconstructionMono
+from modules.baseclass import SfMScene
 
-Function Use (multi-view):
-feature_tracker = FeatureMatchLightGlueTracking(detector="superpoint")
+Function Use:
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                               calibration_path = calibration_path)
 
-cam_poses = pose_estimator(features=features) # To Estimate Camera Poses from detected features
+# Step 2: Detect Features Prior to Step 3 (Data filled in SfMScene)
 
-tracked_features = feature_tracker(features=features) # To track features across multiple images 
+# Step 3: Detect Feature Pairwise Matches Prior to Step 4 (Data filled in SfMScene)
 
-# Estimate 3D scene using multi-view due to tracking features from multiple images in previous step
-sparse_scene = sparse_reconstruction(tracked_features, cam_poses) 
+# Step 4: Detect Cam Poses Prior to Step 5 Using a Pose Modules
 
-Function Use (two-view):
-# Edit Initialization to view="two"
-sparse_reconstruction = Sparse3DReconstructionMono(cam_data = camera_data, view="two", reproj_error = 2.0, min_observe = 3, min_angle = 1.5)
+# Step 5: Detect Feature Tracks Prior to Step 6 (Data filled in SfMScene)
 
-feature_matcher = FeatureMatchLightGluePair(cam_data = camera_data)
-
-cam_poses = pose_estimator(features=features) # To Estimate Camera Poses from detected features
-
-matched_features = feature_matcher(features=features) # Estimate Features across matching pairs
-
-# Estimate 3D scene using two-view due to matching features across image pairs in previous step
-sparse_scene = sparse_reconstruction(matched_features, cam_poses) 
+# Step 6: Estimate Sparse Reconstruction using VGGT Module
+reconstructed_scene.Sparse3DReconstructionMono(
+    min_observe=3
+)
 
 
 ===+&+===
@@ -113,7 +105,8 @@ Tool Name: Sparse3DReconstructionVGGT
 Tool Description: 
 Sparsely reconstructs a 3D scene utilizing pre-processed information of camera poses and
 images of the scene. Camera Poses are estimated prior to thie module through the camera pose estimation 
-module, specifically from VGGT pose estimation. Features do NOT need to be tracked or matched between frames.
+module, specifically from VGGT pose estimation. Features do need to be tracked to build a sparse reconstruction 
+from the estimated point maps of VGGT.
 This module can reconstruct sparse 3D scenes specifically using a monocular camera. 
 This module can reconstruct sparse 3D scenes either through single view or multi-view scenes.
 This is determined by the how many images exist in the scene and how many poses were estimated from the previous
@@ -123,19 +116,18 @@ from classical feature detectors (SIFT or ORB). Utilize this module in conjuctio
 where feature detection is low. This module is for reconstructing the scene using the deep learning approach. 
 Computation time should not matter when invoking this tool, but keep in mind of system constraints such as GPU memory.
 
-Initialization Parameters:
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+Initialization/Function Parameters:
 - min_observe: The minimum number of observations (number of tracked feature points) needed to conduct a 3D 
 point estimation. Note: this must be greater than 2
     - Default (int): 3 
 
-Function Call Parameters:
+Function Call Parameters - Handled Internally from SfMScene in the common API Workflow:
 - cam_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
 specifically from the CameraPoseEstimation modules. 
 - tracked_features (PointsMatched): Feature points tracked across multiple frames to allow Multi-View 3D point estimation. Feature Tracks are 
 estimated from the FeatureTracking modules.
 
-Module Input:
+Module Input - Handled Internally from SfMScene in the common API Workflow:
     PointsMatched (Matched Features across image pairs)
         pairwise_matches: list[np.ndarray]  [N x 4] -> [x1, y1, x2, y2]. Data Structure to store Pairwise feature matches.
         multi_view: bool                    Determine if Pairwise/Multi-View Feature Matching (Should be False for Pairwise in this function)
@@ -147,46 +139,197 @@ Module Input:
         rotations: list[np.ndarray]     [3 x 3] (np.float) Rotation matrices for each corresponding frame (Derived from camera_pose)
         translations: list[np.ndarray]  [3 x 1] (np.float) Translation matrices for each corresponding frame (Derived from camera_pose)
 
-Module Output:
+Module Output - Handled Internally from SfMScene in the common API Workflow:
     Scene:
         points3D: Points3D 
             Points3D
                 - points3D: np.ndarray      [N x 3] Point position in 3D space [x, y, z]
                 - color: np.ndarray         [N x 3] Point Color [r, g, b]               
         cam_poses: list[np.ndarray]         [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
-        point_to_pose: np.ndarray           [N x 2] List of corresponding camera poses to 3D points [cam_frame, point_index]
-        bal_data: BundleAdjustmentData      Data stored in the BAL format, and write file to reconstructed scene
-            BundleAdjustmentData
-                - num_cameras: int                Number of cameras in the scene (Not number of observerations)
-                - num_points: int                 Number of 3D Points
-                - num_observations: int           Number of observations.
-                - camera_int: list[np.ndarray]    [3 x 3] Camera Intrinsics, for each cam_i in list contains calibration matrix
-                - observations: np.ndarray        [M x 4] matrices for each point observation where M=num_of_observations, and each row = [frame, 3d_point_ind, norm_x, norm_y]
-                - cameras: list[np.ndarray]       [1 x 9] per element | List of cameras, with each row containing R(rodriguez), T, f, K1, K2 (k1 and k2 radial distortion)
-                - points: np.ndarray              [N x 3] matrix containing the X, Y, Z coordinates of points. N = Number of total points.
-
+        observations: np.ndarray            [M x 4] matrix for each point observation where M=num_of_observations, and each row = [frame, 3d_point_ind, pix_x, pix_y]
+        depth_maps: list[np.ndarray]        List[[H x W]] List of Depth Maps per frame, formated as HeightxWidth of image shape
+        sparse: bool                        Used to determine if current scene is sparse or dense
 
 
 Tool Example: 
 Initialization:
-# Camera Pose Module Initialization
-pose_estimator = CamPoseEstimatorVGGTModel(cam_data = camera_data)
-
-# Scene Reconstruction Module Initialization
-sparse_reconstruction = Sparse3DReconstructionVGGT(cam_data = camera_data)
-
-# Feature Tracker Module Iniitalization
-feature_tracker = FeatureMatchLightGlueTracking(detector="superpoint")
+from modules.features import ...
+from modules.featurematching import ...
+from modules.camerapose import CamPoseEstimatorVGGTModel
+from modules.scenereconstruction import Sparse3DReconstructionVGGT
+from modules.baseclass import SfMScene
 
 Function Use:
-# From estimated features, estimate the camera poses for all image frames
-cam_poses = pose_estimator()
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                               calibration_path = calibration_path)
 
- # To track features across multiple images 
-tracked_features = feature_tracker(features=features)
+# Step 2: Detect Features Prior to Step 5 (Data filled in SfMScene)
 
-# Estimate sparse 3D scene from tracked features and camera poses
-sparse_scene = sparse_reconstruction(camera_poses=cam_poses)
+# Step 3: Detect Cam Poses (Must use VGGT prior to this step!)
+reconstructed_scene.CamPoseEstimatorVGGTModel() 
+
+# Step 4: Detect Feature Tracks Prior to Step 5 (Data filled in SfMScene)
+
+# Step 5: Estimate Sparse Reconstruction using VGGT Module
+reconstructed_scene.Sparse3DReconstructionVGGT(
+    min_observe=3
+)
+
+
+===+&+===
+
+Tool Name: Dense3DReconstructionMono
+
+Tool Description: 
+Densely reconstructs a 3D scene utilizing pre-processed information of the sparsely reconstructed scene
+(Depends on Sparse Reconstruction Module). Camera Poses are estimated prior to thie module through the camera 
+pose estimation  module. The sparse scene is reconstructed using the Sparse Reconstruction Modules, with the inclusion
+of Feature Tracking and Pose estimation data being processed prior to full scene reconstruction.
+Use this module when specified for dense reconstruction. Utilize this module in conjuction with the Camera Pose estimation
+module, feature tracking module, and sparse scene reconstruction modules.
+Computation time should partially matter when invoking this tool, KEEP IN MIND of system constraints such as GPU memory prior
+to USING THIS TOOL (Less GPU memory is not a constraint here, but it is a longer runtime). 
+
+Use this module if utilizing the classical approach for scene reconstruction as the methodology. 
+
+Initialization/Function Parameters:
+- use_gpu: Whether to use GPU or not.
+    - default (bool): True,
+- reproj_error: Maximum geometric consistency cost in terms of the forward-backward reprojection 
+error in pixels.
+    - default (float): 3.0,
+- min_triangulation_angle: Minimum triangulation angle in degrees for usable 3D points. 
+    - default (float): 1.0,
+- num_samples: Number of random samples to draw in Monte Carlo sampling (Patch Match Stereo - Colmap).
+    - default (int): 15,
+- num_iterations: Number of coordinate descent iterations.
+    - default (int): 5
+
+Function Call Parameters - Handled Internally from SfMScene in the common API Workflow:
+- camera_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
+specifically from the CameraPoseEstimation modules. 
+- sparse_scene (Scene): Estimated scene containing information of the sparsely reconstructed scene. Estimated prior to this 
+function call specifically from the SparseReconstruction modules.
+
+Module Input - Handled Internally from SfMScene in the common API Workflow:
+    sparse_scene (Scene):
+        points3D: Points3D 
+            Points3D
+                - points3D: np.ndarray      [N x 3] Point position in 3D space [x, y, z]
+                - color: np.ndarray         [N x 3] Point Color [r, g, b]               
+        cam_poses: list[np.ndarray]         [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
+        point_to_pose: np.ndarray           [N x 2] List of corresponding camera poses to 3D points [cam_frame, point_index]
+        depth_maps: list[np.ndarray]        list[H x W] Depth Maps per frame, formated as HeightxWidth of image shape
+    cam_poses (CameraPose):
+        camera_pose: list[np.ndarray]   [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
+        rotations: list[np.ndarray]     [3 x 3] (np.float) Rotation matrices for each corresponding frame (Derived from camera_pose)
+        translations: list[np.ndarray]  [3 x 1] (np.float) Translation matrices for each corresponding frame (Derived from camera_pose)
+
+Module Output - Handled Internally from SfMScene in the common API Workflow:
+Scene (Densely reconstructed scene)
+
+
+Tool Example: 
+Initialization:
+from modules.features import ...
+from modules.featurematching import ... (Pair Module), ... (Tracking Module)
+from modules.camerapose import ...
+from modules.scenereconstruction import ... (Sparse), Dense3DReconstructionMono (Dense)
+from modules.baseclass import SfMScene
+
+Function Use:
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                               calibration_path = calibration_path)
+
+# Step 2: Detect Features Prior to Step 3 (Data filled in SfMScene)
+
+# Step 3: Detect Feature Pairwise Matches Prior to Step 4 (Data filled in SfMScene)
+
+# Step 4: Detect Cam Poses Prior to Step 5 Using a Pose Modules
+
+# Step 5: Detect Feature Tracks Prior to Step 6 (Data filled in SfMScene)
+
+# Step 6: Estimate Sparse Reconstruction module using the Classical Method for Step 7
+
+# Step 7: Run Global Optimizer to build Colmap Workspace Piror to step 8
+
+# Step 8: Run Dense Reconstruction Algorithm
+reconstructed_scene.Dense3DReconstructionMono(reproj_error=3.0,
+                                  min_triangulation_angle=1.0,
+                                  num_samples=15,
+                                  num_iterations=3)
+
+
+===+&+===
+
+Tool Name: Dense3DReconstructionVGGT
+
+Tool Description: 
+Densely reconstructs a 3D scene utilizing pre-processed information of camera poses and
+images of the scene (SKIP THE SPARSE RECONSTRUCTION STEP - DO NOT USE SPARSE VGGT AND INSTEAD REPLACE WITH THIS MODULE). 
+
+Camera Poses are estimated prior to thie module through the camera pose estimation  module, specifically from VGGT 
+pose estimation. Features do NOT need to be tracked or matched between frames.
+
+This module can reconstruct dense 3D scenes specifically using a monocular camera. 
+This module can reconstruct dense 3D scenes either through single view or multi-view scenes.
+This is determined by the how many images exist in the scene and how many poses were estimated from the previous
+module using the VGGT pose estimation tool specifically.
+
+Use this module when specified for dense reconstruction and the scene doesn't allow for many features to be detected
+from classical feature detectors (SIFT or ORB), or ML Detectors. Utilize this module in conjuction with the VGGT pose 
+estimation module in these cases where feature detection is low. This module is for reconstructing the scene using 
+the deep learning approach. 
+Computation time should matter when invoking this tool, KEEP IN MIND of system constraints such as GPU memory prior
+to USING THIS TOOL.
+
+Initialization Parameters:
+None - Not applicable here
+
+Function Call Parameters - Handled Internally from SfMScene in the common API Workflow with Pose Estimation Module:
+- camera_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
+specifically from the CameraPoseEstimation modules. 
+
+Module Input - Handled Internally from SfMScene in the common API Workflow:
+    sparse_scene (Scene):
+        points3D: Points3D 
+            Points3D
+                - points3D: np.ndarray      [N x 3] Point position in 3D space [x, y, z]
+                - color: np.ndarray         [N x 3] Point Color [r, g, b]               
+        cam_poses: list[np.ndarray]         [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
+        point_to_pose: np.ndarray           [N x 2] List of corresponding camera poses to 3D points [cam_frame, point_index]
+        depth_maps: list[np.ndarray]        list[H x W] Depth Maps per frame, formated as HeightxWidth of image shape
+    cam_poses (CameraPose):
+        camera_pose: list[np.ndarray]   [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
+        rotations: list[np.ndarray]     [3 x 3] (np.float) Rotation matrices for each corresponding frame (Derived from camera_pose)
+        translations: list[np.ndarray]  [3 x 1] (np.float) Translation matrices for each corresponding frame (Derived from camera_pose)
+
+Module Output: Scene (Densely Reconstructed)
+
+
+Tool Example: 
+Initialization:
+from modules.camerapose import CamPoseEstimatorVGGTModel
+from modules.scenereconstruction import Dense3DReconstructionVGGT
+from modules.baseclass import SfMScene
+
+Function Use:
+# With Global Optimization
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                               calibration_path = calibration_path)
+
+# Step 2: Detect Features - Not Needed
+
+# Step 3: Detect Cam Poses (Must use VGGT prior to this step!)
+reconstructed_scene.CamPoseEstimatorVGGTModel() 
+
+# Step 4: Detect Feature Tracks - Not Needed
+
+# Step 5: Estimate Dense Reconstruction using VGGT Module (Don't need Sparse Here)
+reconstructed_scene.Dense3DReconstructionVGGT()
 
 
 ===+&+===

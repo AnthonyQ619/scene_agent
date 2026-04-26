@@ -277,11 +277,11 @@ reconstructed_scene.{module_name}(
     iteration_count = 150,
     reprojection_error = 3.0,
     ba_per_frame = 4,
-    optimizer = ("BundleAdjustmentOptimizerLocal", {
+    optimizer = ("BundleAdjustmentOptimizerLocal", {{
         "max_num_iterations": 25,
         "robust_loss": True,
         "use_gpu": False
-    })
+    }})
 )
 
 # WITHOUT local bundle adjustment

@@ -28,7 +28,7 @@ class Generator:
         if api_directory is None:
             self.api_files = []
         else:
-            self.api_files = sorted(glob.glob(api_directory + "\\*"))
+            self.api_files = sorted(glob.glob(api_directory + "/*"))
 
         api_desc = ""
         for file in self.api_files:
@@ -130,8 +130,8 @@ any code, ONLY WRITTEN TEXT SIMILAR TO THE PROVIDED CONTEXT EXAMPLES THE GIVEN P
         img_path = os.path.join(self.CWD, 'agent_details', 'image_context') # MAKE THIS MORE PATH ORIENTED
         self.image_paths = sorted(glob.glob(img_path + "/*"))
 
-        temp_path = "/home/anthonyq/datasets/DTU/DTU/scan10/images"
-        self.dataset_path = sorted(glob.glob(temp_path + "/*")) # MAKE THIS MORE PATH ORIENTED (LIBRARY)
+        # temp_path = "/home/anthonyq/datasets/DTU/DTU/scan10/images"
+        # self.dataset_path = sorted(glob.glob(temp_path + "/*")) # MAKE THIS MORE PATH ORIENTED (LIBRARY)
 
     def __call__(self, query, query_imgs):
         # full_query = self.prompter_llm(query) + '\n' + image_analysis
@@ -148,13 +148,16 @@ The followiing information is provided to guide your chosen sub-modules for each
 {query}
 """
         # print(self.dataset_path)
-        resized_dir, resized_img_list = resize_dataset(image_path=self.dataset_path[:30],
+        dataset_path = sorted(glob.glob(query_imgs + "/*"))
+        resized_dir, resized_img_list = resize_dataset(image_path=dataset_path[:30],
                                                        max_size=350)
         image_analysis_response = self.image_analysis("Read the set of images", image_paths=resized_img_list)
         clean_dir(resized_dir)
         # image_path = sorted(glob.glob(query_imgs + "\\*"))
         # Use equivalent params from context builder images
         print("RESPONSE: ", image_analysis_response)
+        print(query_imgs)
+        # print(self.da)
         # print("QUERY IMAGE LIST:", query_imgs)
         new_img = image_builder(image_path=query_imgs, 
                                 max_size=350, 
