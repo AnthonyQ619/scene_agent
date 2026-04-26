@@ -492,11 +492,11 @@ Initalization/Function Parameters:
     - Default (str): SIFT
 - k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing with lowes threshold.
     - Default (int): 2
-- cross_check: If it is false, this is will be default BFMatcher behaviour when it finds the k nearest neighbors for each query descriptor. If True
+- cross_check: If it is false, this will apply default BFMatcher behaviour when it finds the k nearest neighbors for each query descriptor. If True
      then the nearest neighbor method with k=1 will only return pairs (i,j) such that for i-th query descriptor the j-th descriptor in the matcher's 
      collection is the nearest and vice versa, i.e. the BFMatcher will only return consistent pairs. Such technique usually produces best results with 
      minimal number of outliers when there are enough matches. i.e only use when there's are lot of feature points
-    - Default (bool): False
+    - Default (bool): True
 - RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
      is considered an outlier and is not used for computing the final fundamental matrix.
     - Default (float): 1.0

@@ -17,6 +17,7 @@ from modules.models.sfm_models.vggt.utils.load_fn import load_and_preprocess_ima
 from mapanything.models import MapAnything
 from mapanything.utils.geometry import closed_form_pose_inverse, depthmap_to_world_frame
 from uniception.models.encoders.image_normalizations import IMAGE_NORMALIZATION_DICT
+from pathlib import Path
 
 from modules.DataTypes.datatype import (Points2D, 
                                         CameraData, 
@@ -247,13 +248,13 @@ Initialization/Function Parameters:
 point estimation. Note: this must be greater than 2
     - Default (int): 3 
 
-Function Call Parameters Handled Internally from SfMScene in the common API Workflow:
+Function Call Parameters - Handled Internally from SfMScene in the common API Workflow:
 - cam_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
 specifically from the CameraPoseEstimation modules. 
 - tracked_features (PointsMatched): Feature points tracked across multiple frames to allow Multi-View 3D point estimation. Feature Tracks are 
 estimated from the FeatureTracking modules.
 
-Module Input:
+Module Input - Handled Internally from SfMScene in the common API Workflow:
     PointsMatched (Matched Features across image pairs)
         pairwise_matches: list[np.ndarray]  [N x 4] -> [x1, y1, x2, y2]. Data Structure to store Pairwise feature matches.
         multi_view: bool                    Determine if Pairwise/Multi-View Feature Matching (Should be False for Pairwise in this function)
@@ -265,24 +266,16 @@ Module Input:
         rotations: list[np.ndarray]     [3 x 3] (np.float) Rotation matrices for each corresponding frame (Derived from camera_pose)
         translations: list[np.ndarray]  [3 x 1] (np.float) Translation matrices for each corresponding frame (Derived from camera_pose)
 
-Module Output:
+Module Output - Handled Internally from SfMScene in the common API Workflow:
     Scene:
         points3D: Points3D 
             Points3D
                 - points3D: np.ndarray      [N x 3] Point position in 3D space [x, y, z]
                 - color: np.ndarray         [N x 3] Point Color [r, g, b]               
         cam_poses: list[np.ndarray]         [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
-        point_to_pose: np.ndarray           [N x 2] List of corresponding camera poses to 3D points [cam_frame, point_index]
-        bal_data: BundleAdjustmentData      Data stored in the BAL format, and write file to reconstructed scene
-            BundleAdjustmentData
-                - num_cameras: int                Number of cameras in the scene (Not number of observerations)
-                - num_points: int                 Number of 3D Points
-                - num_observations: int           Number of observations.
-                - camera_int: list[np.ndarray]    [3 x 3] Camera Intrinsics, for each cam_i in list contains calibration matrix
-                - observations: np.ndarray        [M x 4] matrices for each point observation where M=num_of_observations, and each row = [frame, 3d_point_ind, norm_x, norm_y]
-                - cameras: list[np.ndarray]       [1 x 9] per element | List of cameras, with each row containing R(rodriguez), T, f, K1, K2 (k1 and k2 radial distortion)
-                - points: np.ndarray              [N x 3] matrix containing the X, Y, Z coordinates of points. N = Number of total points.
-
+        observations: np.ndarray            [M x 4] matrix for each point observation where M=num_of_observations, and each row = [frame, 3d_point_ind, pix_x, pix_y]
+        depth_maps: list[np.ndarray]        List[[H x W]] List of Depth Maps per frame, formated as HeightxWidth of image shape
+        sparse: bool                        Used to determine if current scene is sparse or dense
 """
         example = f"""
 Initialization:
@@ -593,13 +586,17 @@ class Sparse3DReconstructionMono(SparseSceneEstimation):
         module_name = "Sparse3DReconstructionMono"
         description = f"""
 Sparsely reconstructs a 3D scene utilizing pre-processed information of camera poses and
-detected features tracked across the scene. Camera Poses are estimated prior to thie module
-through the camera pose estimation module. Features matched, or tracked are estimated 
-prior to this module through the feature matcher module. 
+detected features tracked across the scene. Camera Poses are estimated prior to this module
+through the camera pose estimation module. Features are matched, or tracked, prior to this module 
+through the feature matching/tracking module. 
+
 This module can reconstruct sparse 3D scenes specifically using a monocular camera as primary sensor. 
-This is determined by the data used and the parameter 'view' on module function call. 
 This module can reconstruct sparse 3D scenes either through multi-view or two-view triangulation.
 This is determined by the method used to find matching features.
+Features that are Tracked (Hence a FeatureTracking module is called prior to this step), set multi-view
+to True. If Features are Matched (a FeatureMatching module is called prior with no tracking module called), 
+set multi_view to False.
+
 Use this module when specified for sparse reconstruction and calibration data is provided,
 with the camera being used is a monocular camera, and when enough features are detected in the scene. 
 This can apply for scenes with high textured with good lighting, but also scenes that do not apply if 
@@ -607,7 +604,7 @@ the prerequisite for enough features detected are met. The module is for reconst
 scene using the direct mathematical (Classical) approach.
 
 Initialization/Function Parameters:
-- view: Method used to trace feature points across frames (Two-View [Image Pairs] or Multi-View [Tracking])
+- view: Method used to trace feature points across frames (Two-View [Corresponding Pairs] or Multi-View [Tracking])
     - Default (bool): True
 - min_observe: The minimum number of observations (number of tracked feature points) needed to conduct a 3D 
 point estimation. Note: this must be greater than 2
@@ -619,13 +616,13 @@ the more accurate the 3D point (Maximum of 4.0)
 - reproj_error: Maximum reprojection error accepted for a potential 3D point estimation to keep in a point cloud. Error is measured in pixel coordinates.
     - Default (float): 3.0
 
-Function Call Inputs - 
+Function Call Inputs - Handled Internally from SfMScene in the common API Workflow:
 - cam_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
 specifically from the CameraPoseEstimation modules. 
 - tracked_features (PointsMatched): Feature points tracked across multiple frames to allow Multi-View 3D point estimation. Feature Tracks are 
 estimated from the FeatureTracking modules.
 
-Module Input:
+Module Input - Handled Internally from SfMScene in the common API Workflow:
     PointsMatched (Matched Features across image pairs)
         # General Data Information for Feature Matches
         image_size: np.ndarray              [1 x 2] [np.int64] (Simply Image Shape: (W, H))
@@ -643,7 +640,7 @@ Module Input:
         rotations: list[np.ndarray]     [3 x 3] (np.float) Rotation matrices for each corresponding frame (Derived from camera_pose)
         translations: list[np.ndarray]  [3 x 1] (np.float) Translation matrices for each corresponding frame (Derived from camera_pose)
 
-Module Output:
+Module Output - Handled Internally from SfMScene in the common API Workflow:
     Scene:
         points3D: Points3D 
             Points3D
@@ -878,13 +875,16 @@ class Dense3DReconstructionVGGT(DenseSceneEstimation):
         module_name = "Dense3DReconstructionVGGT"
         description = f"""
 Densely reconstructs a 3D scene utilizing pre-processed information of camera poses and
-images of the scene (SKIP SPARSE RECONSTRUCTION - DO NOT USE SPARSE VGGT AND INSTEAD REPLACE WITH THIS MODULE). 
+images of the scene (SKIP THE SPARSE RECONSTRUCTION STEP - DO NOT USE SPARSE VGGT AND INSTEAD REPLACE WITH THIS MODULE). 
+
 Camera Poses are estimated prior to thie module through the camera pose estimation  module, specifically from VGGT 
 pose estimation. Features do NOT need to be tracked or matched between frames.
+
 This module can reconstruct dense 3D scenes specifically using a monocular camera. 
 This module can reconstruct dense 3D scenes either through single view or multi-view scenes.
 This is determined by the how many images exist in the scene and how many poses were estimated from the previous
 module using the VGGT pose estimation tool specifically.
+
 Use this module when specified for dense reconstruction and the scene doesn't allow for many features to be detected
 from classical feature detectors (SIFT or ORB), or ML Detectors. Utilize this module in conjuction with the VGGT pose 
 estimation module in these cases where feature detection is low. This module is for reconstructing the scene using 
@@ -893,17 +893,13 @@ Computation time should matter when invoking this tool, KEEP IN MIND of system c
 to USING THIS TOOL.
 
 Initialization Parameters:
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
-- min_observe: The minimum number of observations (number of tracked feature points) needed to conduct a 3D 
-point estimation. Note: this must be greater than 2
-    - Default (int): 3 
+None - Not applicable here
 
-Function Call Parameters:
+Function Call Parameters - Handled Internally from SfMScene in the common API Workflow with Pose Estimation Module:
 - camera_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
 specifically from the CameraPoseEstimation modules. 
-- Ignore parameter (sparse_scene: Scene): Not needed for VGGT module, as we skip sparse reconstruction for this module.
 
-Module Input:
+Module Input - Handled Internally from SfMScene in the common API Workflow:
     sparse_scene (Scene):
         points3D: Points3D 
             Points3D
@@ -917,22 +913,35 @@ Module Input:
         rotations: list[np.ndarray]     [3 x 3] (np.float) Rotation matrices for each corresponding frame (Derived from camera_pose)
         translations: list[np.ndarray]  [3 x 1] (np.float) Translation matrices for each corresponding frame (Derived from camera_pose)
 
-Module Output: Scene
+Module Output: Scene (Densely Reconstructed)
 """
         example = f"""
 Initialization:
-# Import Module 
-from modules.scenereconstruction import Dense3DReconstructionVGGT
+from modules.camerapose import CamPoseEstimatorVGGTModel
+from modules.scenereconstruction import {module_name}
+from modules.baseclass import SfMScene
 
-# Scene Reconstruction Module Initialization
-dense_reconstruction = Dense3DReconstructionVGGT(cam_data=camera_data)
+Function Use:
+# With Global Optimization
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                               calibration_path = calibration_path)
 
-Function Call:
-# Estimate dense 3D scene from camera poses only (Sparse Scene estimation is skipped)
-dense_scene = dense_reconstruction(sparse_scene=None,
-                                   camera_poses=cam_poses)
+# Step 2: Detect Features - Not Needed
+
+# Step 3: Detect Cam Poses (Must use VGGT prior to this step!)
+reconstructed_scene.CamPoseEstimatorVGGTModel() 
+
+# Step 4: Detect Feature Tracks - Not Needed
+
+# Step 5: Estimate Dense Reconstruction using VGGT Module (Don't need Sparse Here)
+reconstructed_scene.{module_name}()
 """
-
+        super().__init__(cam_data = cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example)
+        
         # Initialize Model
         if os.name == 'nt':
             WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
@@ -1044,10 +1053,9 @@ class Dense3DReconstructionMono(DenseSceneEstimation):
                  min_triangulation_angle: float = 1.0,
                  num_samples: int = 15,
                  num_iterations: int = 5):
-        super().__init__(cam_data = cam_data)
 
-        self.module_name = "Dense3DReconstructionMono"
-        self.description = f"""
+        module_name = "Dense3DReconstructionMono"
+        description = f"""
 Densely reconstructs a 3D scene utilizing pre-processed information of the sparsely reconstructed scene
 (Depends on Sparse Reconstruction Module). Camera Poses are estimated prior to thie module through the camera 
 pose estimation  module. The sparse scene is reconstructed using the Sparse Reconstruction Modules, with the inclusion
@@ -1055,11 +1063,11 @@ of Feature Tracking and Pose estimation data being processed prior to full scene
 Use this module when specified for dense reconstruction. Utilize this module in conjuction with the Camera Pose estimation
 module, feature tracking module, and sparse scene reconstruction modules.
 Computation time should partially matter when invoking this tool, KEEP IN MIND of system constraints such as GPU memory prior
-to USING THIS TOOL (Less GPU memory is not a constraint here). USE THIS MODULE IF TAKING THE CLASSICAL 
-APPROACH AND USING FEATURES TO ESTIMATE SCENE RECONSTRUCTION.
+to USING THIS TOOL (Less GPU memory is not a constraint here, but it is a longer runtime). 
 
-Initialization Parameters:
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+Use this module if utilizing the classical approach for scene reconstruction as the methodology. 
+
+Initialization/Function Parameters:
 - use_gpu: Whether to use GPU or not.
     - default (bool): True,
 - reproj_error: Maximum geometric consistency cost in terms of the forward-backward reprojection 
@@ -1072,13 +1080,13 @@ error in pixels.
 - num_iterations: Number of coordinate descent iterations.
     - default (int): 5
 
-Function Call Parameters:
+Function Call Parameters - Handled Internally from SfMScene in the common API Workflow:
 - camera_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
 specifically from the CameraPoseEstimation modules. 
 - sparse_scene (Scene): Estimated scene containing information of the sparsely reconstructed scene. Estimated prior to this 
 function call specifically from the SparseReconstruction modules.
 
-Module Input:
+Module Input - Handled Internally from SfMScene in the common API Workflow:
     sparse_scene (Scene):
         points3D: Points3D 
             Points3D
@@ -1092,33 +1100,45 @@ Module Input:
         rotations: list[np.ndarray]     [3 x 3] (np.float) Rotation matrices for each corresponding frame (Derived from camera_pose)
         translations: list[np.ndarray]  [3 x 1] (np.float) Translation matrices for each corresponding frame (Derived from camera_pose)
 
-Module Output: Scene (Densely reconstructed scene)
+Module Output - Handled Internally from SfMScene in the common API Workflow:
+Scene (Densely reconstructed scene)
 """
-        self.example = f"""
+        example = f"""
 Initialization:
-(APPLY BA Prior to Dense Reconstruction)
-from modules.optimization import BundleAdjustmentOptimizerGlobal
-# Build Optimizer
-optimizer = BundleAdjustmentOptimizerGlobal(max_num_iterations=30,
-                                            cam_data=camera_data)
+from modules.features import ...
+from modules.featurematching import ... (Pair Module), ... (Tracking Module)
+from modules.camerapose import ...
+from modules.scenereconstruction import ... (Sparse), {module_name} (Dense)
+from modules.baseclass import SfMScene
 
-# Run Optimizer
-optimal_scene = optimizer(sparse_scene)
+Function Use:
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                               calibration_path = calibration_path)
 
-# Import Dense Module 
-from modules.scenereconstruction import Dense3DReconstructionMono
+# Step 2: Detect Features Prior to Step 3 (Data filled in SfMScene)
 
-# Conduct Dense Reconstruction
-dense_reconstruction = Dense3DReconstructionMono(cam_data=camera_data,
-                                                  reproj_error=3.0,
-                                                  min_triangulation_angle=1.0,
-                                                  num_samples=15,
-                                                  num_iterations=3)
+# Step 3: Detect Feature Pairwise Matches Prior to Step 4 (Data filled in SfMScene)
 
-# Estimate Dense 3D scene from tracked features and camera poses
-dense_scene = dense_reconstruction(sparse_scene=optimal_scene)
+# Step 4: Detect Cam Poses Prior to Step 5 Using a Pose Modules
+
+# Step 5: Detect Feature Tracks Prior to Step 6 (Data filled in SfMScene)
+
+# Step 6: Estimate Sparse Reconstruction module using the Classical Method for Step 7
+
+# Step 7: Run Global Optimizer to build Colmap Workspace Piror to step 8
+
+# Step 8: Run Dense Reconstruction Algorithm
+reconstructed_scene.{module_name}(reproj_error=3.0,
+                                  min_triangulation_angle=1.0,
+                                  num_samples=15,
+                                  num_iterations=3)
 """
-
+        super().__init__(cam_data = cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example)
+        
         self.opts = pycolmap.PatchMatchOptions()
         if use_gpu:
             self.opts.gpu_index = "0"
@@ -1127,11 +1147,13 @@ dense_scene = dense_reconstruction(sparse_scene=optimal_scene)
         self.opts.num_samples = num_samples
         self.opts.num_iterations = num_iterations
 
-        self.workspace_path = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace"
+        # self.workspace_path = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace"
+        self.workspace_path = Path(__file__).resolve().parents[2] / "results" / "workspace"
 
         # Create Dense Directory
-        dense_path = f"{self.workspace_path}\\dense"
-        fused_path = f"{self.workspace_path}\\dense_fused"
+        dense_path = str(self.workspace_path / "dense") #f"{self.workspace_path}\\dense"
+        fused_path = str(self.workspace_path / "dense_fused") #f"{self.workspace_path}\\dense_fused"
+
         if os.path.exists(dense_path):
             # Delete the directory and all its contents
             shutil.rmtree(dense_path)
@@ -1150,26 +1172,26 @@ dense_scene = dense_reconstruction(sparse_scene=optimal_scene)
         
         # Step 1: Undistort Images
         pycolmap.undistort_images(
-            output_path=f"{self.workspace_path}\\dense",
-            input_path=f"{self.workspace_path}\\sparse",
-            image_path=f"{self.workspace_path}\\images",
+            output_path=str(self.workspace_path / "dense"),#f"{self.workspace_path}\\dense",
+            input_path=str(self.workspace_path / "sparse"),#f"{self.workspace_path}\\sparse",
+            image_path=str(self.workspace_path / "images"),#f"{self.workspace_path}\\images",
             output_type="COLMAP",
         )
         
         # Step 2: Run Patch Match Stereo to create per-image depth maps
         pycolmap.patch_match_stereo(
-            workspace_path=f"{self.workspace_path}\\dense",
+            workspace_path=str(self.workspace_path / "dense"),#f"{self.workspace_path}\\dense",
             options=self.opts
         )
 
         # Step 3: Fuse the Depth Maps
         pycolmap.stereo_fusion(
-            workspace_path=f"{self.workspace_path}\\dense",
-            output_path=f"{self.workspace_path}\\dense_fused"
+            workspace_path = str(self.workspace_path / "dense"),#f"{self.workspace_path}\\dense",
+            output_path = str(self.workspace_path / "dense_fused")#f"{self.workspace_path}\\dense_fused"
         )
 
         # Grab 
-        dense_model_path = os.path.join(self.workspace_path, "dense_fused")
+        dense_model_path = str(self.workspace_path / "dense_fused") #os.path.join(self.workspace_path, "dense_fused")
         recon = pycolmap.Reconstruction(dense_model_path)
 
         # Obtain 3D Points from Dense Reconstruction
@@ -1201,13 +1223,11 @@ dense_scene = dense_reconstruction(sparse_scene=optimal_scene)
                       cam_poses = poses,
                       depth_maps = depth_maps,
                       sparse = False)
-        recon.export_PLY(os.path.join(self.workspace_path, "dense", "fused.ply"))
+        recon.export_PLY(str(self.workspace_path / "dense" / "fused.ply")) #(os.path.join(self.workspace_path, "dense", "fused.ply"))
         return scene #super().build_reconstruction(sparse_scene)
     
     def read_colmap_depth(self) -> list[np.ndarray]:
-        depth_dir = os.path.join(
-            self.workspace_path, "dense", "stereo", "depth_maps"
-        )
+        depth_dir = str(self.workspace_path / "dense" / "stereo" / "depth_maps")#os.path.join(self.workspace_path, "dense", "stereo", "depth_maps")
         depth_files = sorted(glob.glob(os.path.join(depth_dir, "*.photometric.bin")))
         # print(depth_files)
         depth_maps = []

@@ -28,7 +28,7 @@ import open3d as o3d
 import inspect
 from abc import ABC
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Tuple
 
 import copy
 import random
@@ -1418,7 +1418,8 @@ class SfMScene:
         image_path: str | None = None,
         calibration_path: str | None = None,
         cam_data: CameraData | None = None,
-        max_images: int | None = None
+        max_images: int | None = None,
+        target_resolution: Tuple[int, int] | None = None,
     ):
         if cam_data is None:
             if image_path is None or calibration_path is None:
@@ -1427,11 +1428,13 @@ class SfMScene:
                 )
             if max_images is None:
                 CDM = CameraDataManager(image_path=image_path,
-                            calibration_path=calibration_path)
+                            calibration_path=calibration_path,
+                            target_resolution=target_resolution)
             else:
                 CDM = CameraDataManager(image_path=image_path,
                             max_images=max_images,
-                            calibration_path=calibration_path)
+                            calibration_path=calibration_path,
+                            target_resolution=target_resolution)
 
             # Get Camera Data
             cam_data = CDM.get_camera_data()

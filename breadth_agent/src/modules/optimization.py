@@ -53,28 +53,22 @@ class BundleAdjustmentOptimizerLocal(OptimizationClass):
         gpu_index: int = 0,
         robust_loss: bool = True,
     ):
-           
-                        #  refine_focal_length=refine_focal_length,
-                        #  refine_principal_point=refine_principal_point,
-                        #  refine_extra_params=refine_extra_params,
-                        #  max_num_iterations=max_num_iterations,
-                        #  use_gpu=use_gpu,
-                        #  gpu_index=gpu_index,
-                        #  robust_loss=robust_loss)
 
         module_name = "BundleAdjustmentOptimizerLocal"
         description = f"""
 Local Optimization tool using the bundle adjustment optimization algorithm to optimize the reconstructed sparse 
 scene using the 3D estimated points, 2D feature tracks for each 3D estimated point, and estimated camera poses of the 
 monocular camera scene to optimize the reprojection error loss of each estimated 3D point WITH the PURPOSE to CORRECT DRIFT
-in the estimate camera pose of the scene. USE THIS MODULE in cases where SIFT, ORB, and SuperPoint features will be less accurate
-either through usage, or environmental factors where initial feature detection will be geometrically incorrect despite outlier rejection.
-The output of the module is the optimized poses within the local estimated frame to correct drift in pose esimtation. 
-The algorithm optimizes the 3D points, camera poses, and intrinsic parameters of the calibrated camera (If permitted to). 
+in the estimated camera pose of the scene. 
 
-Initialization Parameters:
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
-    - default (CameraData): MUST BE INCLUDED in initialization for usage
+USE THIS MODULE in cases where SIFT, ORB, and SuperPoint features will be less accurate either through usage, or environmental 
+factors where initial feature detection will be geometrically incorrect despite outlier rejection.
+
+The output of the module is the optimized poses within the local estimated frame to correct drift in pose esimtation. 
+The algorithm optimizes the 3D points, camera poses, and intrinsic parameters of the calibrated camera (If permitted to) for 
+a given window of data and estimated camera poses.
+
+Initialization/Function Parameters:
 - refine_focal_length: Whether to refine the focal length parameter group. 
     - default (bool): False
 - refine_principal_point: Whether to refine the principal point parameter group. (bool, )
@@ -101,29 +95,32 @@ Function Calls:
 """
 
         example = f"""
-Initialization: 
-from modules.optimization import BundleAdjustmentOptimizerLocal
+Initialization modules
+from modules.baseclass import SfMScene
+from modules.features import ....
+from modules.featurematching import ....
+from modules.optimization import {module_name}
+from modules.camerapose import ...
 
-# Build Optimizer
-optimizer = BundleAdjustmentOptimizerLocal(max_num_iterations=20,
-                                           window_size=5)
 
-NO FUNCTION CALL:     
+# Start SfM Pipeline 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-USAGE (Alongside of CameraPose Estimation Module):
-# Initiialized Module
-from modules.camerapose import CamPoseEstimatorEssentialToPnP
+# Step 2: Detect Features must be completed prior!
+# Step 3: Feature Matching Pairs module must be completed prior!
 
-# Camera Pose Module Initialization (APPLY OPTIMIZER IN INITIALIZATION)
-pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data,
-                                                reprojection_error=3.0,
-                                                iteration_count=300,
-                                                confidence=0.995,
-                                                optimizer=optimizer)
-
-# From estimated features, estimate the camera poses for all image frames (With Local Bundle Adjustment Activated)
-cam_poses = pose_estimator(feature_pairs=feature_pairs)
-
+# Step 4: Detect Camera Poses and apply Bundle Adjustment (Local Optimizer)
+reconstructed_scene.CamPoseEstimatorEssentialToPnP(
+    iteration_count=150,
+    reprojection_error = 3.0,
+    optimizer = ("BundleAdjustmentOptimizerLocal", {
+        "max_num_iterations": 25,
+        "robust_loss": True,
+        "use_gpu": False
+    }),
+)
 """
         super().__init__(cam_data=cam_data,
                          module_name=module_name,
@@ -457,9 +454,7 @@ optimize sparse 3D reconstructed scene. The algorithm optimizes the 3D points, c
 of the calibrated camera (If permitted to). ALWAYS USE THIS MODULE AT THE END OF A SPARSE RECONSTRUCTION PIPELINE, AND 
 PRIOR TO ESTIMATING DENSE RECONSTRUCTION!
 
-Initialization Parameters:
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
-    - default (CameraData): MUST BE INCLUDED in initialization for usage
+Initialization/Function Parameters:
 - refine_focal_length: Whether to refine the focal length parameter group. 
     - default (bool): False
 - refine_principal_point: Whether to refine the principal point parameter group. (bool, )
@@ -476,8 +471,7 @@ Initialization Parameters:
     Loss function types: Trivial (non-robust, robust = False) and Cauchy (robust, robust = True) loss
     - default (bool): True
 
-
-Function Calls:
+Function Calls - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IN USE:
 - Function: Module call (Python __call__ function)
     - Parameters:
         - scene: Data type that stores the camera pose and 3D point information of the reconstructed scene.
@@ -487,20 +481,38 @@ Function Calls:
                     - cam_poses: list[np.ndarray]     # Should be formatted as a 3x4 matrix
                     - observations: np.ndarray        # Mx4 matrices for each point observation where M=num_of_observations, and each row = [frame, 3d_point_ind, pix_x, pix_y]
                     - sparse: bool                    # Used to determine if current scene is sparse or dense (Sparse=True)
-        - Output: scene (Optimized)
+    - Output: scene (Optimized)
 """
 
         example = f"""
-Initialization: 
-from modules.optimization import BundleAdjustmentOptimizerGlobal
+Initialization:
+from modules.features import ...
+from modules.featurematching import ... (Pair Module), ... (Tracking Module)
+from modules.camerapose import ...
+from modules.scenereconstruction import ...
+from modules.optimization import {module_name}
+from modules.baseclass import SfMScene
 
-# Build Optimizer
-optimizer = BundleAdjustmentOptimizerGlobal(max_num_iterations=40,
-                                            cam_data=camera_data)
+Function Use:
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                               calibration_path = calibration_path)
 
-Function Call:                                      
-# Run Optimizer
-optimal_scene = optimizer(sparse_scene)
+# Step 2: Detect Features Prior to Step 3 (Data filled in SfMScene)
+
+# Step 3: Detect Feature Pairwise Matches Prior to Step 4 (Data filled in SfMScene)
+
+# Step 4: Detect Cam Poses Prior to Step 5 Using a Pose Modules
+
+# Step 5: Detect Feature Tracks Prior to Step 6 (Data filled in SfMScene)
+
+# Step 6: Estimate Sparse Reconstruction using Prior to Global Optimization (Step 7)
+
+# Step 7: Run Global Optimization on Sparsely Reconstructed Scene 
+reconstructed_scene.BundleAdjustmentOptimizerGlobal(
+    max_num_iterations=200,
+    use_gpu=False
+)
 """
         super().__init__(cam_data=cam_data,
                          module_name=module_name,
