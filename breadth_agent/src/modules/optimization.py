@@ -37,7 +37,7 @@ print(sys.executable)
 # import pycolmap
 
 from modules.DataTypes.datatype import Scene, CameraData, PointsMatched, Points3D, CameraPose, Calibration, IncrementalSfMState
-from modules.baseclass import OptimizationClass
+from modules.baseclass import OptimizationClass,  module_metric
 
 class BundleAdjustmentOptimizerLocal(OptimizationClass):
     def __init__(
@@ -553,6 +553,8 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         # summary = bundle_adjuster.solve()
         summary = self._solve(ba_opts, config, recon)
 
+        print("SUMMARY", summary)
+        self.summary = summary
         # --- Step 4: Export optimized results back into the Scene ---
         self._write_back_to_scene(current_scene, recon, trackid_to_point3Did)
 
@@ -868,6 +870,11 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
             p3d = recon.point3D(p3did)
             xyzs[tid] = p3d.xyz  # (3,)
 
+    @module_metric
+    def _metric_ba_results(self) -> dict:
+        return {"Convergence": str(self.summary.termination_type),
+                "Initial Cost": float(self.summary.ceres_summary.initial_cost),
+                "Final Cost": float(self.summary.ceres_summary.final_cost)}
     # def optimize(self, 
     #              scene: Scene):
     #             #  points: PointsMatched, 

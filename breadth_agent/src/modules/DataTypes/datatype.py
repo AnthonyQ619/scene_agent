@@ -50,6 +50,7 @@ class CameraData:
     multi_cam: bool = False
     extrinsic: Optional[np.ndarray] = None    # Rotation | Translation of Stereo Camera
 
+    metric_file_path: str = ""
 
     def update_K(self, cam_idx: int, img_scale: Tuple[float, float]):
         # Assume Monocular Camera for now with OpenCV calibration convention (Wide belief)
