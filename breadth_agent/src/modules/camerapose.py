@@ -75,10 +75,12 @@ reconstructed_scene.{module_name}() # Images read in previous step (1)
                          example=example)
         
         # Initialize Model
-        if os.name == 'nt':
-            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
-        elif os.name == 'posix':
-            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
+        # if os.name == 'nt':
+        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        # elif os.name == 'posix':
+        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
+
+        WEIGHT_MODULE = "/work/model_weights/model.pt"
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -156,45 +158,45 @@ reconstructed_scene.{module_name}() # Images read in previous step (1)
         torch.cuda.empty_cache() #Empty GPU cache
         # return camera_poses
     
-    @module_metric
-    def _metric_pose_matrix_quality(self) -> dict:
-        if len(self.camera_poses.camera_pose) == 0:
-            return {}
+    # @module_metric
+    # def _metric_pose_matrix_quality(self) -> dict:
+    #     if len(self.camera_poses.camera_pose) == 0:
+    #         return {}
 
-        ortho_errors = []
-        det_values = []
-        trans_norms = []
+    #     ortho_errors = []
+    #     det_values = []
+    #     trans_norms = []
 
-        for pose in self.camera_poses.camera_pose:
-            R = pose[:, :3]
-            t = pose[:, 3:]
+    #     for pose in self.camera_poses.camera_pose:
+    #         R = pose[:, :3]
+    #         t = pose[:, 3:]
 
-            ortho_errors.append(float(np.linalg.norm(R.T @ R - np.eye(3), ord="fro")))
-            det_values.append(float(np.linalg.det(R)))
-            trans_norms.append(float(np.linalg.norm(t)))
+    #         ortho_errors.append(float(np.linalg.norm(R.T @ R - np.eye(3), ord="fro")))
+    #         det_values.append(float(np.linalg.det(R)))
+    #         trans_norms.append(float(np.linalg.norm(t)))
 
-        return {
-            "Average Rotation Orthonormality Error": float(np.mean(ortho_errors)),
-            "Average det(R)": float(np.mean(det_values)),
-            "Average Translation Norm": float(np.mean(trans_norms)),
-        }
+    #     return {
+    #         "Average Rotation Orthonormality Error": float(np.mean(ortho_errors)),
+    #         "Average det(R)": float(np.mean(det_values)),
+    #         "Average Translation Norm": float(np.mean(trans_norms)),
+    #     }
 
-    @module_metric
-    def _metric_intrinsics_summary(self) -> dict:
-        if len(self._pred_intrinsics) == 0:
-            return {}
+    # @module_metric
+    # def _metric_intrinsics_summary(self) -> dict:
+    #     if len(self._pred_intrinsics) == 0:
+    #         return {}
 
-        fx_vals = [float(K[0, 0]) for K in self._pred_intrinsics]
-        fy_vals = [float(K[1, 1]) for K in self._pred_intrinsics]
-        cx_vals = [float(K[0, 2]) for K in self._pred_intrinsics]
-        cy_vals = [float(K[1, 2]) for K in self._pred_intrinsics]
+    #     fx_vals = [float(K[0, 0]) for K in self._pred_intrinsics]
+    #     fy_vals = [float(K[1, 1]) for K in self._pred_intrinsics]
+    #     cx_vals = [float(K[0, 2]) for K in self._pred_intrinsics]
+    #     cy_vals = [float(K[1, 2]) for K in self._pred_intrinsics]
 
-        return {
-            "Average fx": float(np.mean(fx_vals)),
-            "Average fy": float(np.mean(fy_vals)),
-            "Average cx": float(np.mean(cx_vals)),
-            "Average cy": float(np.mean(cy_vals)),
-        }
+    #     return {
+    #         "Average fx": float(np.mean(fx_vals)),
+    #         "Average fy": float(np.mean(fy_vals)),
+    #         "Average cx": float(np.mean(cx_vals)),
+    #         "Average cy": float(np.mean(cy_vals)),
+    #     }
                 
 ###########################################################################################################
 ############################################ CLASSICAL MODULES ############################################

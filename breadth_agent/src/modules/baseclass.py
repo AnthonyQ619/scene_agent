@@ -172,7 +172,7 @@ class FeatureTracker():
                                          confidence=self.ransac_conf)
         else:
             F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, 
-                                             cv2.USAC_MAGSAC, 
+                                             cv2.RANSAC, 
                                              ransacReprojThreshold=self.ransac_threshold,
                                              maxIters=10000,
                                              confidence=self.ransac_conf)
@@ -684,11 +684,11 @@ class CameraPoseEstimatorClass(PipelineModule, ABC):
 
     def run_from_state(self, state: SceneState) -> CameraPose:
         correspondences = state.tracked_features or state.feature_pairs
-        if correspondences is None:
-            raise RuntimeError(
-                "CameraPoseEstimator requires correspondences. "
-                "Run FeatureMatching or FeatureTracking first."
-            )
+        # if correspondences is None:
+        #     raise RuntimeError(
+        #         "CameraPoseEstimator requires correspondences. "
+        #         "Run FeatureMatching or FeatureTracking first."
+        #     )
         return self(correspondences)
     
     def __init__(self, 
@@ -1507,10 +1507,10 @@ class SfMScene:
         target_resolution: Tuple[int, int] | None = None,
     ):
         if cam_data is None:
-            if image_path is None or calibration_path is None:
-                raise ValueError(
-                    "Provide either cam_data or both image_path and calibration_path."
-                )
+            # if image_path is None or calibration_path is None:
+                # raise ValueError(
+                    # "Provide either cam_data or both image_path and calibration_path."
+                # )
             if max_images is None:
                 CDM = CameraDataManager(image_path=image_path,
                             calibration_path=calibration_path,
