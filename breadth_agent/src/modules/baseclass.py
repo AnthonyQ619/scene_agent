@@ -163,16 +163,17 @@ class FeatureTracker():
     def outlier_reject(self, pts1: Points2D, pts2: Points2D, frame_id: int) -> tuple[Points2D, Points2D]:
         pts1_norm = self.normalize(pts1, frame_id)
         pts2_norm = self.normalize(pts2, frame_id+1)
-
+        pts1_t = pts1.points2D
+        pts2_t = pts2.points2D
         if self.homography:
-            F, mask = cv2.findHomography(pts1_norm, pts2_norm, 
+            F, mask = cv2.findHomography(pts1_t, pts2_t, #pts1_norm, pts2_norm, 
                                          cv2.USAC_MAGSAC, 
                                          ransacReprojThreshold=self.ransac_threshold,
                                          maxIters=10000,
                                          confidence=self.ransac_conf)
         else:
-            F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, 
-                                             cv2.RANSAC, 
+            F, mask = cv2.findFundamentalMat(pts1_t, pts2_t, #pts1_norm, pts2_norm, 
+                                             cv2.USAC_MAGSAC, 
                                              ransacReprojThreshold=self.ransac_threshold,
                                              maxIters=10000,
                                              confidence=self.ransac_conf)
@@ -1000,8 +1001,8 @@ class FeatureMatching(PipelineModule, ABC):
                                                np.ndarray,
                                                np.ndarray]: # Move to Base Class
         
-        pts1_norm = self.normalize(pts1, frame_id)
-        pts2_norm = self.normalize(pts2, frame_id+1)
+        # pts1_norm = self.normalize(pts1, frame_id)
+        # pts2_norm = self.normalize(pts2, frame_id+1)
 
         pts1_t = pts1.points2D
         pts2_t = pts2.points2D
@@ -1009,14 +1010,14 @@ class FeatureMatching(PipelineModule, ABC):
             # F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, cv2.FM_RANSAC, 
             #                                  ransacReprojThreshold=self.ransac_threshold, 
             #                                  confidence=self.ransac_conf)
-            F, mask = cv2.findHomography(pts1_norm, pts2_norm, 
+            F, mask = cv2.findHomography(pts1_t, pts2_t, #pts1_norm, pts2_norm, 
                                          cv2.USAC_MAGSAC, 
                                          ransacReprojThreshold=self.ransac_threshold,
                                          maxIters=10000,
                                          confidence=self.ransac_conf)
         else:
             # F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, cv2.FM_LMEDS)
-            F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, 
+            F, mask = cv2.findFundamentalMat(pts1_t, pts2_t, #pts1_norm, pts2_norm, 
                                              cv2.USAC_MAGSAC, 
                                              ransacReprojThreshold=self.ransac_threshold,
                                              maxIters=10000,
@@ -1529,8 +1530,8 @@ class SfMScene:
             cam_data = CDM.get_camera_data()
             
             parent_metric_path = Path(__file__).resolve().parents[2]
-            # metric_file_path = str(parent_metric_path / "results" / f"metrics_results_{id}.txt")
-            metric_file_path = "/work/tmp/metric_" + str(self.id) + ".txt"
+            metric_file_path = str(parent_metric_path / "results" / f"metrics_results_{id}.txt")
+            # metric_file_path = "/work/tmp/metric_" + str(self.id) + ".txt"
             # Create file or erase contents of existing one
             with open(metric_file_path, "w") as file:
                 pass

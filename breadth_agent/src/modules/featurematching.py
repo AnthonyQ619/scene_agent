@@ -81,7 +81,7 @@ stage
     - default (str): indoor
 - RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
      is considered an outlier and is not used for computing the final fundamental matrix.
-    - Default (float): 1.0
+    - Default (float): 3.0
     - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
 - RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
     - Default (float): 0.99
@@ -107,7 +107,7 @@ reconstructed_scene.{module_name}(
     detector="superpoint",
     setting="indoor",
     RANSAC_homography=False,
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=1.0,
     RANSAC_conf=0.999
     )
 """

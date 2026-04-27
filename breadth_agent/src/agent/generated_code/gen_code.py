@@ -12,6 +12,7 @@ from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(
+    id = 1,
     image_path=image_path,
     max_images=20,
     calibration_path=calibration_path
@@ -28,7 +29,7 @@ reconstructed_scene.FeatureDetectionSIFT(
 reconstructed_scene.FeatureMatchBFPair(
     detector="sift",
     lowes_thresh=0.76,
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=2.0, #0.02,
     RANSAC_homography=False
 )
 
