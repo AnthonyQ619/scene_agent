@@ -1,0 +1,3 @@
+conda activate autosfm
+cd /work/scene_agent/breadth_agent/src && /opt/conda/envs/autosfm/bin/python -m pip install -e .
+cd /work/scene_agent/breadth_agent/src/modules/models/sfm_models && /opt/conda/envs/autosfm/bin/python -m pip install .

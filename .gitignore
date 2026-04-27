@@ -4,3 +4,4 @@ breadth_agent/src/modules.egg-info
 breadth_agent/src/tests/code_generation/
 breadth_agent/results/
 breadth_agent/src/modules/models/sfm_models/vggt/weights/
+breadth_agent/src/modules/models/
