@@ -1003,6 +1003,8 @@ class FeatureMatching(PipelineModule, ABC):
         pts1_norm = self.normalize(pts1, frame_id)
         pts2_norm = self.normalize(pts2, frame_id+1)
 
+        pts1_t = pts1.points2D
+        pts2_t = pts2.points2D
         if self.homography:
             # F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, cv2.FM_RANSAC, 
             #                                  ransacReprojThreshold=self.ransac_threshold, 
