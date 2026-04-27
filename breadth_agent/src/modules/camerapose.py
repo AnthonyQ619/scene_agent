@@ -38,15 +38,15 @@ monocular camera setup, GPU memory is accessible, or calibration is not provided
 to estimate camera pose and calibration parameters to reconstruct the scene.
 
 Initialization Parameters:
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+- None -> Handled internally through the SfMScene object
 
 Function Call Parameters:
 - None
 
 Module Input:
-    None
+- None
     
-Module Output: 
+Module Output - HANDLED INTERNALLY, DO NOT USE IF SfMScene IS IN USE:
     CameraPose:
         camera_pose: list[np.ndarray]   [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
         rotations: list[np.ndarray]     [3 x 3] (np.float) Rotation matrices for each corresponding frame (Derived from camera_pose)
@@ -54,12 +54,18 @@ Module Output:
 """
 
         example = f"""
-Initialization of Module: 
+Initialization modules
+from modules.baseclass import SfMScene
+from modules.features import ....
+from modules.featurematching import ....
+from modules.camerapose import {module_name}
+
+# Start SfM Pipeline 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(image_path = image_path, 
                             calibration_path = calibration_path)
 
-# Step 2 and 3: Not needed for this module
+# Step 2 and 3: Not needed for this module (Don't need to detect Features or conduct Corresponding matches)
 # Step 3: 
 reconstructed_scene.{module_name}() # Images read in previous step (1)
 """
@@ -219,19 +225,20 @@ detector (Such as ORB or SuperPoint), then you MUST use the Optimizer option. Th
 utilizes a local bundle adjustment procedure for more robust pose estimation. Could use with SIFT 
 in image cases where lighting is not the best but texture is good enough for SIFT features.
 
-Initialization Parameters:
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+Initialization/Function Parameters:
 - iteration_count: Number of iterations to run the Levenberg-Marquardt algorithm for Pose Estimation with PnP
     - Default (int): 200,
 - reprojection_error: Inlier threshold value used by the RANSAC procedure. The parameter value is the maximum allowed distance between the observed and computed point projections to consider it an inlier.
     - Default (float): 3.0
 - confidence: The probability that the algorithm produces a useful result. 
     - Default (float): 0.99
+- ba_per_frame: The number of frames that are used to estimate poses before a local bundle adjustment optimization is executed
+    - Default (int): 4
 - optimizer: Optimization parameter to pass in, where in cases of initial poses will lead to poor results, and need more robust
 pose estimates for more accurate initial sparse reconstruction estimates.
     - Default (BundleAdjustmentOptimizerLocal): None (Pass BundleAdjustmentOptimizerLocal object that is initialized to activate local optimization.)
 
-Function Call Parameters:
+Function Call Parameters - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IN USE:
 - feature_pairs (PointsMatched): Data Type containing the detected feature correspondences of image pairs
 estimated from the feature matcher modules.
 
@@ -250,17 +257,38 @@ Module Output:
 """
 
         example = f"""
-Initialization of Module: 
+Initialization modules
+from modules.baseclass import SfMScene
+from modules.features import ....
+from modules.featurematching import ....
+from modules.camerapose import {module_name}
+
+# Start SfM Pipeline 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(image_path = image_path, 
                             calibration_path = calibration_path)
 
 # Step 2: Detect Features must be completed prior!
-# Step 3: Feature Pairs must be completed prior!
+# Step 3: Feature Matching Pairs module must be completed prior!
 # Step 4: Detect Camera Poses
-reconstructed_scene.{module_name}(ba_per_frame = 5)
-# Or no local bundle adjustment
-reconstructed_scene.{module_name}()
+
+# With Local Bundle Adjustment 
+reconstructed_scene.{module_name}(
+    iteration_count = 150,
+    reprojection_error = 3.0,
+    ba_per_frame = 4,
+    optimizer = ("BundleAdjustmentOptimizerLocal", {{
+        "max_num_iterations": 25,
+        "robust_loss": True,
+        "use_gpu": False
+    }})
+)
+
+# WITHOUT local bundle adjustment
+reconstructed_scene.{module_name}(
+    iteration_count = 150,
+    reprojection_error = 3.0
+)
 """     
         super().__init__(cam_data = cam_data,
                          module_name=module_name,

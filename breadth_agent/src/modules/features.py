@@ -149,7 +149,7 @@ is highly textured, OPT to use SuperPoint instead. Only use in High-Textured sce
 When specified directly for SIFT or when classical based feature detection is called for with robust detection required
 utilize the SIFT feature detector module. 
 
-Initialization Parameters: 
+Initialization/Function Parameters: 
 - cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
 - max_keypoints: Maximum number of Keypoints to detect per image from the feature detector
     - Default (int): 1024
@@ -167,7 +167,7 @@ contrastThreshold, i.e. the larger the edgeThreshold, the more features are prod
 camera with soft lenses, you might want to reduce the number. 
     - Default (float): 1.6
 
-Module Output: 
+Module Output - Handled with SfMScene Object: 
     list[Points2D]:
         Points2D (Detected Features per Scene):
             points2D:       [N x 2] np.float32
@@ -178,12 +178,15 @@ Module Output:
         
         example = f"""
 Initialization of Module: 
+from modules.baseclass import SfMScene
+from modules.features import {module_name}
+
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(image_path = image_path, 
                             calibration_path = calibration_path)
 
 # Step 2: Detect Features
-reconstructed_scene.FeatureDetectionSIFT(
+reconstructed_scene.{module_name}(
     max_keypoints=9000,
     contrast_threshold=0.02,
     edge_threshold=20,
@@ -282,7 +285,7 @@ and description generation based algorithms. USE THIS MODULE when the image cont
 many corners or edges, and we want a faster detectors. When specified directly for ORB or when quick/efficient 
 feature detection is necessary, and called for, utilize the ORB feature detector module. 
 
-Initialization Parameters: 
+Initialization/Function Parameters: 
 - cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
 - max_keypoints: Maximum number of Keypoints to detect per image from the feature detector
     - Default (int): 1024
@@ -302,7 +305,7 @@ Initialization Parameters:
 - set_nms_tolerance: adaptive nms tolerance value
     - Default (float): 0.1
 
-Module Output: 
+Module Output - Handled with SfMScene Object: 
     list[Points2D]:
         Points2D (Detected Features per Scene):
             points2D: [N x 2] np.float32
@@ -312,6 +315,9 @@ Module Output:
 """
         
         example = f"""
+from modules.baseclass import SfMScene
+from modules.features import {module_name}
+
 Initialization of Module: 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(image_path = image_path, 
@@ -500,12 +506,11 @@ When specified directly to use the SuperPoint algorithm, mentioning to use a fea
 to handle view changes or material that lack texture in a given scene, or accurate dense features 
 are necessary, use the SuperPoint detection Module.
 
-Initialization Parameters: 
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+Initialization/Function Parameters: 
 - max_keypoints: Maximum number of Keypoints to detect per image from the feature detector
     - Default (int): 1024
 
-Module Output: 
+Module Output - Handled with SfMScene Object: 
     list[Points2D]:
         Points2D (Detected Features per Scene):
             points2D: [N x 2] np.float32
@@ -515,13 +520,16 @@ Module Output:
 """
 
         example = f"""
+from modules.baseclass import SfMScene
+from modules.features import {module_name}
+
 Initialization of Module: 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(image_path = image_path, 
                             calibration_path = calibration_path)
 
 # Step 2: Detect Features
-reconstructed_scene.FeatureDetectionSP(
+reconstructed_scene.{module_name}(
     max_keypoints=9000,
     contrast_threshold=0.02,
     edge_threshold=20,

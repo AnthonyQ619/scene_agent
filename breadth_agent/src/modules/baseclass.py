@@ -28,8 +28,9 @@ import open3d as o3d
 import inspect
 from abc import ABC
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Tuple
 
+from pathlib import Path
 import copy
 import random
 import json
@@ -734,8 +735,11 @@ class CameraPoseEstimatorClass(PipelineModule, ABC):
         event_msg = self._collect_metrics()
         print(json.dumps(event_msg), flush=True)
 
-        with open("data.json", "w", encoding="utf-8") as f:
-            json.dump(event_msg, f, indent=4)
+        with open(self.cam_data.metric_file_path, "a", encoding="utf-8") as file:
+            file.write("============================================================\n")
+            file.write("=====================CameraPose Metrics=====================\n")
+            json.dump(event_msg, file, indent=4)
+            file.write("\n============================================================\n")
 
     def _collect_metrics(self) -> dict:
         metrics = {}
@@ -840,6 +844,7 @@ class FeatureClass(PipelineModule, ABC):
         self.example = example
         
         # Define Camera Data variables to use. 
+        self.cam_data = cam_data
         self.image_list = cam_data.image_list
         self.image_scale = cam_data.image_scale
         self.image_shape = cam_data.image_list[0].shape[:2]
@@ -873,8 +878,13 @@ class FeatureClass(PipelineModule, ABC):
         print(json.dumps(event_msg_coverage), flush=True)
 
         # Write to file
-        with open('data.json', 'w', encoding='utf-8') as f:
-            json.dump({"Features Detected per Frame": event_msg_feats, "Feature Spatial Distribution per Frame": event_msg_coverage}, f, indent = 4)
+        with open(self.cam_data.metric_file_path, "a", encoding="utf-8") as file:
+            file.write("============================================================\n")
+            file.write("======================Features Metrics======================\n")
+            json.dump({"Features Detected per Frame": event_msg_feats, "Feature Spatial Distribution per Frame": event_msg_coverage}, file, indent=4)
+            file.write("\n============================================================\n")
+        # with open('data.json', 'w', encoding='utf-8') as f:
+        #     json.dump({"Features Detected per Frame": event_msg_feats, "Feature Spatial Distribution per Frame": event_msg_coverage}, f, indent = 4)
 
     def _spatial_dist_calc(self):
         set_of_coverages = []
@@ -1031,8 +1041,14 @@ class FeatureMatching(PipelineModule, ABC):
         print(json.dumps(event_msg), flush=True)
 
         # Write to file
-        with open('data.json', 'w', encoding='utf-8') as f:
-            json.dump({"Corresponding Feature Metrics per Image Pair": event_msg}, f, indent = 4)
+        with open(self.cam_data.metric_file_path, "a", encoding="utf-8") as file:
+            file.write("============================================================\n")
+            file.write("==================Feature Matching Metrics==================\n")
+            json.dump({"Corresponding Feature Metrics per Image Pair": event_msg}, file, indent=4)
+            file.write("\n============================================================\n")
+        
+        # with open('data.json', 'w', encoding='utf-8') as f:
+        #     json.dump({"Corresponding Feature Metrics per Image Pair": event_msg}, f, indent = 4)
 
         # return mean_ct, inlier_yield, repeatability, gric_score_F, gric_score_H
     
@@ -1301,11 +1317,36 @@ class FeatureTracking(PipelineModule, ABC):
         print(json.dumps(event_msg), flush=True)
 
         # Write to file
-        with open('data.json', 'w', encoding='utf-8') as f:
-            json.dump({"Feature Track Metrics for Survivability and Stability": event_msg}, f, indent = 4)
+        # Write to file
+        with open(self.cam_data.metric_file_path, "a", encoding="utf-8") as file:
+            file.write("============================================================\n")
+            file.write("==================Feature Tracking Metrics==================\n")
+            json.dump({"Feature Track Metrics for Survivability and Stability": event_msg}, file, indent=4)
+            file.write("\n============================================================\n")
+        # with open('data.json', 'w', encoding='utf-8') as f:
+        #     json.dump({"Feature Track Metrics for Survivability and Stability": event_msg}, f, indent = 4)
 
 class OptimizationClass(PipelineModule, ABC):
+    use_base_metrics = True
+    _registered_metric_methods: tuple[str, ...] = ()
     output_key = "optimized_scene"
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        metric_names = []
+
+        # inherit metrics from parent classes
+        for base in reversed(cls.__mro__[1:]):
+            metric_names.extend(getattr(base, "_registered_metric_methods", ()))
+
+        # add metrics declared directly in this subclass
+        for name, value in cls.__dict__.items():
+            if callable(value) and getattr(value, "_is_metric_provider", False):
+                metric_names.append(name)
+
+        # remove duplicates, preserve order
+        cls._registered_metric_methods = tuple(dict.fromkeys(metric_names))
 
     def run_from_state(self, state: SceneState, **kwargs) -> Scene | IncrementalSfMState:
         current_scene = state.dense_scene or state.sparse_scene
@@ -1359,7 +1400,7 @@ class OptimizationClass(PipelineModule, ABC):
     def __call__(self, current_scene: Scene, **kwargs) -> Scene:
         """Fixed Function Call specifically for global bundle adjustment pipelines"""
         optimized_scene = self._optimize_scene(current_scene, **kwargs)
-        # self.calculate_metrics(optimized_scene)
+        self.calculate_metrics(optimized_scene)
         return optimized_scene
     
 
@@ -1368,14 +1409,58 @@ class OptimizationClass(PipelineModule, ABC):
         """Write optimizer-specific implementation here."""
         raise NotImplementedError
 
-    def calculate_metrics(self, current_scene: Scene | IncrementalSfMState) -> None:
-        metrics = self._metric_calculation(current_scene)
-        print(json.dumps(metrics), flush=True)
+    def calculate_metrics(self, current_scene: Scene) -> None:
+        event_msg = self._collect_metrics(current_scene)
+        print(json.dumps(event_msg), flush=True)
 
-        with open("data.json", "w", encoding="utf-8") as f:
-            json.dump(metrics, f, indent=4)
+        with open(self.cam_data.metric_file_path, "a", encoding="utf-8") as file:
+            file.write("============================================================\n")
+            file.write("====================Optimization Metrics====================\n")
+            json.dump({"Scene Metrics from Optimization": event_msg}, file, indent=4)
+            file.write("\n============================================================\n")
 
-    def _metric_calculation(self, current_scene: Scene | IncrementalSfMState) -> dict:
+    def _collect_metrics(self, current_scene: Scene) -> dict:
+        metrics = {}
+
+        if self.use_base_metrics:
+            metrics.update(self._base_metric_calculation(current_scene))
+
+        for method_name in self._registered_metric_methods:
+            method = getattr(self, method_name)
+            result = method()
+
+            if result is None:
+                continue
+            if not isinstance(result, dict):
+                raise TypeError(
+                    f"Metric method '{method_name}' must return dict | None, "
+                    f"got {type(result).__name__}"
+                )
+
+            overlap = set(metrics).intersection(result)
+            if overlap:
+                raise ValueError(
+                    f"Duplicate metric keys from '{method_name}': {sorted(overlap)}"
+                )
+
+            metrics.update(result)
+
+        return metrics
+
+    def _base_metric_calculation(self) -> dict:
+        return 
+
+    # def calculate_metrics(self, current_scene: Scene | IncrementalSfMState) -> None:
+    #     metrics = self._metric_calculation(current_scene)
+    #     print(json.dumps(metrics), flush=True)
+
+    #     with open(self.cam_data.metric_file_path, "a", encoding="utf-8") as file:
+    #         file.write("============================================================\n")
+    #         file.write("====================Optimization Metrics====================\n")
+    #         json.dump({"Scene Metrics from Optimization": metrics}, file, indent=4)
+    #         file.write("\n============================================================\n")
+
+    def _base_metric_calculation(self, current_scene: Scene | IncrementalSfMState) -> dict:
         metrics = {"Optimizer": self.module_name}
 
         if hasattr(current_scene, "points3D") and current_scene.points3D is not None:
@@ -1384,7 +1469,7 @@ class OptimizationClass(PipelineModule, ABC):
                 metrics["Num Points3D"] = int(len(pts3d))
 
         if hasattr(current_scene, "camera_poses") and current_scene.camera_poses is not None:
-            poses = getattr(current_scene.camera_poses, "camera_pose", None)
+            poses = getattr(current_scene.cam_poses, "camera_pose", None)
             if poses is not None:
                 metrics["Num Camera Poses"] = int(len(poses))
 
@@ -1418,7 +1503,8 @@ class SfMScene:
         image_path: str | None = None,
         calibration_path: str | None = None,
         cam_data: CameraData | None = None,
-        max_images: int | None = None
+        max_images: int | None = None,
+        target_resolution: Tuple[int, int] | None = None,
     ):
         if cam_data is None:
             if image_path is None or calibration_path is None:
@@ -1427,20 +1513,29 @@ class SfMScene:
                 )
             if max_images is None:
                 CDM = CameraDataManager(image_path=image_path,
-                            calibration_path=calibration_path)
+                            calibration_path=calibration_path,
+                            target_resolution=target_resolution)
             else:
                 CDM = CameraDataManager(image_path=image_path,
                             max_images=max_images,
-                            calibration_path=calibration_path)
+                            calibration_path=calibration_path,
+                            target_resolution=target_resolution)
 
             # Get Camera Data
             cam_data = CDM.get_camera_data()
+            
+            parent_metric_path = Path(__file__).resolve().parents[2]
+            metric_file_path = str(parent_metric_path / "results" / "metrics_results.txt")
+            # Create file or erase contents of existing one
+            with open(metric_file_path, "w") as file:
+                pass
             # cam_data = CameraData(
             #     image_path=image_path,
             #     calibration_path=calibration_path,
             # )
 
         self.cam_data = cam_data
+        self.cam_data.metric_file_path = metric_file_path 
         self.state = SceneState(cam_data=cam_data)
 
     def __getattr__(self, name: str):

@@ -14,8 +14,7 @@ the scene (Outdoors for example) with faster run time being REQUIRED, or when sp
 
 Other supported detectors are: SIFT and SuperPoint
 
-Initialization Parameters:
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+Initialization/Function Parameters:
 - detector (str): Name of Feature Detector that was used to estimate the features provided.
     - Default (str): SIFT
 - n_layers: Number of stacked self+cross attention layers. Reduce this value for faster inference 
@@ -40,28 +39,30 @@ without any impact on accuracy.
     - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
 - RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
     - Default (float): 0.99
-Other supported detectors are: SIFT and SuperPoint
 
-Function Call Parameters:
-
+Function Call Parameters - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IN USE:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 
 
 Tool Example: 
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+Initialization modules
+from modules.baseclass import SfMScene
+from modules.features import FeatureDetectionSP
+from modules.featurematching import FeatureMatchLightGluePair
 
-# Feature Matcher Module initialized with the SIFT detector
-feature_matcher = FeatureMatchLightGluePair(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
+# Start SfM Pipeline 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Matcher Module intialized with the SuperPoint detector
-feature_matcher = FeatureMatchLightGluePair(cam_data = camera_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
-
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-matched_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
+# Step 2 (Detect Features) must be completed prior!
+# Step 3: 
+reconstructed_scene.FeatureMatchLightGluePair(
+    detector="superpoint",
+    RANSAC_homography=False,
+    RANSAC_threshold=0.02,
+    RANSAC_conf=0.999
+    )
 
 
 ===+&+===
@@ -81,10 +82,9 @@ This matcher excels in Nighttime setting with SuperPoint as the detector.
 Model is trained both for indoor and outdoor setting. When not specified, assume indoor
 setting to properly initialize the model.
 
-Other supported detectors are: SIFT and SuperPoint.
+At this time, this deep learning matcher is only usable with SuperPoint.
 
-Initialization Parameters:
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+Initialization/Function Parameters:
 - detector (str): Name of Feature Detector that was used to estimate the features provided.
     - default (str): superpoint
 - sinkhorn_iterations: number iterations for running the Sinkhorn Algorithm in the model for optimal
@@ -106,24 +106,30 @@ stage
 - RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
     - Default (float): 0.99
 
-Function Call Parameters:
+Function Call Parameters - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IN USE:
 - features (list[Points2D]): list of features detected per scene estimated from the feature detection module
 
 
 Tool Example: 
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+Initialization modules
+from modules.baseclass import SfMScene
+from modules.features import FeatureDetectionSP
+from modules.featurematching import FeatureMatchSuperGluePair
 
-# Feature Matcher Module initialized with the SIFT detector
-feature_matcher = FeatureMatchSuperGluePair(cam_data = camera_data, detector='sift') # Initialized with detector 'sift' for proper matching
+# Start SfM Pipeline 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Matcher Module intialized with the SuperPoint detector
-feature_matcher = FeatureMatchSuperGluePair(cam_data = camera_data, detector='SuperPoint') # Initialized with detector 'orb' for proper matching
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-matched_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
+# Step 2 (Detect Features) must be completed prior!
+# Step 3: 
+reconstructed_scene.FeatureMatchSuperGluePair(
+    detector="superpoint",
+    setting="indoor",
+    RANSAC_homography=False,
+    RANSAC_threshold=0.02,
+    RANSAC_conf=0.999
+    )
 
 
 ===+&+===
@@ -136,15 +142,16 @@ features across a set of images. The feature matching algorithm used is the Flan
 detector. Use this feature matcher for when a Nearest Neighbor algorithm is called for 
 and speed is a necessary requirement. Unless specified directly, assume the features 
 are detected using the SIFT algorithm and initialize through the detector parameter. 
-Other supported detectors are: SIFT, ORB, SuperPoint, and FAST.
+Other supported detectors are: SIFT, ORB, and SuperPoint.
 
-SuperPoint and Sift share the same parameters, whereas ORB and FAST share the same parameters.
+SuperPoint and Sift share the same parameters, whereas ORB contains different parameters.
 
 Use this module in the case a faster feature matcher is needed for feature pair correspondences, 
-in which this module utilizes a nearest neighbor method for fast matching.
+in which this module utilizes a nearest neighbor method for fast matching. Faster than BruteForce, but 
+slower than ML based matchers. This matcher is less accurate than Brute-Force, but can sometimes be more 
+accurate than ML detectors in certain conditions. 
 
-Initialization Parameters: 
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+Initialization/Function Parameters: 
 - detector: String representing the name of the feature detector used for the features provided.
     - Default (str): SIFT
 - k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing with lowes threshold.
@@ -161,27 +168,31 @@ Initialization Parameters:
      below a specific threshold
     - Default (float): 0.75
 
-Function Call Parameters:
+Function Call Parameters - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IN USE:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 
 
 Tool Example: 
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+Initialization modules
+from modules.baseclass import SfMScene
+from modules.features import FeatureDetectionSIFT
+from modules.featurematching import FeatureMatchFlannPair
 
-# Feature Matcher Module initialized with the SIFT detector
-feature_matcher = FeatureMatchFlannPair(cam_data=cam_data, detector='sift') # Initialized with detector 'sift' for proper matching
+# Start SfM Pipeline 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Matcher Module initialized with the SuperPoint detector
-feature_matcher = FeatureMatchFlannPair(cam_data=cam_data, detector='superpoint') # Initialized with detector 'sift' for proper matching
-
-# Feature Matcher Module initialized with the ORB detector 
-feature_matcher = FeatureMatchFlannPair(cam_data=cam_data, detector='orb') # Initialized with detector 'orb' for proper matching
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-detected_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
+# Step 2 (Detect Features) must be completed prior!
+# Step 3: 
+reconstructed_scene.FeatureMatchFlannPair(
+    detector="sift",
+    k=2,
+    lowes_thresh=0.78,
+    RANSAC_homography=False,
+    RANSAC_threshold=0.02,
+    RANSAC_conf=0.999
+    )
 
 
 ===+&+===
@@ -195,11 +206,12 @@ feature detector. Unless specified directly, assume the features are detected us
 algorithm and initialize through the detector parameter. 
 Other supported detectors are: SIFT, ORB, SuperPoint, and FAST. 
 
-Use this Feature Matching Module when fast, real time, feature matching needs to be 
-conducted. This is less accurate than Flann and the ML models, but is much faster.
+Use this Feature Matching Module when you need highly accurate matches as this an exhaustive 
+matcher to check 1-1 for every other match to find the closest matches. This is slower than
+Flann and Other ML matchers, but more accurate than flann and can be more accurate than ML 
+matchers in certain conditions.
 
-Initalization Parameters:
-- cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
+Initalization/Function Parameters:
 - detector: String representing the name of the feature detector used for the features provided.
     - Default (str): SIFT
 - k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing with lowes threshold.
@@ -221,27 +233,31 @@ Initalization Parameters:
      below a specific threshold
     - Default (float): 0.75
 
-Function Call Parameters:
+Function Call Parameters - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IN USE:
 - features list[Points2D]: list of features detected per scene estimated from the feature detection module
 
 
 Tool Example: 
-Initialization: 
-# Determine the detector that was used previously and initialize module with said detector
+Initialization modules
+from modules.baseclass import SfMScene
+from modules.features import FeatureDetectionSIFT
+from modules.featurematching import FeatureMatchBFPair
 
-# Feature Matcher Module initialized with the SIFT detector
-feature_matcher = FeatureMatchBFPair(cam_data=cam_data, detector='sift') # Initialized with detector 'sift' for proper matching
+# Start SfM Pipeline 
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                            calibration_path = calibration_path)
 
-# Feature Matcher Module initialized with the ORB detector 
-feature = FeatureMatchBFPair(cam_data=cam_data, detector='orb') # Initialized with detector 'orb' for proper matching
-
-# Feature Matcher Module intialized with the FAST detector
-feature = FeatureMatchBFPair(cam_data=cam_data, detector='fast') # Initialized with detector 'orb' for proper matching
-
-Example Usage in Script:  
-features = feature_detector() # Call Feature Detector Module on image frames
-
-tracked_features = feature_matcher(features=features) # Features used from Feature Detector Module are input to feature module
+# Step 2 (Detect Features) must be completed prior!
+# Step 3: 
+reconstructed_scene.FeatureMatchBFPair(
+    detector="sift",
+    k=2,
+    lowes_thresh=0.78,
+    RANSAC_homography=False,
+    RANSAC_threshold=0.02,
+    RANSAC_conf=0.999
+    )
 
 
 ===+&+===

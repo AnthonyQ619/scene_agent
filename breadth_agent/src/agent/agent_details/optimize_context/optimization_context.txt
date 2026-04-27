@@ -1,0 +1,141 @@
+Results from Feature Detector Module using Sift:
+reconstructed_scene.FeatureDetectionSIFT(
+    max_keypoints=10000,
+    contrast_threshold=0.009,
+    edge_threshold=10,
+)
+
+Current Metric Results:
+{
+    "Features Detected per Frame": {
+        "Average": 10000.4,
+        "Minimum": 10000,
+        "Maximum": 10001
+    },
+    "Feature Spatial Distribution per Frame": {
+        "Average": 3.176621670542938,
+        "Minimum": 2.5588968517116553,
+        "Maximum": 3.3775012822308907
+    }
+}
+
+Improved Parameterization:
+reconstructed_scene.FeatureDetectionSIFT(
+    max_keypoints=10000,
+    contrast_threshold=0.009,
+    edge_threshold=10,
+)
+==$%$==
+Results from Feature Matching Module using Flann Algorithm:
+reconstructed_scene.FeatureMatchFlannPair(detector="sift",
+                                        k=2,
+                                        lowes_thresh=0.78,
+                                        RANSAC_homography=False,
+                                        RANSAC_threshold=0.02,
+                                        RANSAC_conf=0.999)
+
+{
+    "Corresponding Feature Metrics per Image Pair": {
+        "Average Corresponding Features": 658.75,
+        "Average Inlier Yield per Frame": 0.05269805419458055,
+        "Median Inlier Yield per Frame": 0.0569,
+        "Average Repeatability per Image Pair": 0.12870654506260767,
+        "Gric Score - Fundamental": 3310.095296252682,
+        "Gric Score - Homography": 4111.292228411412
+    }
+}
+
+Improved Parameterization/Change of Modules: 
+reconstructed_scene.FeatureMatchBFPair(
+    detector='sift',
+    RANSAC_homography=False,
+    RANSAC_threshold=0.01,
+    lowes_thresh=0.7
+)
+==$%$==
+Results using Essential to PNP algorithm in Pose Estimation:
+reconstructed_scene.CamPoseEstimatorEssentialToPnP(
+    iteration_count=150,
+    reprojection_error = 3.0,
+    optimizer = ("BundleAdjustmentOptimizerLocal", {
+        "max_num_iterations": 25,
+        "robust_loss": True,
+        "use_gpu": False
+    }),
+)
+
+Current Metric Results:
+{
+    "Number of Camera Poses": 5,
+    "Average Reprojection Error per Frame": 29.565087094496345,
+    "Average Median Reprojection Error per Frame": 0.7224033949741775
+}
+
+Improved Parametrization/Change of Modules: 
+reconstructed_scene.CamPoseEstimatorEssentialToPnP(
+    iteration_count=175,
+    reprojection_error = 2.5,
+    optimizer = ("BundleAdjustmentOptimizerLocal", {
+        "max_num_iterations": 30,
+        "robust_loss": True,
+        "use_gpu": False
+    }),
+)
+
+==$%$==
+Results from Feature Matching Module using Brute-Force Algorithm:
+reconstructed_scene.FeatureMatchBFTracking(
+    detector = "sift",
+    k=2,
+    cross_check=False,
+    lowes_thresh=0.70,
+    RANSAC_threshold=0.015,
+    RANSAC_conf=0.999
+)
+
+Current Metric Results:
+{
+    "Feature Track Metrics for Survivability and Stability": {
+        "Avg. track length": 2.173449612403101,
+        "Max. track length": 5.0,
+        "Median track length": 2.0,
+        "Survival Tracks of 3": 0.13953488372093023,
+        "Survival Tracks of 5": 0.003875968992248062,
+        "Survival Tracks of 10": 0.0,
+        "Fragmentation": 0.4600980829246545,
+        "Obs. per Track": 2.173449612403101
+    }
+}
+
+Improved Parametrization/Change of Modules:
+reconstructed_scene.FeatureMatchBFTracking(
+    detector = "sift",
+    k=2,
+    cross_check=False,
+    lowes_thresh=0.75,
+    RANSAC_threshold=0.02,
+    RANSAC_conf=0.999
+)
+==$%$==
+Results from Optimization using global optimization:
+reconstructed_scene.BundleAdjustmentOptimizerGlobal(
+    max_num_iterations=200,
+    use_gpu=False
+)
+
+Current Metric Results:
+{
+    "Scene Metrics from Optimization": {
+        "Optimizer": "BundleAdjustmentOptimizerGlobal",
+        "Num Points3D": 1360,
+        "Convergence": "BundleAdjustmentTerminationType.NO_CONVERGENCE",
+        "Initial Cost": 358.0130940932776,
+        "Final Cost": 30.917416895489
+    }
+}
+
+reconstructed_scene.BundleAdjustmentOptimizerGlobal(
+    max_num_iterations=240,
+    use_gpu=False
+)
+==$%$==

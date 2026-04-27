@@ -2,7 +2,7 @@ import glob
 from tqdm import tqdm
 import os
 import sys
-from openai import OpenAI
+# from openai import OpenAI
 from modules.cameramanager import CameraDataManager
 from modules.utilities.utilities import CalibrationReader
 from modules.features import (FeatureDetectionSIFT, 
@@ -29,8 +29,12 @@ from modules.optimization import (BundleAdjustmentOptimizerLocal,
                                   BundleAdjustmentOptimizerGlobal)
 from modules.visualize import VisualizeScene
 import numpy as np
+from pathlib import Path
 
-CURRENT_PATH = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent\\agent_details"#str(os.path.dirname(__file__))
+HOME_SRC = Path(__file__).resolve().parents[1]
+CURRENT_PATH = str(HOME_SRC / "agent" / "agent_details") #C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace\\sparse"
+
+# CURRENT_PATH = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent\\agent_details"#str(os.path.dirname(__file__))
 
 def build_context_string(module_tool):
     name = module_tool.module_name
@@ -51,9 +55,9 @@ Tool Example: {example}
 
 def build_tool_context_file(filename: str, set_of_tools: list, tool_type:str):
     special_breaker = "===+&+===\n"
-    if not os.path.isdir(CURRENT_PATH + "\\tool_context"):
-        os.mkdir(CURRENT_PATH + "\\tool_context")
-    file_to_write = open(CURRENT_PATH + "\\tool_context\\" + filename, 'w')
+    if not os.path.isdir(CURRENT_PATH + "/tool_context"):
+        os.mkdir(CURRENT_PATH + "/tool_context")
+    file_to_write = open(CURRENT_PATH + "/tool_context/" + filename, 'w')
 
     for i in tqdm(range(len(set_of_tools))):
         tool = set_of_tools[i]
@@ -72,12 +76,12 @@ def build_tool_context_file(filename: str, set_of_tools: list, tool_type:str):
 
 def build_full_length_context_file(filename: str, context_file_path: str, num = 1):
     special_breaker = "\n===$&$===\n"
-    if not os.path.isdir(CURRENT_PATH + "\\script_context"):
-        os.mkdir(CURRENT_PATH + "\\script_context")
+    if not os.path.isdir(CURRENT_PATH + "/script_context"):
+        os.mkdir(CURRENT_PATH + "/script_context")
 
-    file_to_write = open(CURRENT_PATH + "\\script_context\\" + filename, 'w')
+    file_to_write = open(CURRENT_PATH + "/script_context/" + filename, 'w')
 
-    context_files = sorted(glob.glob(context_file_path + "\\test_sfm_t*"))[:num]
+    context_files = sorted(glob.glob(context_file_path + "/test_sfm_t*"))[:num]
     print(context_files)
     for i in range(len(context_files)):
 
@@ -98,13 +102,13 @@ def build_full_length_context_file(filename: str, context_file_path: str, num = 
 
 def build_full_length_context_files(context_file_path: str, num = 1):
     special_breaker = "\n===$&$===\n"
-    if not os.path.isdir(CURRENT_PATH + "\\script_context"):
-        os.mkdir(CURRENT_PATH + "\\script_context")
+    if not os.path.isdir(CURRENT_PATH + "/script_context"):
+        os.mkdir(CURRENT_PATH + "/script_context")
 
-    file_to_write_proc = open(CURRENT_PATH + "\\script_context\\process.txt", 'w')
-    file_to_write_p_to_c = open(CURRENT_PATH + "\\script_context\\process_to_scripts.txt", 'w')
+    file_to_write_proc = open(CURRENT_PATH + "/script_context/process.txt", 'w')
+    file_to_write_p_to_c = open(CURRENT_PATH + "/script_context/process_to_scripts.txt", 'w')
 
-    context_files = sorted(glob.glob(context_file_path + "\\test_sfm_t*"))[:num]
+    context_files = sorted(glob.glob(context_file_path + "/context_test*"))[:num]
     print(context_files)
     # for i in range(len(context_files)):
 
@@ -139,42 +143,43 @@ def build_full_length_context_files(context_file_path: str, num = 1):
     file_to_write_proc.close()
     file_to_write_p_to_c.close()
 
-def build_embedded_description_db(file_path: str):
-    assert os.path.exists(file_path)
-    client = OpenAI()
-    if not os.path.isdir(CURRENT_PATH + "\\script_context"):
-        os.mkdir(CURRENT_PATH + "\\script_context")
+# def build_embedded_description_db(file_path: str):
+#     assert os.path.exists(file_path)
+#     client = OpenAI()
+#     if not os.path.isdir(CURRENT_PATH + "\\script_context"):
+#         os.mkdir(CURRENT_PATH + "\\script_context")
 
-    file_to_read = open(file_path, 'r')
-    embed_file = open(CURRENT_PATH + "\\script_context\\embed_description_list.txt", 'w')
+#     file_to_read = open(file_path, 'r')
+#     embed_file = open(CURRENT_PATH + "\\script_context\\embed_description_list.txt", 'w')
 
-    content = file_to_read.read()
+#     content = file_to_read.read()
 
-    split_db = content.split("===$&$===")
+#     split_db = content.split("===$&$===")
 
-    for i in tqdm(range(1, len(split_db) - 1)):
-        desc = split_db[i].split("# ==#$#==")[0].lstrip().rstrip().replace('"""','').replace("\n", "")
+#     for i in tqdm(range(1, len(split_db) - 1)):
+#         desc = split_db[i].split("# ==#$#==")[0].lstrip().rstrip().replace('"""','').replace("\n", "")
 
-        # if i == 1:
-        response = client.embeddings.create(
-            model="text-embedding-3-small",
-            input=desc,
-            dimensions=256,
-            encoding_format="float"
-            )
-        embed_file.writelines([str(response.data[0].embedding) + "\n", desc + "\n"])
+#         # if i == 1:
+#         response = client.embeddings.create(
+#             model="text-embedding-3-small",
+#             input=desc,
+#             dimensions=256,
+#             encoding_format="float"
+#             )
+#         embed_file.writelines([str(response.data[0].embedding) + "\n", desc + "\n"])
 
-    embed_file.close()
-    file_to_read.close()
+#     embed_file.close()
+#     file_to_read.close()
 
 def tool_building():
-    image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
-    calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\Structure-from-Motion\\calibration_new.npz"
+    image_path = "/home/anthonyq/datasets/DTU/DTU/scan10/images"
+    calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
     # calibration_data = CalibrationReader(calibration_path).get_calibration()
     # STEP 1: Read in Camera Data
 
     CDM = CameraDataManager(image_path=image_path,
-                            calibration_path=calibration_path)
+                            calibration_path=calibration_path,
+                            max_images=5)
     # Any image pre-processing steps are ran here
     # ...
     # Get Camera Data
@@ -198,16 +203,18 @@ def tool_building():
     camera_pose_est = [CamPoseEstimatorEssentialToPnP(cam_data=camera_data),
                        CamPoseEstimatorVGGTModel(cam_data=camera_data)]
     
-    scene_estimators = [Sparse3DReconstructionMono(cam_data=camera_data),
-                        Sparse3DReconstructionVGGT(cam_data=camera_data)
-                        ]
+    # scene_estimators = [Sparse3DReconstructionMono(cam_data=camera_data),
+    #                     Sparse3DReconstructionVGGT(cam_data=camera_data),
+    #                     Dense3DReconstructionMono(cam_data=camera_data),
+    #                     Dense3DReconstructionVGGT(cam_data=camera_data)
+    #                     ]
     optimizers = [BundleAdjustmentOptimizerLocal(cam_data = camera_data), 
                   BundleAdjustmentOptimizerGlobal(cam_data = camera_data)]
 
     build_tool_context_file('feature_context.txt', features, "Features")
     build_tool_context_file('feature_matching_context.txt', matchers, "Feature Matcher")
     build_tool_context_file('camera_pose_context.txt', camera_pose_est, "Pose Estimation")
-    build_tool_context_file('scene_const_context.txt', scene_estimators, "Scene Reconstruction")
+    # build_tool_context_file('scene_const_context.txt', scene_estimators, "Scene Reconstruction")
     build_tool_context_file('feature_tracking_context.txt', trackers, "Feature Tracker")
     build_tool_context_file('optimization_context.txt', optimizers, "Optimization Module")
 
@@ -220,11 +227,11 @@ if __name__ == "__main__":
     elif arg == "script":
         path_to_files = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\tests\\context_tests"
         build_full_length_context_file("full_context_scripts.txt", path_to_files, num=6)
-    elif arg == "embed" or arg =="embedding":
-        path_to_file = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent\\agent_details\\script_context\\full_context_scripts.txt"
-        build_embedded_description_db(path_to_file)
+    # elif arg == "embed" or arg =="embedding":
+    #     path_to_file = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent\\agent_details\\script_context\\full_context_scripts.txt"
+    #     build_embedded_description_db(path_to_file)
     elif arg == "full_script":
-        path_to_files = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\tests\\context_tests"
+        path_to_files = "/home/anthonyq/projects/scene_agent/breadth_agent/src/tests/context_tests"
         build_full_length_context_files(path_to_files, num=8)
     elif arg == "test" or arg == "t":
         path_to_file = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent_utils\\script_context\\embed_description_list.txt"
