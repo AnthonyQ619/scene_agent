@@ -14,14 +14,14 @@ calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
 ## NEW SFM PIPELINE
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(image_path = image_path, 
-                                max_images = 15,
+                                max_images = 5,
                                 calibration_path = calibration_path)
 
 # Step 2: Detect Features
 reconstructed_scene.FeatureDetectionSIFT(
     max_keypoints=10000,
     contrast_threshold=0.009,
-    edge_threshold=20,
+    edge_threshold=10,
 )
 from modules.camerapose import CamPoseEstimatorEssentialToPnP
 # Step 3: Detect Feature Pairs
@@ -29,7 +29,7 @@ reconstructed_scene.FeatureMatchFlannPair(detector="sift",
                                         k=2,
                                         lowes_thresh=0.78,
                                         RANSAC_homography=False,
-                                        RANSAC_threshold=0.02,
+                                        RANSAC_threshold=0.01,
                                         RANSAC_conf=0.999)
 
 # FeatureMatchLightGluePair(

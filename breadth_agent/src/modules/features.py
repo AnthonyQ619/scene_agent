@@ -517,6 +517,9 @@ Module Output - Handled with SfMScene Object:
             descriptors: [N x 256] np.float32
             scores:         [N x 1] np.float32
             image_size: [1 x 2] np.int64
+
+Metric Output:
+- 
 """
 
         example = f"""
