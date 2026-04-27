@@ -1500,12 +1500,14 @@ class VisualizeClass():
 class SfMScene:
     def __init__(
         self,
+        id,
         image_path: str | None = None,
         calibration_path: str | None = None,
         cam_data: CameraData | None = None,
         max_images: int | None = None,
         target_resolution: Tuple[int, int] | None = None,
     ):
+        self.id = id
         if cam_data is None:
             # if image_path is None or calibration_path is None:
                 # raise ValueError(
@@ -1525,7 +1527,8 @@ class SfMScene:
             cam_data = CDM.get_camera_data()
             
             parent_metric_path = Path(__file__).resolve().parents[2]
-            metric_file_path = str(parent_metric_path / "results" / "metrics_results.txt")
+            # metric_file_path = str(parent_metric_path / "results" / f"metrics_results_{id}.txt")
+            metric_file_path = "/work/tmp/metric_" + str(self.id) + ".txt"
             # Create file or erase contents of existing one
             with open(metric_file_path, "w") as file:
                 pass

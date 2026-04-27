@@ -5,11 +5,11 @@ GOAL RECONSTRUCTION: Dense Reconstruction
 STEP 1: Initialize the scene through the object SfMScene and read in Camera data
 - Initialize the scene as SfMScene(...)
 - Set the image path to the provided directory of images to be read, resize, and pre-process images for reconstruction
-  - image_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan14_normal_lighting
+  - image_path = "/work/dataset/DTU/scan14_normal_lighting"
 - Set max_images=20 (Never above 40), we want to only use the first 20 images when evaluating the feasibility of the workflow.
 - Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
   activate the parameter
-  - calibration_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz
+  - calibration_path = "/work/dataset/DTU/calibration_DTU_new.npz"
 
 STEP 2: Detect Features
 - Select the SIFT module since the scene featuring the object is well lit, in an indoor setting, and the object is of a brick house that is 
@@ -95,19 +95,12 @@ Example Code:
 
 
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan14_normal_lighting"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
-
-from modules.features import FeatureDetectionSIFT
-from modules.featurematching import FeatureMatchFlannPair, FeatureMatchBFTracking
-from modules.camerapose import CamPoseEstimatorEssentialToPnP
-from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.scenereconstruction import Sparse3DReconstructionMono, Dense3DReconstructionMono
-from modules.optimization import BundleAdjustmentOptimizerGlobal
-from modules.baseclass import SfMScene
+image_path = "/work/dataset/DTU/scan14_normal_lighting"
+calibration_path = "/work/dataset/DTU/calibration_DTU_new.npz"
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
+reconstructed_scene = SfMScene(ID,
+                                image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
 
@@ -168,11 +161,11 @@ GOAL RECONSTRUCTION: Sparse Reconstruction
 STEP 1: Initialize the scene through the object SfMScene and read in Camera data
 - Initialize the scene as SfMScene(...)
 - Set the image path to the provided directory of images to be read, resize, and pre-process images for reconstruction
-  - image_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan21_normal_lighting
+  - image_path = "/work/dataset/DTU/scan21_normal_lighting"
 - Set max_images=20 (Never above 40), we want to only use the first 20 images when evaluating the feasibility of the workflow.
 - Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
   activate the parameter
-  - calibration_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz
+  - calibration_path = "/work/dataset/DTU/calibration_DTU_new.npz"
 
 STEP 2: Detect Features in the scene
 - Select the ORB module since the scene featuring the object is well lit, in an indoor setting, and the object is of a brick house that
@@ -254,19 +247,12 @@ Example Code:
 
 
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan21_normal_lighting"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
-
-from modules.features import FeatureDetectionORB
-from modules.featurematching import FeatureMatchBFPair, FeatureMatchBFTracking
-from modules.camerapose import CamPoseEstimatorEssentialToPnP
-from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.scenereconstruction import Sparse3DReconstructionMono
-from modules.optimization import BundleAdjustmentOptimizerGlobal, BundleAdjustmentOptimizerLocal
-from modules.baseclass import SfMScene
+image_path = "/work/dataset/DTU/scan21_normal_lighting"
+calibration_path = "/work/dataset/DTU/calibration_DTU_new.npz"
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
+reconstructed_scene = SfMScene(ID,
+                                image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
 
@@ -325,7 +311,7 @@ GOAL RECONSTRUCTION: Sparse Reconstruction
 STEP 1: Initialize the scene through the object SfMScene and read in Camera data
 - Initialize the scene as SfMScene(...)
 - Set the image path to the provided directory of images to be read, resize, and pre-process images for reconstruction
-    - image_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_illumination_change
+    - image_path = /work/dataset/DTU/scan6_illumination_change
 - Set max_images=20 (Never above 40), we want to only use the first 20 images when evaluating the feasibility of the workflow.
 - Since no calibration path is provided, we ignore this parameter (This is a strong indication to utilize a tool that does calibration simultaneously)
 - Since no calibration calls for the VGGT pipeline, resize images into a square format for better VGGT optimization, and convert the size to (1024,1024)
@@ -374,17 +360,11 @@ Example Code:
 
 
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_illumination_change"
-
-from modules.features import FeatureDetectionSP
-from modules.featurematching import FeatureMatchSuperGlueTracking
-from modules.camerapose import CamPoseEstimatorVGGTModel
-from modules.scenereconstruction import Sparse3DReconstructionVGGT
-from modules.optimization import BundleAdjustmentOptimizerGlobal
-from modules.baseclass import SfMScene
+image_path = "/work/dataset/DTU/scan6_illumination_change"
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path=image_path,
+reconstructed_scene = SfMScene(ID,
+                                image_path=image_path,
                                 max_images=20,
                                 target_resolution=[1024, 1024]
 )
@@ -422,11 +402,11 @@ GOAL RECONSTRUCTION: Sparse Reconstruction
 STEP 1: Initialize the scene through the object SfMScene and read in Camera data
 - Initialize the scene as SfMScene(...)
 - Set the image path to the provided directory of images to be read, resize, and pre-process images for reconstruction
-  - image_path = D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\apple\\189_20393_38136\\images
+  - image_path = /work/dataset/CO3Dv2_DATASET/apple/189_20393_38136/images
 - Set max_images=20 (Never above 40), we want to only use the first 20 images when evaluating the feasibility of the workflow.
 - Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
   activate the parameter
-  - calibration_path = D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\apple\\calibration_new_189_20393_38136.npz
+  - calibration_path = /work/dataset/CO3Dv2_DATASET/apple/calibration_new_189_20393_38136.npz
 
 STEP 2: Detect Features
 - Select the SuperPoint module since the scene featuring the object creates shadows with diffuse lighting, and even though it is in an 
@@ -501,19 +481,12 @@ Example Code:
 
 
 # Construct Modules with Initialized Arguments
-image_path = "D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\apple\\189_20393_38136\\images"
-calibration_path = "D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\apple\\calibration_new_189_20393_38136.npz"
-
-from modules.features import FeatureDetectionSP
-from modules.featurematching import FeatureMatchSuperGluePair, FeatureMatchLightGlueTracking
-from modules.camerapose import CamPoseEstimatorEssentialToPnP
-from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.scenereconstruction import Sparse3DReconstructionMono
-from modules.optimization import BundleAdjustmentOptimizerGlobal, BundleAdjustmentOptimizerLocal
-from modules.baseclass import SfMScene
+image_path = "/work/dataset/CO3Dv2_DATASET/apple/189_20393_38136/images"
+calibration_path = "/work/dataset/CO3Dv2_DATASET/apple/calibration_new_189_20393_38136.npz"
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
+reconstructed_scene = SfMScene(ID, 
+                                image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
 
@@ -565,11 +538,11 @@ GOAL RECONSTRUCTION: Dense Reconstruction
 STEP 1: Initialize the scene through the object SfMScene and read in Camera data
 - Initialize the scene as SfMScene(...)
 - Set the image path to the provided directory of images to be read, resize, and pre-process images for reconstruction
-  - image_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan8_normal_lighting
+  - image_path = /work/dataset/DTU/scan8_normal_lighting
 - Set max_images=20 (Never above 40), we want to only use the first 20 images when evaluating the feasibility of the workflow.
 - Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
   activate the parameter
-  - calibration_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz
+  - calibration_path = /work/dataset/DTU/calibration_DTU_new.npz
 
 STEP 2: Detect Features
 - Select the SuerPoint module since the scene featuring the object is smooth with a lack of rigid texture, and even though it is in an 
@@ -657,19 +630,12 @@ Example Code:
 
 
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan8_normal_lighting" # Scan 21 came out really good!
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
-
-from modules.features import FeatureDetectionSP
-from modules.featurematching import FeatureMatchSuperGluePair, FeatureMatchLightGlueTracking
-from modules.camerapose import CamPoseEstimatorEssentialToPnP
-from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.scenereconstruction import Sparse3DReconstructionMono
-from modules.optimization import BundleAdjustmentOptimizerGlobal, BundleAdjustmentOptimizerLocal
-from modules.baseclass import SfMScene
+image_path = "/work/dataset/DTU/scan8_normal_lighting"
+calibration_path = "/work/dataset/DTU/calibration_DTU_new.npz"
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
+reconstructed_scene = SfMScene(ID,
+                                image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
 
@@ -730,11 +696,11 @@ GOAL RECONSTRUCTION: Sparse Reconstruction
 STEP 1: Initialize the scene through the object SfMScene and read in Camera data
 - Initialize the scene as SfMScene(...)
 - Set the image path to the provided directory of images to be read, resize, and pre-process images for reconstruction
-  - image_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\Family
+  - image_path = /work/dataset/Tanks_and_Temples/Family
 - Set max_images=20 (Never above 40), we want to only use the first 20 images when evaluating the feasibility of the workflow.
 - Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
   activate the parameter
-  - calibration_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\calibration_new_2048.npz
+  - calibration_path = /work/dataset/Tanks_and_Temples/calibration_new_2048.npz
 
 STEP 2: Detect Features
 - Primary object is High-textured primary object with stone paving with scene having consistent lighting. USE SIFT FEATURES.
@@ -816,19 +782,12 @@ Example Code:
 
 
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\Family"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\calibration_new_2048.npz"
-
-from modules.features import FeatureDetectionSIFT
-from modules.featurematching import FeatureMatchBFPair, FeatureMatchBFTracking
-from modules.camerapose import CamPoseEstimatorEssentialToPnP
-from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.scenereconstruction import Sparse3DReconstructionMono
-from modules.optimization import BundleAdjustmentOptimizerGlobal
-from modules.baseclass import SfMScene
+image_path = "/work/dataset/Tanks_and_Temples/Family"
+calibration_path = "/work/dataset/Tanks_and_Temples/calibration_new_2048.npz"
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
+reconstructed_scene = SfMScene(ID,
+                                image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
 
@@ -886,11 +845,11 @@ GOAL RECONSTRUCTION: Camera Pose Reconstruction
 STEP 1: Read in Camera data
 - Initialize the scene as SfMScene(...)
 - Set the image path to the provided directory of images to be read, resize, and pre-process images for reconstruction
-  - image_path = D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\167_18184_34441\\images
+  - image_path = /work/dataset/CO3Dv2_DATASET/hydrant/167_18184_34441/images
 - Set max_images=20 (Never above 40), we want to only use the first 20 images when evaluating the feasibility of the workflow.
 - Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
   activate the parameter
-  - calibration_path = D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\calibration_new_167_18184_34441.npz
+  - calibration_path = /work/dataset/CO3Dv2_DATASET/hydrant/calibration_new_167_18184_34441.npz
 
 STEP 2: Detect Features
 - Select the SIFT module since the scene featuring an outdoor setting, and the object is of a fire hydrant that had consistent lighting and
@@ -954,18 +913,12 @@ Example Code:
 
 
 # Construct Modules with Initialized Arguments
-image_path = "D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\167_18184_34441\\images"
-calibration_path = "D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\calibration_new_167_18184_34441.npz"
-
-from modules.features import FeatureDetectionSIFT
-from modules.featurematching import FeatureMatchFlannPair
-from modules.camerapose import CamPoseEstimatorEssentialToPnP
-from modules.optimization import BundleAdjustmentOptimizerLocal
-
-from modules.baseclass import SfMScene
+image_path = "/work/dataset/CO3Dv2_DATASET/hydrant/167_18184_34441/images"
+calibration_path = "/work/dataset/CO3Dv2_DATASET/hydrant/calibration_new_167_18184_34441.npz"
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
+reconstructed_scene = SfMScene(ID,
+                                image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
 
@@ -1002,11 +955,11 @@ GOAL RECONSTRUCTION: Sparse Reconstruction
 STEP 1: Initialize the scene through the object SfMScene and read in Camera data
 - Initialize the scene as SfMScene(...)
 - Set the image path to the provided directory of images to be read, resize, and pre-process images for reconstruction
-    - image_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\images\\dslr_images_undistorted
+    - image_path = /work/dataset/ETH/statue/images/dslr_images_undistorted
 - Set max_images=20 (Never above 40), we want to only use the first 20 images when evaluating the feasibility of the workflow.
 - Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
   activate the parameter
-  - calibration_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\dslr_calibration_undistorted\\calibration_new.npz
+  - calibration_path = /work/dataset/ETH/statue/dslr_calibration_undistorted/calibration_new.npz
 
 STEP 2: Detect Features
 - Select the SIFT module since the scene featuring the object is high-textured rigid surface and stone textured statue, with the scene 
@@ -1088,19 +1041,12 @@ Example Code:
 
 
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\images\\dslr_images_undistorted"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\dslr_calibration_undistorted\\calibration_new.npz"
-
-from modules.features import FeatureDetectionSIFT
-from modules.featurematching import FeatureMatchBFPair, FeatureMatchBFTracking
-from modules.camerapose import CamPoseEstimatorEssentialToPnP
-from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.scenereconstruction import Sparse3DReconstructionMono
-from modules.optimization import BundleAdjustmentOptimizerGlobal
-from modules.baseclass import SfMScene
+image_path = "/work/dataset/ETH/statue/images/dslr_images_undistorted"
+calibration_path = "/work/dataset/ETH/statue/dslr_calibration_undistorted/calibration_new.npz"
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
+reconstructed_scene = SfMScene(ID,
+                                image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
 

@@ -1,8 +1,8 @@
-from sceneprogllm import LLM
-import glob
 import os
+import glob
 from pathlib import Path
-
+from sceneprogllm import LLM
+from concurrent.futures import ThreadPoolExecutor
 
 class Compiler:
     def __init__(self,
@@ -15,7 +15,11 @@ class Compiler:
                  ):
         self.CWD = str(Path(__file__).resolve().parents[1])
 
-        # Further Written Instructions
+        import uuid
+        self.id = uuid.uuid4()
+        self.exec = Executor(self.id)
+
+         # Further Written Instructions
         if instruction_path is None:
             examples = ""
         else:
@@ -77,9 +81,19 @@ Only use the provided API code library, do not use any outside software. Ensure 
 write any text, ONLY PYTHON CODE SIMILAR TO THE PROVIDED EXAMPLES IN FORMAT.
 
 The goal is to design the corresponding python code to the provided step-by-step procedure that lays out the  reasoning for each module chosen that 
-best fits the scene given.
+best fits the scene given. Note that you don't have to import anything, SfMScene along with any other packages are already imported for you!
+Lastly, there is a unique ID for each program, just include the ID variable, it is defined along with the imports so don't worry about assigning it, use it already as a parameter for the SfMScene constructor.
 """
-        # print(context_str)
+
+        self.imported_modules = f"""
+from modules.features import (FeatureDetectionSIFT, FeatureDetectionSP, FeatureDetectionORB)
+from modules.featurematching import (FeatureMatchFlannTracking, FeatureMatchBFPair, FeatureMatchFlannPair, FeatureMatchBFTracking, FeatureMatchLightGlueTracking, FeatureMatchSuperGlueTracking, FeatureMatchLightGluePair, FeatureMatchSuperGluePair)
+from modules.camerapose import (CamPoseEstimatorEssentialToPnP, CamPoseEstimatorVGGTModel)
+from modules.scenereconstruction import (Sparse3DReconstructionMono, Sparse3DReconstructionVGGT, Dense3DReconstructionVGGT, Dense3DReconstructionMono)
+from modules.optimization import (BundleAdjustmentOptimizerLocal, BundleAdjustmentOptimizerGlobal)
+from modules.baseclass import SfMScene
+ID = "{self.id}"
+"""
 
         full_desc = api_desc + "\n" + system_desc
 
@@ -88,12 +102,115 @@ best fits the scene given.
                             model_name = model,
                             reasoning_effort = reasoning_effort,
                             temperature = temperature)
+
+    def run_with_self_refine(self, query):
+        program = self.compiler(query)
+        prompt = f"""
+You have generated the following code for the given process:
+Process:
+{query}
+Program:
+{program}
+I want you to verify if the code that you generated adheres to the syntax and guidelines of the API. If it does, return the same code as your final answer. If it does not, please fix the code and return the corrected code as your final answer.
+Key things to ensure:
+1. For setting local bundle adjustment in pose estimation, apply the parameter like this to the pose estimation module: reconstructed_scene.CamPoseEstimatorEssentialToPnP(..., optimizer = ("BundleAdjustmentOptimizerLocal", 
+        'max_num_iterations': 20,
+        'window_size': 8,
+        'robust_loss': True,
+        'use_gpu': False
+    ) as this is a special case for the inclusion of the parameter.
+2. For constructing dense reconstruction with VGGT explicitly, skip sparse reconstruction from the VGGT module, and follow the pipeline of CamPoseEstimatorVGGTModel(...) to Dense3DReconstructionVGGT(...) as this is a special case.
+3. Most importantly, do not write your own code to bypass any errors. Resolve any errors by either fixing incorrect parameters, or fixing syntax errors. Do not generate any python code outside of the API usage.
+"""
+        refined_program = self.compiler(prompt)
+        return refined_program
+
+    def choose_program(self, programs):
         
+        num_failures = 0
+        failed_programs = []
+        for p in programs:
+            output, success = self.exec(p)
+            if success: 
+                with open("/work/tmp/metric_" + str(self.id) + ".txt", "r") as f:
+                    metric = f.read().strip()
+                return p, metric
+            else:
+                num_failures += 1
+                failed_programs.append((p, output))
 
-    def __call__(self, query):
+        from random import choice
+        p, output = choice(failed_programs)
+        return p, output
+
+
+    def __call__(self, query, num_samples=5):
+        with ThreadPoolExecutor(max_workers=min(20, num_samples)) as executor:
+            futures = [
+                executor.submit(
+                    generate_program_worker,
+                    self.run_with_self_refine,
+                    query,
+                    self.imported_modules
+                )
+                for _ in range(num_samples)
+            ]
+            sampled_programs = [f.result() for f in futures]
+
+        # filter out any empty responses due to errors
+        sampled_programs = [sp for sp in sampled_programs if sp.strip() != ""]
+        return self.choose_program(sampled_programs)
+
+def generate_program_worker(runner, process, imports):
+    return imports + "\n" + runner(process)
+
+
+class Executor:
+    def __init__(self, id):
         
+        self.id = id
+        import os
+        os.makedirs("/work/tmp", exist_ok=True)
+        self.log_file = "/work/tmp/log_file_" + str(id) + ".txt"
 
-        output = self.compiler(query)
+
+    def __call__(self, program: str):
+
+        # Create Code
+        temp_file = open("/work/tmp/tmp_prog_" + str(self.id) + ".py", 'w')
+        temp_file.write(program)
+        temp_file.close()
 
 
-        return output
+        # Change current working directory
+        current_env = os.environ.copy()
+        import sys
+        import subprocess
+        with open(self.log_file, "w") as f:
+            print("🚀 Running script...")
+            result = subprocess.run(
+                [sys.executable, "/work/tmp/tmp_prog_" + str(self.id) + ".py"],
+                env=current_env,
+                stdout=f,      # send standard output to file
+                stderr=f       # send error output to file
+            )
+
+            f.close()
+
+        log_file = open(self.log_file, 'r')
+
+        output = log_file.read().strip()
+        
+        log_file.close()
+        self.cleanup(self.log_file, "/work/tmp/tmp_prog_" + str(self.id) + ".py")
+
+        if result.returncode == 0:
+            return output, True
+        else:
+            return output, False
+    
+    def cleanup(self, log_file_path: str, script_path: str):
+        if os.path.exists(log_file_path):
+            os.remove(log_file_path)
+        if os.path.exists(script_path):
+            os.remove(script_path)
