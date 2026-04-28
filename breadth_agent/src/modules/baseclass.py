@@ -970,7 +970,43 @@ class FeatureMatching(PipelineModule, ABC):
     def run_from_state(self, state: SceneState) -> PointsMatched:
         if state.features is None:
             raise RuntimeError("FeatureMatching requires features. Run a FeatureClass module first.")
-        return self(state.features)
+        try:
+            return self(state.features)
+        except Exception as e:
+            threshold = getattr(self, "RANSAC_threshold", None)
+
+            if threshold is not None and threshold >= 3.0:
+                fix_hint = (
+                    "The outlier rejection threshold is already at or above 3.0, so the "
+                    "failure is likely caused by too few reliable feature points being detected. "
+                    "Switch to a stronger/more dense feature detector or increase the number of "
+                    "detected keypoints before feature matching."
+                )
+            else:
+                fix_hint = (
+                    "The outlier rejection threshold may be too strict. Try loosening the "
+                    "RANSAC/outlier rejection threshold. If the threshold reaches 3.0 and the "
+                    "module still fails, switch feature detectors because not enough reliable "
+                    "points were detected."
+                )
+
+            raise RuntimeError(
+                "[FeatureMatching Error]\n"
+                "Feature matching failed.\n\n"
+                "Likely causes:\n"
+                "- Not enough feature points were detected to produce valid matches.\n"
+                "- Not enough matches survived outlier rejection.\n"
+                "- The outlier rejection threshold is too strict.\n"
+                "- The selected feature detector may not be producing enough reliable keypoints.\n\n"
+                "Suggested fixes:\n"
+                f"- {fix_hint}\n"
+                "- Increase the maximum number of detected keypoints if the detector supports it.\n"
+                "- Use a more robust detector/descriptor combination for the image set.\n"
+                "- Check that image overlap is sufficient between matched frames.\n"
+                "- Final try, swap to a detector free approach, such as using VGGT directly for Pose/Reconstruction.\n\n"
+                f"Current outlier rejection threshold: {threshold}\n"
+                f"Original error: {type(e).__name__}: {e}"
+            ) from e
     
     def __init__(self, 
                  cam_data:CameraData,
