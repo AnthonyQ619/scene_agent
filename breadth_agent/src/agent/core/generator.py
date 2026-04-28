@@ -138,7 +138,7 @@ Your response should be a single integer indicating the best plan index, without
             ]
             plans = [future.result() for future in futures]
         return plans
-    
+
     def enhance_prompt_for_selection(self, query, query_video_path):
         # User query is of this format
         # f"""
@@ -245,6 +245,8 @@ TODO: Fill
             self.image_paths.append(new_img_path + f"/query_img.png")
         
         return enhanced_prompt
+    
+
 
 def generate_plans(planner, query, query_video_path):
     plan = planner(query, query_video_path)
