@@ -150,36 +150,44 @@ reconstructed_scene.{module_name}() # Images read in previous step (1)
         for i in range(intrinsic_np.shape[0]):
             intrins.append(intrinsic_np[i, :, :])
             dists.append(np.zeros((1,5), dtype=float))
+        
+        # Metric Variables
+        self.pred_intrinsics = intrins
 
         self.cam_data.apply_new_calibration(intrins, dists)
 
-        # print("Image Shape", img_shape)
-        # print(camera_poses.camera_pose)
         torch.cuda.empty_cache() #Empty GPU cache
         # return camera_poses
     
-    # @module_metric
-    # def _metric_pose_matrix_quality(self) -> dict:
-    #     if len(self.camera_poses.camera_pose) == 0:
-    #         return {}
+    @module_metric
+    def _metric_pose_matrix_quality(self) -> dict:
+        if len(self.camera_poses.camera_pose) == 0:
+            return {}
 
-    #     ortho_errors = []
-    #     det_values = []
-    #     trans_norms = []
+        ortho_errors = []
+        det_values = []
+        trans_norms = []
 
-    #     for pose in self.camera_poses.camera_pose:
-    #         R = pose[:, :3]
-    #         t = pose[:, 3:]
+        for pose in self.camera_poses.camera_pose:
+            R = pose[:, :3]
+            t = pose[:, 3:]
 
-    #         ortho_errors.append(float(np.linalg.norm(R.T @ R - np.eye(3), ord="fro")))
-    #         det_values.append(float(np.linalg.det(R)))
-    #         trans_norms.append(float(np.linalg.norm(t)))
+            ortho_errors.append(float(np.linalg.norm(R.T @ R - np.eye(3), ord="fro")))
+            det_values.append(float(np.linalg.det(R)))
+            trans_norms.append(float(np.linalg.norm(t)))
 
-    #     return {
-    #         "Average Rotation Orthonormality Error": float(np.mean(ortho_errors)),
-    #         "Average det(R)": float(np.mean(det_values)),
-    #         "Average Translation Norm": float(np.mean(trans_norms)),
-    #     }
+        return {
+            "Validity Analysis of Rotation Matrices in Pose Estimation":{
+                "Average Rotation Orthonormality Error": float(np.mean(ortho_errors)),
+                "Max Rotation Orthonormality Error": float(np.max(ortho_errors)),
+                "Average det(R)": float(np.mean(det_values)),
+                "Mean Abs det(R)-1": float(np.mean(np.abs(det_values - 1.0)))},
+            "Translation Analysis for Stable Trajectory Estimation":{
+                "Translation Norm Std": float(np.std(trans_norms)),
+                "Min Translation Norm": float(np.min(trans_norms)),
+                "Max Translation Norm": float(np.max(trans_norms)),
+                "Median Translation Norm": float(np.median(trans_norms))}
+        }
 
     # @module_metric
     # def _metric_intrinsics_summary(self) -> dict:

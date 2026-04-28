@@ -121,7 +121,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
         "use_gpu": False
     }}),
 )
-"""
+"""     
         super().__init__(cam_data=cam_data,
                          module_name=module_name,
                          description=description,
@@ -139,6 +139,9 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
         # Set up window size and min_track_length 
         self.window_size = window_size
         self.min_track_len = min_track_len
+
+        # Do not use metrics for this module
+        self.use_base_metrics = False
     
     def _optimize_scene(self, 
                         state: IncrementalSfMState, 
@@ -532,8 +535,8 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         self.output_dir = output_dir
 
         # Define the workspace for Sparse Reconstruction
-        self.directory_path = Path(__file__).resolve().parents[2]
-        self.directory_path = str(self.directory_path / "results" / "workspace" / "sparse") #C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace\\sparse"
+        self.dir_path = Path(__file__).resolve().parents[2]
+        self.directory_path = str(self.dir_path / "results" / "workspace" / "sparse") #C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace\\sparse"
         if os.path.exists(self.directory_path):
             # Delete the directory and all its contents
             shutil.rmtree(self.directory_path)
@@ -560,6 +563,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
 
         # Write reconstructed scene to workspace (Sparse Scene Currently)
         recon.write(self.directory_path)
+        recon.export_PLY(str(self.dir_path / "results" / "workspace" / "sparse.ply"))
 
         return current_scene #, summary
     

@@ -79,10 +79,12 @@ stage
     - default (int): 256
 - setting: the string to determine if the images are "indoor" or "outdoor"
     - default (str): indoor
+- RANSAC_homography: Determines whether to use the Homography or Fundamental model for outlier rejection in matching point correspondences. Homography is fit as a model
+  in scenes where the major focus is of a planar object, whereas fundamental matrix is a better model otherwise (Scenes that lack structure of planar objects).
+    - Default (bool): False (True runs Homography model, False uses Fundamental model)
 - RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
-     is considered an outlier and is not used for computing the final fundamental matrix.
+     is considered an outlier and is not used for computing the final fundamental/homography matrix.
     - Default (float): 3.0
-    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
 - RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
     - Default (float): 0.99
 
@@ -215,10 +217,12 @@ without any impact on accuracy.
     - Default (float): 0.99, disable with -1.
 - filter_threshold: Match confidence. Increase this value to obtain less, but stronger matches. 
     - Default (float): 0.1
+- RANSAC_homography: Determines whether to use the Homography or Fundamental model for outlier rejection in matching point correspondences. Homography is fit as a model
+  in scenes where the major focus is of a planar object, whereas fundamental matrix is a better model otherwise (Scenes that lack structure of planar objects).
+    - Default (bool): False (True runs Homography model, False uses Fundamental model)
 - RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
-     is considered an outlier and is not used for computing the final fundamental matrix.
-    - Default (float): 1.0
-    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+     is considered an outlier and is not used for computing the final fundamental/homography matrix.
+    - Default (float): 3.0
 - RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
     - Default (float): 0.99
 
@@ -242,7 +246,7 @@ reconstructed_scene = SfMScene(image_path = image_path,
 reconstructed_scene.{module_name}(
     detector="superpoint",
     RANSAC_homography=False,
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=2.0,
     RANSAC_conf=0.999
     )
 """
@@ -360,10 +364,12 @@ Initialization/Function Parameters:
     - Default (str): SIFT
 - k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing with lowes threshold.
     - Default (int): 2
+- RANSAC_homography: Determines whether to use the Homography or Fundamental model for outlier rejection in matching point correspondences. Homography is fit as a model
+  in scenes where the major focus is of a planar object, whereas fundamental matrix is a better model otherwise (Scenes that lack structure of planar objects).
+    - Default (bool): False (True runs Homography model, False uses Fundamental model)
 - RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
-     is considered an outlier and is not used for computing the final fundamental matrix.
-    - Default (float): 1.0
-    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+     is considered an outlier and is not used for computing the fundamental/homography matrix.
+    - Default (float): 3.0
 - RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
     - Default (float): 0.99
 - lowes_thresh: Threshold for Lowe's Ratio Test, accepting a match only if the ratio of the distance to the best match to the distance of the second-best match is 
@@ -392,7 +398,7 @@ reconstructed_scene.{module_name}(
     k=2,
     lowes_thresh=0.78,
     RANSAC_homography=False,
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=2.0,
     RANSAC_conf=0.999
     )
 """
@@ -497,10 +503,12 @@ Initalization/Function Parameters:
      collection is the nearest and vice versa, i.e. the BFMatcher will only return consistent pairs. Such technique usually produces best results with 
      minimal number of outliers when there are enough matches. i.e only use when there's are lot of feature points
     - Default (bool): True
+- RANSAC_homography: Determines whether to use the Homography or Fundamental model for outlier rejection in matching point correspondences. Homography is fit as a model
+  in scenes where the major focus is of a planar object, whereas fundamental matrix is a better model otherwise (Scenes that lack structure of planar objects).
+    - Default (bool): False (True runs Homography model, False uses Fundamental model)
 - RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
-     is considered an outlier and is not used for computing the final fundamental matrix.
-    - Default (float): 1.0
-    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+     is considered an outlier and is not used for computing the final fundamental/homography matrix.
+    - Default (float): 3.0
 - RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
     - Default (float): 0.99
 - lowes_thresh: Threshold for Lowe's Ratio Test, accepting a match only if the ratio of the distance to the best match to the distance of the second-best match is 
@@ -528,7 +536,7 @@ reconstructed_scene.{module_name}(
     k=2,
     lowes_thresh=0.78,
     RANSAC_homography=False,
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=2.0,
     RANSAC_conf=0.999
     )
 """     
@@ -904,12 +912,12 @@ stage
     - default (int): 256
 - setting: the string to determine if the images are "indoor" or "outdoor"
     - default (str): indoor
-- RANSAC: Determines whether to use RANSAC for outlier rejection of matched feature points. If False, uses FM_LMEDS, or the Least-Median-of-Squares (LMedS) algorithm.
-    - Default (bool): True
+- RANSAC_homography: Determines whether to use the Homography or Fundamental model for outlier rejection in matching point correspondences. Homography is fit as a model
+  in scenes where the major focus is of a planar object, whereas fundamental matrix is a better model otherwise (Scenes that lack structure of planar objects).
+    - Default (bool): False (True runs Homography model, False uses Fundamental model)
 - RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
-     is considered an outlier and is not used for computing the final fundamental matrix.
-    - Default (float): 1.0
-    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+     is considered an outlier and is not used for computing the final fundamental/homography matrix.
+    - Default (float): 3.0
 - RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
     - Default (float): 0.99
 
@@ -934,7 +942,7 @@ reconstructed_scene.{module_name}(
     detector="superpoint",
     setting="indoor",
     RANSAC_homography=False,
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=1.0,
     RANSAC_conf=0.999
     )
 """
@@ -1110,12 +1118,12 @@ without any impact on accuracy.
     - Default (float): 0.99, disable with -1.
 - filter_threshold: Match confidence. Increase this value to obtain less, but stronger matches. 
     - Default (float): 0.1
-- RANSAC: Determines whether to use RANSAC for outlier rejection of matched feature points. If False, uses FM_LMEDS, or the Least-Median-of-Squares (LMedS) algorithm.
-    - Default (bool): True
+- RANSAC_homography: Determines whether to use the Homography or Fundamental model for outlier rejection in matching point correspondences. Homography is fit as a model
+  in scenes where the major focus is of a planar object, whereas fundamental matrix is a better model otherwise (Scenes that lack structure of planar objects).
+    - Default (bool): False (True runs Homography model, False uses Fundamental model)
 - RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
-     is considered an outlier and is not used for computing the final fundamental matrix.
-    - Default (float): 1.0
-    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+     is considered an outlier and is not used for computing the final fundamental/homography matrix.
+    - Default (float): 3.0
 - RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
     - Default (float): 0.99
 
@@ -1139,7 +1147,7 @@ reconstructed_scene = SfMScene(image_path = image_path,
 reconstructed_scene.{module_name}(
     detector="superpoint",
     RANSAC_homography=False,
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=2.0,
     RANSAC_conf=0.999
     )
 """
@@ -1320,12 +1328,12 @@ Initialization/Function Parameters:
     - Default (str): SIFT
 - k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing with lowes threshold.
     - Default (int): 2
-- RANSAC: Determines whether to use RANSAC for outlier rejection of matched feature points. If False, uses FM_LMEDS, or the Least-Median-of-Squares (LMedS) algorithm.
-    - Default (bool): True
+- RANSAC_homography: Determines whether to use the Homography or Fundamental model for outlier rejection in matching point correspondences. Homography is fit as a model
+  in scenes where the major focus is of a planar object, whereas fundamental matrix is a better model otherwise (Scenes that lack structure of planar objects).
+    - Default (bool): False (True runs Homography model, False uses Fundamental model)
 - RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
-     is considered an outlier and is not used for computing the final fundamental matrix.
-    - Default (float): 1.0
-    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+     is considered an outlier and is not used for computing the final fundamental/homography matrix.
+    - Default (float): 3.0
 - RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
     - Default (float): 0.99
 - lowes_thresh: Threshold for Lowe's Ratio Test, accepting a match only if the ratio of the distance to the best match to the distance of the second-best match is 
@@ -1353,7 +1361,7 @@ reconstructed_scene.{module_name}(
     k=2,
     lowes_thresh=0.78,
     RANSAC_homography=False,
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=2.0,
     RANSAC_conf=0.999
     )
 """     
@@ -1505,12 +1513,12 @@ Initalization/Function Parameters:
      collection is the nearest and vice versa, i.e. the BFMatcher will only return consistent pairs. Such technique usually produces best results with 
      minimal number of outliers when there are enough matches. i.e only use when there's are lot of feature points
     - Default (bool): False
-- RANSAC: Determines whether to use RANSAC for outlier rejection of matched feature points. If False, uses FM_LMEDS, or the Least-Median-of-Squares (LMedS) algorithm.
-    - Default (bool): True
+- RANSAC_homography: Determines whether to use the Homography or Fundamental model for outlier rejection in matching point correspondences. Homography is fit as a model
+  in scenes where the major focus is of a planar object, whereas fundamental matrix is a better model otherwise (Scenes that lack structure of planar objects).
+    - Default (bool): False (True runs Homography model, False uses Fundamental model)
 - RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
-     is considered an outlier and is not used for computing the final fundamental matrix.
-    - Default (float): 1.0
-    - Recommended Values: Consider values < 1.0 due to using normalized coordinates, not pixel coordinates.
+  is considered an outlier and is not used for computing the final fundamental/homography matrix.
+    - Default (float): 3.0
 - RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
     - Default (float): 0.99
 - lowes_thresh: Threshold for Lowe's Ratio Test, accepting a match only if the ratio of the distance to the best match to the distance of the second-best match is 
@@ -1538,7 +1546,7 @@ reconstructed_scene.{module_name}(
     k=2,
     lowes_thresh=0.78,
     RANSAC_homography=False,
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=3.0,
     RANSAC_conf=0.999
     )
 """

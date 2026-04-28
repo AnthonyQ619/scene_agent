@@ -684,12 +684,7 @@ class CameraPoseEstimatorClass(PipelineModule, ABC):
         cls._registered_metric_methods = tuple(dict.fromkeys(metric_names))
 
     def run_from_state(self, state: SceneState) -> CameraPose:
-        correspondences = state.tracked_features or state.feature_pairs
-        # if correspondences is None:
-        #     raise RuntimeError(
-        #         "CameraPoseEstimator requires correspondences. "
-        #         "Run FeatureMatching or FeatureTracking first."
-        #     )
+        correspondences = state.feature_pairs #state.tracked_features or state.feature_pairs
         return self(correspondences)
     
     def __init__(self, 
@@ -728,7 +723,7 @@ class CameraPoseEstimatorClass(PipelineModule, ABC):
         return self.camera_poses
     
     @abstractmethod
-    def _estimate_camera_poses(self, feature_pairs: PointsMatched) -> None:
+    def _estimate_camera_poses(self, feature_pairs: PointsMatched | None) -> None:
         # Input Custom Pose Estimation Algorithm in this Function
         raise NotImplementedError
 
