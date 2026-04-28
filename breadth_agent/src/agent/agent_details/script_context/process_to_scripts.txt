@@ -28,7 +28,7 @@ STEP 2: Detect Features
 
 STEP 3: Detect Feature Matches
 - Select the Flann feature matcher to utilize a nearest neighbor matcher, as we only need approximate matches here that are sparse for PnP
-    - Set RANSAC_threshold = 0.02 (Default 0.3, Points are normalized, so we base reprojection threshold on normalized coordinates)
+    - Set RANSAC_threshold = 2.0 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
       - Reasoning: Scene has consistent lighting, and we want to be aggressive in outlier removal since PnP algorithms are not as robust to outliers, 
         but keep enough points in total for PnP to work accurately with enough points across the entire image.
     - Set lowes_threshold = 0.8 (Default is 0.75)
@@ -51,9 +51,9 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
 STEP 5: Track Features across multiple images to create feature tracks for 3D point estimation
 -  For sparse reconstruction, we want as many 3D points as possible with as long possible track lengths. The more accurate matcher here is the Brute-Force 
    Tracking tool, so use the BFTracking module since it's more accurate and robust to trickling outliers.
-    - Set RANSAC_threshold = 0.008 (Default 3.0, Points are normalized, so we base reprojection threshold on normalized coordinates)
+    - Set RANSAC_threshold = 1.0 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
       - Reasoning: Although the scene is well-lit and good for SIFT features, we want to be extremely aggressive in outlier removal since we are completing
-        feature tracks, thus we opt for a 0.008 ransac threshold instead of the 0.02 we did for pairwise matching 
+        feature tracks, thus we opt for a 1.0 ransac threshold instead of the 0.02 we did for pairwise matching 
     - Set lowes_thresh = 0.65 (Default 0.75)
       - Reasoning: as we want to be more strict on the feature tracks for more accurate estimate of 3D points in the scene
         we are more aggressive in lowes threshold to ensure the removal of most outliers, even if we remove inliers in the process.
@@ -116,7 +116,7 @@ reconstructed_scene.FeatureMatchFlannPair(
     detector="sift",
     lowes_thresh=0.8,
     RANSAC_homography=False,
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=2.0,
 )
 
 # Step 4: Detect/Estimate Camera Poses
@@ -129,7 +129,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureMatchBFTracking(
     detector="sift",
-    RANSAC_threshold=0.008,
+    RANSAC_threshold=1.0,
     lowes_thresh=0.65
 )
 
@@ -183,7 +183,7 @@ STEP 2: Detect Features in the scene
 STEP 3: Detect Feature Matches
 - Select the Brute Force feature matcher to utilize as a robust matcher for ORB, since we don't have complex descriptors, we must utilize a stronger
   matcher for more accurate matches across the corresponding points.
-    - Set RANSAC_threshold to 0.01
+    - Set RANSAC_threshold to 1.0
       - Reasoning: Even though the scene is captured is well suited for ORB, detected features are still noisy, so we need a much more strict outlier rejection 
         since we have an abundance of points.
     - Set lowes_threshold to 0.6 (Default 0.75) 
@@ -215,9 +215,9 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
 STEP 5: Track Features across multiple images to create feature tracks for 3D point estimation
 -  For sparse reconstruction, we want as many 3D points as possible with as long possible track lengths. The more accurate matcher here is the Brute-Force 
    Tracking tool, so use the BFTracking module since it's more accurate and robust to trickling outliers.
-    - Set RANSAC_threshold = 0.02 (Default 3.0, Points are normalized, so we base reprojection threshold on normalized coordinates)
+    - Set RANSAC_threshold = 2.0 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
       - Reasoning: Although the scene is well-lit and good for ORB features, we want to be aggressive in outlier removal since we are completing
-        feature tracks, thus we opt for a 0.02 ransac threshold, but more relaxed than pairwise matching. 
+        feature tracks, thus we opt for a 2.0 ransac threshold, but more relaxed than pairwise matching. 
     - Set lowes_thresh = 0.8 (Default 0.75)
       - Reasoning: We want to be more strict on the feature tracks for more accurate estimate of 3D points in the scene
         we are more aggressive in lowes threshold to ensure the removal of most outliers, even if we remove inliers in the process.
@@ -266,7 +266,7 @@ reconstructed_scene.FeatureDetectionORB(
 # Step 3: Detect Feature Pairs
 reconstructed_scene.FeatureMatchBFPair(
     detector='orb', 
-    RANSAC_threshold=0.01,
+    RANSAC_threshold=1.0,
     lowes_thresh=0.6
 )
 
@@ -286,7 +286,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureMatchBFTracking(
     detector="orb",
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=2.0,
     lowes_thresh=0.8,
     cross_check=False
 )
@@ -334,7 +334,7 @@ STEP 4: Estimate the camera pose using image data directly
 STEP 5: Track Features across multiple images to create feature tracks for 3D point estimation
 - Track Features across multiple images using the SuperGlue Feature Tracking tool. Since the images of the scene have illumination changes, we need a detector
   more robust to lighting changes, and in this case it is either superglue or lightglue. We opt for SuperGlue for more accurate matches in tracking points.
-    - Set RANSAC_threshold = 0.3 (Default 0.3)
+    - Set RANSAC_threshold = 3.0 (Default 3.0)
         - Reasoning: Default setting as we want to build longer feature tracks for more accurate estimate of 3D points optimization in the scene
     - Set detector = "superpoint" as that is the detector we are using.
     - Set setting = "Indoor" to utilize the indoor weights of the model ("Outdoor" is for outdoor scenes)
@@ -381,7 +381,7 @@ reconstructed_scene.CamPoseEstimatorVGGTModel()
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureMatchSuperGlueTracking(
     detector='superpoint', 
-    RANSAC_threshold=0.01,
+    RANSAC_threshold=3.0,
     setting="indoor"
 )
 
@@ -421,8 +421,8 @@ STEP 3: Detect Feature Matches
 - Select the SuperGlue feature matcher for image pair matching to utilize as a robust matcher for SuperPoint for point correspondence. We opt for SuperGlue 
   instead of lightglue here for more accuracy, as estimating camera pose using the PnP algorithm is not robust to outliers, and there's intrinsic error in superpoint
   keypoints, so we need very accurate correspondences to offset the baseline error of the detector here.
-    - Set RANSAC_threshold to 0.03 (Default 0.3, Points are normalized, so we base reprojection threshold on normalized coordinates)
-      Reasoning: for much more strict outlier rejection since we need to ensure we remove all outlier correspondences possible, since inlier correspondences will 
+    - Set RANSAC_threshold = 1.0 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
+      Reasoning: We opt for much more strict outlier rejection since we need to ensure we remove all outlier correspondences possible, since inlier correspondences will 
       inherently contain some errors, we need to have only inliers to reduce the compounding error in pose estimation as much as possible.
 
 STEP 4: Estimate the camera pose using detected matching feature pairs.
@@ -449,7 +449,7 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
 
 STEP 5: Track Features across multiple images to create feature tracks for 3D point estimation
 - Track Features across multiple images using the SuperGlue Feature Tracking tool
-    - Set RANSAC_threshold = 0.05
+    - Set RANSAC_threshold = 2.0 (default 3.0)
       - Reasoning: less strict since we are using SuperGlue with SuperPoint features (which are inherently inaccuarate), 
         which is more accurate than lightglue and we want to build longer feature tracks 
         for more accurate estimate of 3D points optimization in the scene
@@ -497,7 +497,7 @@ reconstructed_scene.FeatureDetectionSP(
 
 # Step 3: Detect Feature Pairs
 reconstructed_scene.FeatureMatchSuperGluePair(
-    RANSAC_threshold=0.03
+    RANSAC_threshold=1.0
 )
 
 # Step 4: Detect/Estimate Camera Poses
@@ -515,7 +515,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureMatchLightGlueTracking(
     detector="superpoint",
-    RANSAC_threshold=0.05
+    RANSAC_threshold=3.0
 )
 
 # Step 6: Estimate Sparse Reconstruction
@@ -558,7 +558,7 @@ STEP 3: Detect Feature Matches
   instead of lightglue here for more accuracy, as estimating camera pose using the PnP algorithm is not robust to outliers, and there's intrinsic error in superpoint
   keypoints, so we need very accurate correspondences to offset the baseline error of the detector here. Since the object is a smooth surface, superglue is more 
   robust for detecting point correspondences in this environment setting.
-    - Set RANSAC_threshold to 0.03 (Default 0.3, Points are normalized, so we base reprojection threshold on normalized coordinates)
+    - Set RANSAC_threshold = 0.9 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
       Reasoning: for much more strict outlier rejection since we need to ensure we remove all outlier correspondences possible, since inlier correspondences will 
       inherently contain some errors, especially in this case where the environment contains objects that are smooth and inconsistnet lighting, so point correspondences
       will inherently have some errors.
@@ -587,7 +587,7 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
 
 STEP 5: Track Features across multiple images to create feature tracks for 3D point estimation
 - Track Features across multiple images using the LightGlue Feature Tracking tool
-    - Set RANSAC_threshold = 0.05
+    - Set RANSAC_threshold = 2.0 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
       - Reasoning: less strict since we are using LightGlue with SuperPoint features (which are inherently inaccuarate), 
         since the scene is more difficult for detecting features, we need more leniency in point tracking/correspondences since we need to ensure
         we have enough tracks, and long enough, to properly estimate 3D points with good intialization for global optimization to accurately build the scene.
@@ -647,7 +647,7 @@ reconstructed_scene.FeatureDetectionSP(
 # Step 3: Detect Feature Pairs
 reconstructed_scene.FeatureMatchSuperGluePair(
     detector='superpoint',
-    RANSAC_threshold=0.03
+    RANSAC_threshold=0.9
 )
 
 # Step 4: Detect/Estimate Camera Poses
@@ -665,7 +665,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureMatchLightGlueTracking(
     detector="superpoint",
-    RANSAC_threshold=0.05
+    RANSAC_threshold=2.0
 )
 
 # Step 6: Estimate Sparse Reconstruction
@@ -719,7 +719,7 @@ STEP 3: Detect Feature Matches
 - Select the Brute-Force feature matcher to utilize a nearest neighbor matcher, since it's more accurate and robust to trickling outliers. This is 
 important in this case since we use corresponding points to estimate camera poses, which are not robust to outliers, and in the outside setting, detected 
 features are much less accurate, so having a robust matcher is necessary.
-    - Set RANSAC_threshold = 0.02 (Default 0.3, Points are normalized, so we base reprojection threshold on normalized coordinates)
+    - Set RANSAC_threshold = 1.0 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
       - Reasoning: Scene has consistent lighting, and we want to be aggressive in outlier removal since PnP algorithms are not as robust to outliers, 
         but keep enough points in total for PnP to work accurately with enough points across the entire image.
     - Set lowes_threshold to 0.70 (Default 0.75) 
@@ -756,7 +756,7 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
 STEP 5: Track Features across multiple images to create feature tracks for 3D point estimation
 -  For sparse reconstruction, we want as many 3D points as possible with as long possible track lengths. The more accurate matcher here is the Brute-Force 
    Tracking tool, so use the BFTracking module since it's more accurate and robust to trickling outliers.
-    - Set RANSAC_threshold = 0.02 (Default 3.0, Points are normalized, so we base reprojection threshold on normalized coordinates)
+    - Set RANSAC_threshold = 1.0 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
       - Reasoning: Although the scene is well-lit and good for SIFT features, we want to be extremely aggressive in outlier removal since we are completing
         feature tracks, thus we opt for the same threshold as step 3 of the 0.02 we did for pairwise matching 
     - Set lowes_thresh = 0.75 (Default 0.75)
@@ -803,7 +803,7 @@ reconstructed_scene.FeatureMatchBFPair(
     detector="sift",
     cross_check=False,
     RANSAC_homography=False,
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=1.0,
     lowes_thresh=0.70
 )
 
@@ -821,7 +821,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureMatchBFTracking(
     detector="sift",
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=1.0,
     lowes_thresh=0.75
 )
 
@@ -869,7 +869,7 @@ STEP 2: Detect Features
 
 STEP 3: Detect Feature Matches
 - Select the Flann feature matcher to utilize a nearest neighbor matcher, as we only need approximate matches here that are sparse for PnP
-    - Set RANSAC_threshold = 0.02 (Default 0.3, Points are normalized, so we base reprojection threshold on normalized coordinates)
+    - Set RANSAC_threshold = 1.0 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
       - Reasoning: Scene has consistent lighting, and we want to be aggressive in outlier removal since PnP algorithms are not as robust to outliers, 
         but keep enough points in total for PnP to work accurately with enough points across the entire image.
     - Set lowes_threshold = 0.8 (Default is 0.75)
@@ -932,7 +932,7 @@ reconstructed_scene.FeatureDetectionSIFT(
 # Step 3: Detect Feature Pairs
 reconstructed_scene.FeatureMatchFlannPair(
     detector="sift", 
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=1.0,
     lowes_thresh=0.8
 )
 
@@ -980,7 +980,7 @@ STEP 3: Detect Feature Matches
 - Select the Brute-Force feature matcher to utilize a nearest neighbor matcher, since it's more accurate and robust to trickling outliers. This is 
   important in this case since we use corresponding points to estimate camera poses, which are not robust to outliers, and in the outside setting, detected 
   features are much less accurate, so having a robust matcher is necessary.
-    - Set RANSAC_threshold = 0.02 (Default 0.3, Points are normalized, so we base reprojection threshold on normalized coordinates)
+    - Set RANSAC_threshold = 1.0 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
       - Reasoning: Scene has consistent lighting, and we want to be aggressive in outlier removal since PnP algorithms are not as robust to outliers, 
         but keep enough points in total for PnP to work accurately with enough points across the entire image.
     - Set lowes_threshold to 0.70 (Default 0.75) 
@@ -1015,7 +1015,7 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
 STEP 5: Track Features across multiple images to create feature tracks for 3D point estimation
 -  For sparse reconstruction, we want as many 3D points as possible with as long possible track lengths. The more accurate matcher here is the Brute-Force 
    Tracking tool, so use the BFTracking module since it's more accurate and robust to trickling outliers.
-    - Set RANSAC_threshold = 0.02 (Default 3.0, Points are normalized, so we base reprojection threshold on normalized coordinates)
+    - Set RANSAC_threshold = 1.0 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
       - Reasoning: Although the scene is well-lit and good for SIFT features, we want to be extremely aggressive in outlier removal since we are completing
         feature tracks, thus we opt for the same threshold as step 3 of the 0.02 we did for pairwise matching 
     - Set lowes_thresh = 0.75 (Default 0.75)
@@ -1061,7 +1061,7 @@ reconstructed_scene.FeatureDetectionSIFT(
 reconstructed_scene.FeatureMatchBFPair(
     detector="sift",
     cross_check=False,
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=1.0,
     lowes_thresh=0.70
 )
 
@@ -1079,7 +1079,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureMatchBFTracking(
     detector="sift",
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=1.0,
     lowes_thresh=0.75
 )
 

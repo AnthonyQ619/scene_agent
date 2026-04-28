@@ -75,12 +75,12 @@ reconstructed_scene.{module_name}() # Images read in previous step (1)
                          example=example)
         
         # Initialize Model
-        if os.name == 'nt':
-            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
-        elif os.name == 'posix':
-            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
+        # if os.name == 'nt':
+        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        # elif os.name == 'posix':
+        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
 
-        # WEIGHT_MODULE = "/work/model_weights/model.pt"
+        WEIGHT_MODULE = "/work/model_weights/model.pt"
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
