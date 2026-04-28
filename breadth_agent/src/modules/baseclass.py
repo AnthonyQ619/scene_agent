@@ -380,16 +380,31 @@ class SparseSceneEstimation(PipelineModule, ABC):
         try:
             return self(tracked, state.camera_poses)
         except Exception as e:
+            min_obs = getattr(self, "min_observations", None)
+
             raise RuntimeError(
-                "[FeatureDetection Error]\n"
-                "Feature detection failed. This is usually caused by one of the following:\n"
-                "1. The image path is incorrect, empty, or does not contain readable images.\n"
-                "2. The feature detector module name was specified incorrectly.\n"
-                "3. The selected detector is not supported or was not registered correctly.\n\n"
-                "Suggested fixes:\n"
-                "- Verify that the image directory exists and contains valid image files.\n"
-                "- Check that the feature detector name matches one of the supported module names.\n"
-                "- Use the correct registered feature detection module, such as SIFT, SuperPoint, or another implemented detector.\n\n"
+                "[SparseReconstruction Error]\n"
+                "Sparse reconstruction failed because there were not enough valid feature "
+                "tracks to triangulate a reliable 3D point cloud.\n\n"
+                "Likely causes:\n"
+                "- Too few tracks satisfied the minimum observation requirement.\n"
+                "- Most feature tracks were only visible in 2 views, which is not enough "
+                "for stable multi-view reconstruction.\n"
+                "- The feature detector and matcher combination did not produce long, "
+                "consistent tracks across the image sequence.\n"
+                "- Outlier rejection or matching may have removed too many correspondences "
+                "before reconstruction.\n\n"
+                "Action needed:\n"
+                "- Improve the feature detector and matcher combination so that the majority "
+                "of tracks are observed in at least 3 views.\n"
+                "- Check the feature tracking metrics, especially average track length, "
+                "median track length, and the number of tracks with length >= 3.\n"
+                "- If most tracks are shorter than 3 views, switch to a stronger detector, "
+                "increase detected keypoints, loosen matching/outlier rejection thresholds, "
+                "or improve frame overlap.\n"
+                "- Sparse reconstruction should only run successfully when enough 3+ tracks"
+                "exist to build stable 3D points.\n\n"
+                f"Minimum observations required per 3D point (if already at 3, consider improving detector/tracker combo): {min_obs}\n"
                 f"Original error: {type(e).__name__}: {e}"
             ) from e
 
@@ -701,7 +716,29 @@ class CameraPoseEstimatorClass(PipelineModule, ABC):
 
     def run_from_state(self, state: SceneState) -> CameraPose:
         correspondences = state.feature_pairs #state.tracked_features or state.feature_pairs
-        return self(correspondences)
+        # return self(correspondences)
+        try: 
+            return self(correspondences)
+        except Exception as e:
+            raise RuntimeError(
+                "[CameraPoseEstimation Error]\n"
+                "Camera pose estimation failed because there were not enough reliable "
+                "pairwise feature correspondences to estimate camera motion.\n\n"
+                "Likely cause:\n"
+                "- The pairwise matcher did not produce enough valid feature matches.\n"
+                "- Too few features were detected in one or more image pairs.\n"
+                "- Too many matches were removed during outlier rejection.\n"
+                "- The detector and matcher combination is not strong enough for this image set.\n\n"
+                "Action needed:\n"
+                "- Change the feature detector or feature matcher.\n"
+                "- Use a detector that produces more reliable keypoints across image pairs.\n"
+                "- Use a matcher that produces more consistent pairwise correspondences.\n"
+                "- Increase the number of detected keypoints if the detector supports it.\n"
+                "- Check pairwise matching metrics before camera pose estimation.\n"
+                "- Camera pose estimation should only run when enough valid pairwise matches "
+                "exist to estimate relative pose between images.\n\n"
+                f"Original error: {type(e).__name__}: {e}"
+            ) from e
     
     def __init__(self, 
                  cam_data: CameraData,
@@ -1291,7 +1328,45 @@ class FeatureTracking(PipelineModule, ABC):
     def run_from_state(self, state: SceneState) -> PointsMatched:
         if state.features is None:
             raise RuntimeError("FeatureTracking requires features. Run a FeatureClass module first.")
-        return self(state.features)
+        # return self(state.features)
+        try:
+            return self(state.features)
+        except Exception as e:
+            threshold = getattr(self, "RANSAC_threshold", None)
+
+            if threshold is not None and threshold >= 3.0:
+                fix_hint = (
+                    "The outlier rejection threshold is already at or above 3.0, so the "
+                    "failure is likely caused by too few reliable feature points being detected. "
+                    "Switch to a stronger/more dense feature detector or increase the number of "
+                    "detected keypoints before feature matching."
+                )
+            else:
+                fix_hint = (
+                    "The outlier rejection threshold may be too strict. Try loosening the "
+                    "RANSAC/outlier rejection threshold. If the threshold reaches 3.0 and the "
+                    "module still fails, switch feature detectors because not enough reliable "
+                    "points were detected."
+                )
+
+            raise RuntimeError(
+                "[FeatureTracking Error]\n"
+                "Feature tracking failed.\n\n"
+                "Likely causes:\n"
+                "- Not enough feature points were detected to produce valid matches/tracks.\n"
+                "- Not enough matches survived outlier rejection.\n"
+                "- The outlier rejection threshold is too strict.\n"
+                "- The selected feature detector may not be producing enough reliable keypoints.\n\n"
+                "Suggested fixes:\n"
+                f"- {fix_hint}\n"
+                "- Increase the maximum number of detected keypoints if the detector supports it.\n"
+                "- Use a more robust feature matcher module for the image set.\n"
+                "- Use a more robust detector/descriptor combination for the image set.\n"
+                "- Check that image overlap is sufficient between matched frames.\n"
+                "- Final try, swap to a detector free approach, such as using VGGT directly for Pose/Reconstruction.\n\n"
+                f"Current outlier rejection threshold: {threshold}\n"
+                f"Original error: {type(e).__name__}: {e}"
+            ) from e
     
     def __init__(self, detector:str, 
                  cam_data:CameraData,
@@ -1417,7 +1492,37 @@ class OptimizationClass(PipelineModule, ABC):
         current_scene = state.dense_scene or state.sparse_scene
         if current_scene is None:
             raise RuntimeError("Optimization requires a sparse or dense scene.")
-        return self(current_scene, **kwargs)
+        # return self(current_scene, **kwargs)
+        try: 
+            return self(current_scene, **kwargs)
+        except Exception as e:
+            points3d = getattr(state.sparse_scene, "points3D", None)
+            num_points3d = points3d.points3D.shape[0]
+
+            raise RuntimeError(
+                "[Optimization Error]\n"
+                "Bundle adjustment / optimization failed because the reconstruction contains "
+                "too few valid 3D points to optimize reliably.\n\n"
+                "Likely cause:\n"
+                "- The sparse reconstruction produced a very low number of 3D points.\n"
+                "- If fewer than 10 3D points were reconstructed, the optimization problem is "
+                "likely too under-constrained to solve reliably.\n"
+                "- The detector, matcher, tracker, camera pose, or sparse reconstruction stages "
+                "did not produce enough valid geometry before optimization.\n\n"
+                "Action needed:\n"
+                "- Improve the detector and tracker/matcher combination so more stable 3D points "
+                "are created before optimization.\n"
+                "- Check feature tracking metrics, especially track length and number of tracks "
+                "observed in at least 3 views.\n"
+                "- Check sparse reconstruction metrics, especially Number Points3D.\n"
+                "- If Number Points3D is below 10, do not tune the optimizer first. Instead, "
+                "revisit the parameterization of previous modules.\n"
+                "- Consider increasing detected keypoints, changing the detector, changing the "
+                "matcher, loosening outlier rejection, improving track generation, or adjusting "
+                "the sparse reconstruction minimum observation settings.\n\n"
+                f"Current Number Points3D: {num_points3d}\n"
+                f"Original error: {type(e).__name__}: {e}"
+            ) from e
     
     def __init__(self, 
                  cam_data: CameraData,
