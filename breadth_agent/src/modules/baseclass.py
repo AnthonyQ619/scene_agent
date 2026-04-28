@@ -1555,9 +1555,9 @@ class SfMScene:
             # Get Camera Data
             cam_data = CDM.get_camera_data()
             
-            # parent_metric_path = Path(__file__).resolve().parents[2]
-            # metric_file_path = str(parent_metric_path / "results" / f"metrics_results_{id}.txt")
-            metric_file_path = "/work/tmp/metric_" + str(self.id) + ".txt"
+            parent_metric_path = Path(__file__).resolve().parents[2]
+            metric_file_path = str(parent_metric_path / "results" / f"metrics_results_{id}.txt")
+            # metric_file_path = "/work/tmp/metric_" + str(self.id) + ".txt"
             # Create file or erase contents of existing one
             with open(metric_file_path, "w") as file:
                 pass

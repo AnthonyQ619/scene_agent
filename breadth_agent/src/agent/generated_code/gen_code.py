@@ -25,6 +25,7 @@ reconstructed_scene.FeatureDetectionSIFT(
     edge_threshold=12
 )
 
+"""
 # Step 3: Detect Feature Pairs
 reconstructed_scene.FeatureMatchBFPair(
     detector="sift",
@@ -51,7 +52,7 @@ reconstructed_scene.FeatureMatchBFTracking(
     detector="sift",
     cross_check=True,
     lowes_thresh=0.72,
-    RANSAC_threshold=0.015
+    RANSAC_threshold=1.0 #0.015
 )
 
 # Step 6: Estimate Sparse Reconstruction
@@ -66,3 +67,4 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
     max_num_iterations=180,
     use_gpu=False
 )
+"""
