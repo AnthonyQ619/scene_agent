@@ -75,12 +75,12 @@ reconstructed_scene.{module_name}() # Images read in previous step (1)
                          example=example)
         
         # Initialize Model
-        # if os.name == 'nt':
-        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
-        # elif os.name == 'posix':
-        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
+        if os.name == 'nt':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        elif os.name == 'posix':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
 
-        WEIGHT_MODULE = "/work/model_weights/model.pt"
+        # WEIGHT_MODULE = "/work/model_weights/model.pt"
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -181,7 +181,7 @@ reconstructed_scene.{module_name}() # Images read in previous step (1)
                 "Average Rotation Orthonormality Error": float(np.mean(ortho_errors)),
                 "Max Rotation Orthonormality Error": float(np.max(ortho_errors)),
                 "Average det(R)": float(np.mean(det_values)),
-                "Mean Abs det(R)-1": float(np.mean(np.abs(det_values - 1.0)))},
+                "Mean Abs det(R)-1": float(np.mean(np.abs(np.array(det_values) - 1.0)))},
             "Translation Analysis for Stable Trajectory Estimation":{
                 "Translation Norm Std": float(np.std(trans_norms)),
                 "Min Translation Norm": float(np.min(trans_norms)),
