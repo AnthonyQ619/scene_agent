@@ -192,7 +192,7 @@ def read_camera_flow(image_paths, calib_path):
         p90_flow.append(results["p90_flow"])
     
     if intrinsics is None:
-        return mean_flow, median_flow, p75_flow, p90_flow
+        return mean_flow, median_flow, p75_flow, p90_flow, None
     else:
         Rs = []
         for flow in flows:

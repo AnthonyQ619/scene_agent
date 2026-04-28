@@ -4,7 +4,7 @@ import cv2
 from pathlib import Path
 from sceneprogllm import LLM
 from modules.utilities import image_builder, resize_dataset, clean_dir
-
+from utility.optical_flow import read_camera_flow
 from concurrent.futures import ThreadPoolExecutor
 
 class Generator:
@@ -38,35 +38,39 @@ class Generator:
         ## Read Context File
         context_proc_file = open(full_context_file_proc_dir, 'r')
         self.context_str = context_proc_file.read()
+        context_proc_file.close()
 
-        # TODO
-        self.plan_evaluator = LLM(
-            system_desc="""
-You are an expert Blender procedural material designer.
-Given a material description (prompt) and several step-by-step node procedures, your task is to:
-	1.	Analyze each procedure in detail — how its nodes, parameters, and textures contribute to the described look.
-	2.	Compare how accurately each matches the target material (color, texture, gloss, flecks, microstructure).
-	3.	Choose the best procedure and explain why — citing specific node choices, texture logic, and parameter ranges.
+        # TODO 
+#         self.plan_evaluator = LLM(
+#             system_desc="""
+# You are an expert Structure from Motion workflow plans.
+# Given the image of the scene and reconstruction guidelines we wish to follow (prompt) and several step-by-step node procedures, your task is to:
+# 	1.	Analyze each SfM plan in detail — what modules are called, parameters used, and if we invoke the correct sub-modules for the reconstruction type.
+# 	2.	Compare how accurately each sub-module that is invoked best fits the given scene we wish to reconstruct.
+# 	3.	Choose the best procedure and explain why — citing specific SfM planning logic, module selection, and why parameterization of tools make sense.
 
-Judge using these key aspects:
-	•	Accuracy to description (color, reflectivity, gloss, matte areas).
-	•	Realism of flecks (shape, softness, scale, density).
-	•	Gloss layer behavior (clearcoat, specular, roughness balance).
-	•	Micro details (haze, bump, subtle variation).
-	•	Node efficiency and tunability.
+# Judge using these key aspects:
+# 	•	Choice of sub-modules accurately coincide with the image of the scene and best use-cases.
+# 	•	Sub-module selection fits within the system constraints of the user prompt.
+# 	•	Reconstruction type is followed precisely, and our last sub-module invoked directly represents the prompt (Pose, Sparse, or Dense).
 
-You are to provide me the index (starting from 1) of the best procedure amongst those provided to you, so that I can pick it easily.
-Your response should be a single integer indicating the best procedure index, without any additional commentary.
-""",
-            response_format="json",
-            response_params={"best_plan_index":"int"},
-            model_name=model,
-            reasoning_effort=reasoning_effort
-        )
+# You are to provide me the index (starting from 1) of the best plan amongst those provided to you, so that I can pick it easily.
+# Your response should be a single integer indicating the best plan index, without any additional commentary.
+# """,
+#             response_format="json",
+#             response_params={"best_plan_index":"int"},
+#             model_name=model,
+#             reasoning_effort=reasoning_effort
+#         )
 
-        # TODO
-        self.metric_prompt = ""
-
+        # Gather Metric Result Context for Optimization
+        ## Gather Path to context
+        full_context_file_proc_dir = os.path.join(self.CWD, 'agent_details', 'optimize_context', 'metric_context.txt')
+        
+        ## Read Context File
+        context_metric_file = open(full_context_file_proc_dir, 'r')
+        self.metric_prompt = context_metric_file.read()
+        context_metric_file.close()
 
         # Fixed System Description for the API
         system_desc = f"""
@@ -96,10 +100,35 @@ any code, ONLY WRITTEN TEXT SIMILAR TO THE PROVIDED CONTEXT EXAMPLES THE GIVEN P
                             model_name = model,
                             reasoning_effort = reasoning_effort,
                             temperature = temperature)
+        
+        # Do we also need to give the LLM knowledge of the API? Or do we call generator first??
+        # Build Planner LLM 
+        self.plan_evaluator = LLM(
+            system_desc="""
+You are an expert Structure from Motion workflow plans.
+Given the image of the scene and reconstruction guidelines we wish to follow (prompt) and several step-by-step node procedures, your task is to:
+	1.	Analyze each SfM plan in detail — what modules are called, parameters used, and if we invoke the correct sub-modules for the reconstruction type.
+	2.	Compare how accurately each sub-module that is invoked best fits the given scene we wish to reconstruct.
+	3.	Choose the best procedure and explain why — citing specific SfM planning logic, module selection, and why parameterization of tools make sense.
+
+Judge using these key aspects:
+	•	Choice of sub-modules accurately coincide with the image of the scene and best use-cases.
+	•	Sub-module selection fits within the system constraints of the user prompt.
+	•	Reconstruction type is followed precisely, and our last sub-module invoked directly represents the prompt (Pose, Sparse, or Dense).
+
+You are to provide me the index (starting from 1) of the best plan amongst those provided to you, so that I can pick it easily.
+Your response should be a single integer indicating the best plan index, without any additional commentary.
+""",
+            response_format="json",
+            response_params={"best_plan_index":"int"},
+            model_name=model,
+            reasoning_effort=reasoning_effort
+        )
 
          # Build In-Context image examples here
         img_path = os.path.join(self.CWD, 'agent_details', 'image_context') # MAKE THIS MORE PATH ORIENTED
         self.image_paths = sorted(glob.glob(img_path + "/*"))
+        self.new_query_img_path = None
 
     def get_multiple_plans(self, query, query_video_path, num_plans=5):
         with ThreadPoolExecutor(max_workers=min(20, num_plans)) as executor:
@@ -111,7 +140,31 @@ any code, ONLY WRITTEN TEXT SIMILAR TO THE PROVIDED CONTEXT EXAMPLES THE GIVEN P
         return plans
     
     def enhance_prompt_for_selection(self, query, query_video_path):
-        pass
+        # User query is of this format
+        # f"""
+        # {new_query["statement"]}
+        # {new_query["reconstruction"]}
+        # {new_query["calibration"]}
+        # {new_query["memory"]}
+        # Use Image Path in Code: {prompt['images']}
+        # Use Calibration Path in Code: {prompt['calibration']}
+        # """
+        new_prompt = f"""
+The following are a few examples of reference procedures to generate with corresponding images:
+{self.context_str}
+
+Each procedure example is titled "Procedure:Num", and each corresponding image is titled "image_context(Num).png",
+where each matching "Num" value between procedure and image title is the corresponding image set and generated procedure.
+In short, the first 8 images provided correspond to the first 8 procedure examples in respective order. The final image 
+is the given scene from the user to generate a plan for reconstruction. 
+
+The followiing information is provided from the user query to guide your chosen sub-modules for each step of the generated plan/procedure.
+{query}
+
+You are now given the following plans/procedures of a Structure from Motion workflow generated from the above query and final image as the
+scene to reconstruct\n:
+"""
+        return new_prompt
 
     def select_plan(self, plans, query, query_video_path):
 
@@ -121,7 +174,7 @@ any code, ONLY WRITTEN TEXT SIMILAR TO THE PROVIDED CONTEXT EXAMPLES THE GIVEN P
             enhanced_prompt += f"\nPlan {idx+1}:\n{pl}\n"
         
         enhanced_prompt += "\nSelect the plan that most best fits a plausible structure from motion pipeline for the given scene and query."
-        response = self.plan_evaluator(enhanced_prompt)["best_plan_index"]
+        response = self.plan_evaluator(enhanced_prompt, image_paths=self.image_paths)["best_plan_index"]
         best_index = int(response) - 1  # Convert to 0-based index
         best_plan = plans[best_index]
         return best_plan
@@ -165,20 +218,32 @@ The followiing information is provided to guide your chosen sub-modules for each
 {query}
 """
         #TODO: Include enhanced prompt for motion cues here.
-        dataset_path = sorted(glob.glob(query_video_path + "/*"))
-        new_img = image_builder(image_path=query_video_path, 
-                                max_size=350, 
-                                k=5) 
-        
-        # Save image and input new path to image list containing context imaages
-        PATH = os.path.dirname(os.path.realpath(__file__))
-        new_img_path = os.path.join(PATH, "temp_images")
+        mean_flow, median_flow, p75_flow, p90_flow, Rs = read_camera_flow(query_video_path, query["calibration"])
 
-        if not os.path.exists(new_img_path):
-            os.makedirs(new_img_path)
+        enhanced_prompt_motion = f"""
+TODO: Fill
+"""
+
+        dataset_path = sorted(glob.glob(query_video_path + "/*  "))
+
+        # This is so we don't repeatedly add the same image to the self.image_paths
+        if self.new_query_img_path is None: 
+            new_img = image_builder(image_path=query_video_path, 
+                                    max_size=350, 
+                                    k=5) 
+            
+            # Save image and input new path to image list containing context imaages
+            PATH = os.path.dirname(os.path.realpath(__file__))
+            new_img_path = os.path.join(PATH, "temp_images")
+
+            if not os.path.exists(new_img_path):
+                os.makedirs(new_img_path)
+            
+            cv2.imwrite(new_img_path + f"/query_img.png", new_img)
+
+            self.new_query_img_path = new_img_path + f"/query_img.png"
+            self.image_paths.append(new_img_path + f"/query_img.png")
         
-        cv2.imwrite(new_img_path + f"/query_img.png", new_img)
-        self.image_paths.append(new_img_path + f"/query_img.png")
         return enhanced_prompt
 
 def generate_plans(planner, query, query_video_path):

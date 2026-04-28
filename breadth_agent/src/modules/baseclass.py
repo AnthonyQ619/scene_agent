@@ -376,7 +376,23 @@ class SparseSceneEstimation(PipelineModule, ABC):
             )
         if state.camera_poses is None:
             raise RuntimeError("SparseSceneEstimation requires camera_poses.")
-        return self(tracked, state.camera_poses)
+        
+        try:
+            return self(tracked, state.camera_poses)
+        except Exception as e:
+            raise RuntimeError(
+                "[FeatureDetection Error]\n"
+                "Feature detection failed. This is usually caused by one of the following:\n"
+                "1. The image path is incorrect, empty, or does not contain readable images.\n"
+                "2. The feature detector module name was specified incorrectly.\n"
+                "3. The selected detector is not supported or was not registered correctly.\n\n"
+                "Suggested fixes:\n"
+                "- Verify that the image directory exists and contains valid image files.\n"
+                "- Check that the feature detector name matches one of the supported module names.\n"
+                "- Use the correct registered feature detection module, such as SIFT, SuperPoint, or another implemented detector.\n\n"
+                f"Original error: {type(e).__name__}: {e}"
+            ) from e
+
     
     def __init__(self, cam_data: CameraData,
                  module_name: str,
@@ -825,7 +841,22 @@ class FeatureClass(PipelineModule, ABC):
     output_key = "features"
 
     def run_from_state(self, state: SceneState) -> list[Points2D]:
-        return self()
+        # return self()
+        try:
+            return self()
+        except Exception as e:
+            raise RuntimeError(
+                "[FeatureDetection Error]\n"
+                "Feature detection failed. This is usually caused by one of the following:\n"
+                "1. The image path is incorrect, empty, or does not contain readable images.\n"
+                "2. The feature detector module name was specified incorrectly.\n"
+                "3. The selected detector is not supported or was not registered correctly.\n\n"
+                "Suggested fixes:\n"
+                "- Verify that the image directory exists and contains valid image files.\n"
+                "- Check that the feature detector name matches one of the supported module names.\n"
+                "- Use the correct registered feature detection module, such as SIFT, SuperPoint, or another implemented detector.\n\n"
+                f"Original error: {type(e).__name__}: {e}"
+            ) from e
     
     def __init__(self, 
                  cam_data: CameraData,
@@ -1299,7 +1330,7 @@ class FeatureTracking(PipelineModule, ABC):
        
         # Lower fragmentation and higher observations-per-track are usually better.
         fragmentation = len(counts) / np.sum(counts) # tracks per observation
-        obs_per_track = np.sum(counts) / len(counts) # ovservation per track
+        obs_per_track = np.sum(counts) / len(counts) # observation per track
 
 
         event_msg = {"Avg. track length": float(avg_track), 
@@ -1524,9 +1555,9 @@ class SfMScene:
             # Get Camera Data
             cam_data = CDM.get_camera_data()
             
-            parent_metric_path = Path(__file__).resolve().parents[2]
-            metric_file_path = str(parent_metric_path / "results" / f"metrics_results_{id}.txt")
-            # metric_file_path = "/work/tmp/metric_" + str(self.id) + ".txt"
+            # parent_metric_path = Path(__file__).resolve().parents[2]
+            # metric_file_path = str(parent_metric_path / "results" / f"metrics_results_{id}.txt")
+            metric_file_path = "/work/tmp/metric_" + str(self.id) + ".txt"
             # Create file or erase contents of existing one
             with open(metric_file_path, "w") as file:
                 pass

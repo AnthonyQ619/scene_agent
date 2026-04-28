@@ -1,0 +1,363 @@
+For the Feature Detection module, we provide the following metrics to inform how well that given sub-module is performing for the provided scene
+1. Number of Features
+    - Measures how many keypoints/features were detected in each image. This indicates whether the detector found enough visual information for 
+    downstream matching, pose estimation, triangulation, and reconstruction.
+    - Value Interpretation:
+        - Very low feature count: The image may be texture-poor, blurry, over/underexposed, or detector thresholds may be too strict.
+        - Moderate/high feature count: Usually good for matching and SfM, assuming features are reliable and spatially distributed.
+        - Extremely high feature count: May increase runtime and memory usage, and may include many weak or redundant features.
+    - How to improve:
+        - If the count is too low, reduce detector thresholds, increase max_keypoints, improve image contrast, resize images less aggressively, 
+        or use a stronger detector such as SuperPoint or SIFT instead of ORB.
+2. Spatial Distribution
+    - Measures how evenly detected features are spread across the image. In SfM, features should ideally cover the whole image rather than cluster in 
+    one small region. Good spatial coverage improves geometric stability for matching, essential/fundamental matrix estimation, PnP, and triangulation.
+    - Value Interpretation:
+        - Low spatial distribution: Features are clustered in a few regions. Pose estimation may become unstable or biased.
+        - Medium spatial distribution: Features cover some parts of the image but may still leave weak areas.
+        - High spatial distribution: Features are well spread across the frame, which is usually better for robust geometry.
+    - How to improve: 
+        - Lower detection thresholds in low-texture areas or use detectors that naturally produce better spatial coverage.
+========================================================================================================================================================
+Example: 
+Results from Feature Detector Module using Sift:
+reconstructed_scene.FeatureDetectionSIFT(
+    max_keypoints=10000,
+    contrast_threshold=0.009,
+    edge_threshold=10,
+)
+
+Current Metric Results:
+    "Features Detected per Frame": {{
+        "Average": 10000.4,
+        "Minimum": 10000,
+        "Maximum": 10001
+    }},
+    "Feature Spatial Distribution per Frame": {{
+        "Average": 3.176621670542938,
+        "Minimum": 2.5588968517116553,
+        "Maximum": 3.3775012822308907
+    }}
+
+Improved Parameterization:
+reconstructed_scene.FeatureDetectionSIFT(
+    max_keypoints=12000,
+    contrast_threshold=0.009,
+    edge_threshold=8,
+)
+Increased number of keypoints detected since Max, Minimum, and Average are equal, meaning there are more to detect
+Lower edge threshold since spatial distribution is low, so we need to detect less corners to increase spatial distirbution and less clustering
+========================================================================================================================================================
+
+For the Feature Matching module, we provide the following metrics to inform how well that given sub-module is performing for the provided scene:
+1. Estimated-Geometry Repeatability Metric
+    - We do not have ground-truth homographies, so this is an estimate of repeatability. However, it measures how consistently the same scene points 
+    are detected or matched across image pairs. In the matching module, this usually reflects whether keypoints from one image can be geometrically 
+    related to corresponding keypoints in another image.
+    - Value Interpretation:
+        - Low repeatability: Features are not consistently detected/matched across views. Matching may be unstable.
+        - Medium repeatability: Some overlap exists, but matching may still be sensitive to viewpoint, scale, blur, or lighting changes.
+        - High repeatability: Features are consistently found across image pairs, which is good for robust matching and pose estimation.
+    - How to Improve:
+        - If repeatability is low, improve feature detection quality, use a more robust detector/descriptor pair, increase the number of detected features, 
+        improve spatial distribution, or use learned matchers such as SuperGlue or LightGlue.
+2. Inlier Yield (Average and Mean)
+    - Inlier yield measures the number or ratio of matches that survive geometric verification across all image pairs. It tells you how many useful 
+    correspondences remain after outlier rejection. We calculate the mean and median number of inlier yield across frames, where median is more robust
+    to avoid heavy influence from large outliers.
+    - Valure Interpretation:
+        - Low median, high average	A few image pairs match very well, but most pairs are weak.
+        - Average and median both high: Matching is consistently strong across the dataset.
+        - Average and median both low: Matching is generally poor across most image pairs.
+        - Median higher than average: Some failed image pairs are dragging down the average.
+    - How to improve:
+        - If the median is low, the issue is likely systematic across the dataset. Improve detector settings, descriptor quality, pair selection, 
+          image preprocessing, or geometric verification.
+        - If the average is high but the median is low, inspect pair selection. You may have many weak/non-overlapping pairs and only a few strong 
+          pairs.
+3. Gric Score (Homography and Fundamental)
+    - The GRIC score for the homography model measures how well a planar scene model explains the matched correspondences while penalizing model 
+      complexity. It is used to evaluate whether the image pair is better explained by a homography.
+    - The GRIC score for the fundamental matrix measures how well the matched correspondences fit epipolar geometry. This is usually the more 
+      appropriate model for general 3D scenes with camera translation and parallax.
+    - Value Interpretation:
+        - Fundamental GRIC < Homography GRIC: The image pairs are best represented by the fundamental model, so utilize fundamental model for outlier rejection
+          and can be tuned lower using RANSAC/USAC thresholds for improvement. 
+        - Fundamental GRIC > Homography GRIC: The image pairs are best represented by the homography model, so utilize homography model for outlier rejection
+          and can be tuned lower using RANSAC/USAC thresholds for improvement. 
+========================================================================================================================================================
+Example: 
+Results from Feature Matching Module using Flann Algorithm:
+reconstructed_scene.FeatureMatchFlannPair(detector="sift",
+                                        k=2,
+                                        lowes_thresh=0.78,
+                                        RANSAC_homography=False,
+                                        RANSAC_threshold=2.0,
+                                        RANSAC_conf=0.999)
+
+{
+    "Corresponding Feature Metrics per Image Pair": {
+        "Average Corresponding Features": 658.75,
+        "Average Inlier Yield per Frame": 0.05269805419458055,
+        "Median Inlier Yield per Frame": 0.0569,
+        "Average Repeatability per Image Pair": 0.12870654506260767,
+        "Gric Score - Fundamental": 3310.095296252682,
+        "Gric Score - Homography": 4111.292228411412
+    }
+}
+
+Improved Parameterization/Change of Modules: 
+reconstructed_scene.FeatureMatchBFPair(
+    detector='sift',
+    RANSAC_homography=False,
+    RANSAC_threshold=3.0,
+    lowes_thresh=0.7
+)
+
+Fundamental model for gric score had a lower score than homography, so we keep RANSAC_homography=False.
+Repeatability is not extremely low, so we will not change matchers yet since the other metrics are much worse. 
+Since we had a low inlier yield for both average and median scores, we relax outlier rejection thresholds by increasing RANSAC_threshold to 3.0
+and lowes_thresh reduced to 0.7.
+========================================================================================================================================================
+
+For the Feature Tracking module, we provide the following metrics to inform how well that given sub-module is performing for the provided scene:
+1. Track Length: 
+    - Average track length measures the average number of images/views in which a 3D scene point is observed. In SfM, a track represents a chain 
+      of matched 2D features across multiple images.
+    - Median track length measures the typical number of observations per track. It is more robust than the average because it is less affected 
+      by a few very long tracks.
+    - Maximum track length measures the longest feature track in the dataset. It tells you the largest number of views in which any single 
+      feature was successfully tracked.
+    - Value Interpretation:
+        - Low average track length: Tracks are short and may only connect 2–3 images. This can make reconstruction less stable.
+        - Low median track length: Most tracks are short, even if a few long tracks exist.
+        - Medium average track length: Tracks persist across several views, usually good for incremental SfM.
+        - High average, low median: A small number of tracks are very long, but most tracks are fragmented.
+        - Average and median both high: Tracking is consistently strong across the dataset.
+        - Low maximum track length: No features are surviving across many views. This may indicate poor overlap or weak matching.
+        - High maximum track length: At least some features are highly stable across the image sequence.
+        - Very high maximum but low median: A few easy features track well, but most tracks are still weak.
+    - How to improve:
+        - If maximum track length is low, check image overlap, motion smoothness, pair selection, matching quality, and whether tracks are 
+          being prematurely split. However, maximum track length alone should not be overvalued because it can be dominated by a single strong 
+          feature.
+2. Survival Curve Metric
+    - The survival curve measures how many tracks remain valid as the required track length increases.
+    - Value Interpretation:
+        - Rapid drop-off after length 2: Most tracks are only pairwise matches and do not persist across many images.
+        - Gradual decay: Tracks remain stable across multiple views. This is better for SfM.
+        - Long tail: Some features persist across many views, which can help global consistency.
+        - Flat high curve: Very strong tracking across the sequence, usually from high overlap and stable features.
+    - How to Improve:
+        - If the survival curve drops quickly, improve track linking and merging, increase image overlap, match more neighboring views, 
+          use stronger feature descriptors, tune outlier rejection less aggressively, or improve image-pair graph connectivity.
+3. Observations per Track
+    - Observations per track measures the average number of 2D feature observations assigned to each track.
+    - Value Interpretation: 
+        - Low observations per track: Tracks are short and fragmented.
+        - High observations per track: Tracks persist across more images.
+        - Very high observations per track: Strong multi-view consistency, assuming tracks are geometrically correct.
+    - How to Improve: 
+        - Improve feature matching, track merging, pair selection, and multi-view consistency checks. 
+4. Tracks per Observation
+    - Tracks per observation measures the number of tracks relative to the number of total 2D observations.
+    - Value Interpretation: 
+        - High tracks per observation: Many short tracks. This usually indicates fragmentation.
+        - Low tracks per observation: Fewer tracks explain more observations. This usually means longer tracks.
+        - Extremely low tracks per observation: Could be good, but should be checked with total track count to avoid hiding poor coverage.
+    - How to Improve:
+        - If tracks per observation is high, improve track merging, matching consistency, pairwise connectivity, and outlier 
+          rejection. High values often mean the pipeline is creating many small disconnected tracks instead of linking observations into longer 
+          multi-view tracks. (High would be any Value > 0.38).
+========================================================================================================================================================
+Example: 
+Results from Feature Tracking Module using Brute-Force Algorithm:
+reconstructed_scene.FeatureMatchBFTracking(
+    detector = "sift",
+    k=2,
+    cross_check=False,
+    lowes_thresh=0.70,
+    RANSAC_threshold=1.0,
+    RANSAC_conf=0.999
+)
+
+Current Metric Results:
+{
+    "Feature Track Metrics for Survivability and Stability": {
+        "Avg. track length": 2.173449612403101,
+        "Max. track length": 5.0,
+        "Median track length": 2.0,
+        "Survival Tracks of 3": 0.13953488372093023,
+        "Survival Tracks of 5": 0.003875968992248062,
+        "Survival Tracks of 10": 0.0,
+        "Fragmentation": 0.4600980829246545,
+        "Obs. per Track": 2.173449612403101
+    }
+}
+
+Improved Parametrization/Change of Modules:
+reconstructed_scene.FeatureMatchBFTracking(
+    detector = "sift",
+    k=2,
+    cross_check=False,
+    lowes_thresh=0.75,
+    RANSAC_threshold=3.0,
+    RANSAC_conf=0.999
+)
+
+Because the survival of tracks 3 or less is less than 0.14 of all tracks (14 percent), and with fragmentation being much 
+larger than our threshold (0.38), it is necessary to relax the cosntrains of the outlier rejection as the model can be removing 
+even inlier points.
+========================================================================================================================================================
+
+For the Camera Pose module, we provide the following metrics to inform how well that given sub-module is performing for the provided scene:
+We have two sets of metrics, one for the classical approach (Essential2PnP method) and VGGT pipeline:
+
+For the sub-module (CamPoseEstimatorEssentialToPnP):
+1. Average Reprojection Error per Frame
+    - Average reprojection error per frame measures how far the projected 3D points are from their observed 2D feature locations in each image, 
+      then averages that error across frames.
+    - Value interpretation:
+        - Low reprojection error: Estimated poses and 3D points are geometrically consistent.
+        - Moderate reprojection error: Pose is usable, but there may be noisy matches, imperfect intrinsics, or weak triangulation.
+        - High reprojection error: Pose estimate may be poor, matches may contain outliers, or 3D points may be inaccurate.
+        - A few frames with very high error: Some camera poses likely failed or have poor correspondence support.
+    - How to improve:
+        - If reprojection error is high, improve feature matching, remove outliers more aggressively, tune PnP/RANSAC thresholds, 
+          improve triangulated points, verify camera intrinsics, and run local or global bundle adjustment.
+2. Average Median Reprojection Error per Frame
+    - Average median reprojection error per frame computes the median reprojection error within each frame, then averages those median 
+      values across all frames. This is more robust than the mean reprojection error because the median is less affected by a small 
+      number of very bad projections.
+    - Value interpretation:
+        - Low median reprojection error: Most projected points align well with observed 2D features.
+        - High median reprojection error: Most points in the frame are poorly aligned, suggesting a bad pose or bad structure.
+        - Low median but high mean: Most points are good, but some large outliers remain.
+        - Mean and median both high: The pose or 3D geometry is broadly poor, not just affected by outliers.
+    - How to improve:
+        - If the median reprojection error is high, improve camera pose estimation, verify intrinsics, improve feature matching, 
+          remove incorrect tracks, and refine with bundle adjustment.
+        - If the mean is high but the median is low, focus on removing outlier observations rather than changing the entire 
+          pose estimation process.
+
+For the sub-module (CamPoseEstimatorVGGTModel):
+1. Validity Analysis of Rotation Matrices in Pose Estimation
+    - This metric checks whether the predicted rotation matrices are valid rotation matrices.
+      It does not tell you whether the rotation is correct compared to ground truth. It only tells you whether the matrix 
+      behaves like a valid rotation.
+    Interpretation:
+        - Average Rotation Orthonormality Error: Average deviation from R.T @ R = I. Lower is better.
+        - Max Rotation Orthonormality Error: Worst-case rotation validity error. Useful for detecting failed frames.
+        - Average det(R): Average determinant of the rotation matrices. Should be close to 1.0.
+        - Mean Abs det(R)-1: Average absolute deviation from valid determinant. Lower is better.
+    Value interpretation:
+        - Low orthonormality error and det(R) about 1: Rotations are mathematically valid.
+        - High average orthonormality error: Many predicted rotations are not valid rotation matrices.
+        - High max orthonormality error: One or more frames have invalid or unstable rotations.
+        - det(R) far from 1: Rotation matrix may include scaling, reflection, shear, or numerical instability.
+        - det(R) < 0: Invalid rotation with reflection; this is usually a serious issue.
+2. Translation Analysis for Stable Trajectory Estimation
+    - This metric analyzes the distribution of camera translation magnitudes across the estimated trajectory.
+      This is useful for detecting unstable trajectory scale, sudden translation jumps, collapsed motion, or outlier poses.
+      This does not tell you whether the translation is accurate, only consistency.
+    - Interpretation:
+        - Translation Norm Std: Variation in translation magnitude across frames. High values may indicate instability or jumps.
+        - Min Translation Norm: Smallest translation magnitude. Useful for detecting collapsed or near-zero poses.
+        - Max Translation Norm: Largest translation magnitude. Useful for detecting outlier poses or large jumps.
+        - Median Translation Norm: Typical translation magnitude. More robust than the mean.
+    - Value interpretation:
+        - Low translation norm std	Translation magnitudes are stable across frames.
+        - High translation norm std	Trajectory may contain jumps, scale drift, or outlier poses.
+        - Very low min translation norm	Some poses may have collapsed near the origin or have little estimated motion.
+        - Very high max translation norm	Possible outlier pose, scale spike, or unstable camera estimate.
+        - Max much larger than median	A few frames likely have abnormal translation estimates.
+        - Median near zero	The trajectory may be collapsed or the scene/camera motion has very small baseline.
+    - How to improve:
+        - If translation stability is poor, and VGGT pipeline is the only option, ensure to utilize bundle adjustment
+          by conducting sparse reconstruction and global bundle adjustment.
+========================================================================================================================================================
+Results using Essential to PNP algorithm in Pose Estimation:
+reconstructed_scene.CamPoseEstimatorEssentialToPnP(
+    iteration_count=150,
+    reprojection_error = 3.0,
+    optimizer = ("BundleAdjustmentOptimizerLocal", {
+        "max_num_iterations": 25,
+        "robust_loss": True,
+        "use_gpu": False
+    }),
+)
+
+Current Metric Results:
+{
+    "Number of Camera Poses": 5,
+    "Average Reprojection Error per Frame": 29.565087094496345,
+    "Average Median Reprojection Error per Frame": 0.7224033949741775
+}
+
+Improved Parametrization/Change of Modules: 
+reconstructed_scene.CamPoseEstimatorEssentialToPnP(
+    iteration_count=175,
+    reprojection_error = 2.5,
+    optimizer = ("BundleAdjustmentOptimizerLocal", {
+        "max_num_iterations": 30,
+        "robust_loss": True,
+        "use_gpu": False
+    }),
+)
+
+Since we have enough poses and camera pose estimation ran without fail (insinuating we have enough feature), we
+must tighten the constraints by decreasing reprojection error to a lower value while also increasing iteration count
+for the LVM algorithm ran internally. This is specifically to reduce the average reprojection error and decrease the amount 
+of outlier points utilized for pose estimation.
+========================================================================================================================================================
+
+For the Optimization module, we provide the following metrics to inform how well that overall reconstruction performed from the current workflow
+and for the provided scene:
+    - These metrics evaluate how well the optimization stage, usually bundle adjustment or pose/structure refinement, improves the reconstructed scene. 
+      The goal of the optimization module is to refine camera poses and 3D points so that the final reconstruction is geometrically consistent, stable, 
+      and lower-error than the initial estimate.
+    - Interpretation
+        - Number Points3D: Number of valid reconstructed 3D points after optimization. Measures scene structure completeness.
+        - Number Camera Poses: Number of camera poses included or successfully retained in the optimized reconstruction. Measures pose coverage.
+        - Convergence: Indicates whether the optimizer successfully reached a stable solution.
+        - Initial Cost: The optimization objective value before refinement. Usually represents the starting geometric error.
+        - Final Cost: The optimization objective value after refinement. Lower final cost usually indicates improved consistency.
+    - Value interpretation
+        - Low Number Points3D: Many points may have been filtered, triangulation may be weak, or tracking/matching may be poor.
+        - Convergence = True: Optimizer found a stable solution according to its stopping criteria.
+        - Convergence = False: Optimization may have failed, stopped early, or remained numerically unstable.
+        - Final Cost < Initial Cost: Optimization improved the reconstruction objective.
+        - Final Cost nearly equals Initial Cost: Optimization made little improvement; the initial estimate may already be good, or the optimizer was stuck.
+        - Final Cost > Initial Cost: Something may be wrong: bad initialization, bad constraints, incorrect residuals, poor intrinsics, or unstable optimization.
+        - Large drop from initial to final cost: Optimization significantly improved geometric consistency.
+        - Very low final cost but few points/cameras: The result may be clean but incomplete.
+    - How to improve: 
+        - If optimization does not converge or the final cost remains high, improve the inputs before optimization: remove bad matches, 
+          filter outlier tracks, verify camera intrinsics, improve pose initialization, and make sure triangulated 3D points are valid.
+        - If many 3D points are lost, check track quality, triangulation angle, reprojection error thresholds, and point filtering settings. 
+          Overly strict filters can produce a clean but sparse reconstruction.
+        - If camera poses are missing, improve image-pair connectivity, feature matching, pose estimation, and initialization order.
+========================================================================================================================================================
+Example: 
+Results from Optimization using global optimization:
+reconstructed_scene.BundleAdjustmentOptimizerGlobal(
+    max_num_iterations=200,
+    use_gpu=False
+)
+
+Current Metric Results:
+{
+    "Scene Metrics from Optimization": {
+        "Optimizer": "BundleAdjustmentOptimizerGlobal",
+        "Num Points3D": 1360,
+        "Convergence": "BundleAdjustmentTerminationType.NO_CONVERGENCE",
+        "Initial Cost": 358.0130940932776,
+        "Final Cost": 30.917416895489
+    }
+}
+
+reconstructed_scene.BundleAdjustmentOptimizerGlobal(
+    max_num_iterations=240,
+    use_gpu=False
+)
+========================================================================================================================================================
