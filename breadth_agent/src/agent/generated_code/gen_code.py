@@ -12,6 +12,7 @@ from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(
+    id = 1,
     image_path=image_path,
     max_images=20,
     calibration_path=calibration_path
@@ -24,11 +25,12 @@ reconstructed_scene.FeatureDetectionSIFT(
     edge_threshold=12
 )
 
+"""
 # Step 3: Detect Feature Pairs
 reconstructed_scene.FeatureMatchBFPair(
     detector="sift",
     lowes_thresh=0.76,
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=2.0, #0.02,
     RANSAC_homography=False
 )
 
@@ -50,7 +52,7 @@ reconstructed_scene.FeatureMatchBFTracking(
     detector="sift",
     cross_check=True,
     lowes_thresh=0.72,
-    RANSAC_threshold=0.015
+    RANSAC_threshold=1.0 #0.015
 )
 
 # Step 6: Estimate Sparse Reconstruction
@@ -65,3 +67,4 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
     max_num_iterations=180,
     use_gpu=False
 )
+"""
