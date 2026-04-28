@@ -4,7 +4,7 @@ import cv2
 from pathlib import Path
 from sceneprogllm import LLM
 from modules.utilities import image_builder, resize_dataset, clean_dir
-from utility.optical_flow import read_camera_flow
+# from utility.optical_flow import read_camera_flow
 from concurrent.futures import ThreadPoolExecutor
 
 class Generator:
@@ -131,9 +131,10 @@ Your response should be a single integer indicating the best plan index, without
         self.new_query_img_path = None
 
     def get_multiple_plans(self, query, query_video_path, num_plans=5):
+        enhanced_prompt = self.enhance_prompt(query, query_video_path)
         with ThreadPoolExecutor(max_workers=min(20, num_plans)) as executor:
             futures = [
-                executor.submit(self.__call__, query, query_video_path)
+                executor.submit(generate_plans, self.generator, enhanced_prompt, self.image_paths)
                 for _ in range(num_plans)
             ]
             plans = [future.result() for future in futures]
@@ -179,9 +180,8 @@ scene to reconstruct\n:
         best_plan = plans[best_index]
         return best_plan
     
-    def forward(self, query, query_video_path, feedback=None): 
+    def forward(self, query, query_video_path, feedback=None, self_evaluate=True): 
         enhanced_prompt = self.enhance_prompt(query, query_video_path)
-
         if feedback is not None and self.plan is not None:
             enhanced_prompt += f"""
 Last time, you have created the following plan for the user query:
@@ -195,7 +195,10 @@ Your Output:
 """ 
 
         plans = self.get_multiple_plans(enhanced_prompt, query_video_path, num_plans=5)
-        output = self.select_plan(plans, query, query_video_path)
+        if self_evaluate:
+            output = self.select_plan(plans, query, query_video_path)
+        else:
+            output = plans
         # output = self.generator(enhanced_prompt, image_paths=self.image_paths)
         return output
 
@@ -218,12 +221,11 @@ The followiing information is provided to guide your chosen sub-modules for each
 {query}
 """
         #TODO: Include enhanced prompt for motion cues here.
-        mean_flow, median_flow, p75_flow, p90_flow, Rs = read_camera_flow(query_video_path, query["calibration"])
+        # mean_flow, median_flow, p75_flow, p90_flow, Rs = read_camera_flow(query_video_path, query["calibration"])
 
-        enhanced_prompt_motion = f"""
+        enhanced_proxmpt_motion = f"""
 TODO: Fill
 """
-
         dataset_path = sorted(glob.glob(query_video_path + "/*  "))
 
         # This is so we don't repeatedly add the same image to the self.image_paths
@@ -249,5 +251,5 @@ TODO: Fill
 
 
 def generate_plans(planner, query, query_video_path):
-    plan = planner(query, query_video_path)
+    plan = planner(query, image_paths=query_video_path)
     return plan

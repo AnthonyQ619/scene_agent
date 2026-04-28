@@ -113,7 +113,6 @@ def image_builder(image_path: str, max_size: int, k: int = 5):
     all_images = str(Path(image_path) / "*")
     img_set = sorted(glob.glob(all_images))#(image_path + "\\*"))
     chosen_indices = dataset_parser(len(img_set), k)
-
     full_img_path = [img_set[i] for i in chosen_indices]
 
     new_img = build_images(full_img_path, max_size=max_size)
