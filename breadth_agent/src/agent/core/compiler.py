@@ -6,7 +6,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 class Compiler:
     def __init__(self,
-                 script_dir: str, 
                  model: str | None = None, 
                  instruction_path: str | None = None,
                  api_directory: str | None = None,

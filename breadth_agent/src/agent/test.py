@@ -1,10 +1,40 @@
+from autosfm import AutoSFM
+autosfm = AutoSFM(model_name="gpt-5", api_directory='/work/scene_agent/breadth_agent/src/agent/agent_details/tool_context', instruction_path='/work/scene_agent/breadth_agent/src/agent/agent_details/agent_instructions/prompt_enh_examples.txt', reasoning_effort="medium")
 
-from core.generator import Generator
-model_name="gpt-5"
-api_directory = '/work/scene_agent/breadth_agent/src/agent/agent_details/tool_context'
-reasoning_effort="medium"
-generator = Generator(model= model_name, api_directory=api_directory, reasoning_effort=reasoning_effort)
+# from core.generator import Generator
+# model_name="gpt-5"
+# api_directory = '/work/scene_agent/breadth_agent/src/agent/agent_details/tool_context'
+# reasoning_effort="medium"
+# generator = Generator(model= model_name, api_directory=api_directory, reasoning_effort=reasoning_effort)
 
+# Prompt
+image_path = r"/work/dataset/DTU/scan10/images"
+calibration_path = r"/work/dataset/DTU/calibration_DTU_new.npz"
+reconstruction_type = "Sparse Reconstruction"
+gpu_mem = "12gb"
+temp_prompt = {'images':image_path,
+'calibration':calibration_path,
+'recon_type':reconstruction_type,
+'gpu_mem':gpu_mem}
+
+results = autosfm.run(temp_prompt)
+breakpoint()
+
+# from core.promptenhancer import PromptEnhancerLLM
+# instruction_path = '/work/scene_agent/breadth_agent/src/agent/agent_details/agent_instructions/prompt_enh_examples.txt'
+# enhancer = PromptEnhancerLLM(model= model_name, reasoning_effort=reasoning_effort, instruction_path=instruction_path)
+
+# new_query = enhancer(temp_prompt)
+# new_prompt = f"""
+# {new_query["statement"]}
+# {new_query["reconstruction"]}
+# {new_query["calibration"]}
+# {new_query["memory"]}
+# Use Image Path in Code: {temp_prompt['images']}
+# Use Calibration Path in Code: {temp_prompt['calibration']}
+# """
+# plan = generator(new_prompt, temp_prompt['images'])
+# breakpoint()
 
 # process = """
 
