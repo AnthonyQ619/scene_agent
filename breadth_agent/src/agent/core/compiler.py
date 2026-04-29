@@ -30,7 +30,7 @@ class Compiler:
         if api_directory is None:
             self.api_files = []
         else:
-            self.api_files = sorted(glob.glob(api_directory + "\\*"))
+            self.api_files = sorted(glob.glob(api_directory + "/*"))
 
         api_desc = ""
         for file in self.api_files:
@@ -131,7 +131,9 @@ Key things to ensure:
         for p in programs:
             output, success = self.exec(p)
             if success: 
-                with open("/work/tmp/metric_" + str(self.id) + ".txt", "r") as f:
+                temp_path = "/home/anthonyq/projects/scene_agent/breadth_agent/results" + f"/metrics_results_{self.id}.txt"
+                # with open("/work/tmp/metric_" + str(self.id) + ".txt", "r") as f:
+                with open(temp_path, "r") as f:
                     metric = f.read().strip()
                 return p, metric
             else:
@@ -169,14 +171,20 @@ class Executor:
         
         self.id = id
         import os
-        os.makedirs("/work/tmp", exist_ok=True)
-        self.log_file = "/work/tmp/log_file_" + str(id) + ".txt"
+        # Remove after testing in sudarshan
+        self.temp_path = "/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/generated_code/tmp"
+        # os.makedirs("/work/tmp", exist_ok=True)
+        # self.log_file = "/work/tmp/log_file_" + str(id) + ".txt"
+        os.makedirs(self.temp_path, exist_ok=True)
+        self.log_file = self.temp_path + "/log_file_" + str(id) + ".txt"
 
 
     def __call__(self, program: str):
 
         # Create Code
-        temp_file = open("/work/tmp/tmp_prog_" + str(self.id) + ".py", 'w')
+        # temp_file = open("/work/tmp/tmp_prog_" + str(self.id) + ".py", 'w')
+        prog_file = self.temp_path + "/tmp_prog_" + str(self.id) + ".py" #/work/tmp/tmp_prog_" + str(self.id) + ".py"
+        temp_file = open(prog_file, 'w')
         temp_file.write(program)
         temp_file.close()
 
@@ -188,7 +196,7 @@ class Executor:
         with open(self.log_file, "w") as f:
             print("🚀 Running script...")
             result = subprocess.run(
-                [sys.executable, "/work/tmp/tmp_prog_" + str(self.id) + ".py"],
+                [sys.executable, prog_file],
                 env=current_env,
                 stdout=f,      # send standard output to file
                 stderr=f       # send error output to file
@@ -201,7 +209,7 @@ class Executor:
         output = log_file.read().strip()
         
         log_file.close()
-        self.cleanup(self.log_file, "/work/tmp/tmp_prog_" + str(self.id) + ".py")
+        self.cleanup(self.log_file, prog_file)
 
         if result.returncode == 0:
             return output, True

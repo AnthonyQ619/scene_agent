@@ -1010,7 +1010,7 @@ class FeatureMatching(PipelineModule, ABC):
         try:
             return self(state.features)
         except Exception as e:
-            threshold = getattr(self, "RANSAC_threshold", None)
+            threshold = self.ransac_threshold #getattr(self, "RANSAC_threshold", None)
 
             if threshold is not None and threshold >= 3.0:
                 fix_hint = (
@@ -1031,15 +1031,14 @@ class FeatureMatching(PipelineModule, ABC):
                 "[FeatureMatching Error]\n"
                 "Feature matching failed.\n\n"
                 "Likely causes:\n"
-                "- Not enough feature points were detected to produce valid matches.\n"
+                "- Not enough feature points were detected to produce enough matches.\n"
                 "- Not enough matches survived outlier rejection.\n"
                 "- The outlier rejection threshold is too strict.\n"
                 "- The selected feature detector may not be producing enough reliable keypoints.\n\n"
                 "Suggested fixes:\n"
                 f"- {fix_hint}\n"
-                "- Increase the maximum number of detected keypoints if the detector supports it.\n"
-                "- Use a more robust detector/descriptor combination for the image set.\n"
-                "- Check that image overlap is sufficient between matched frames.\n"
+                "- Improve parameterization to increase the number of detected keypoints if the detector supports it.\n"
+                "- Use a more robust detector/descriptor combination for the image set (If SuperPoint is used, think about Detector Free approach).\n"
                 "- Final try, swap to a detector free approach, such as using VGGT directly for Pose/Reconstruction.\n\n"
                 f"Current outlier rejection threshold: {threshold}\n"
                 f"Original error: {type(e).__name__}: {e}"
@@ -1105,6 +1104,7 @@ class FeatureMatching(PipelineModule, ABC):
 
         pts1_t = pts1.points2D
         pts2_t = pts2.points2D
+        # print("SHAPE", pts2_t.shape)
         if self.homography:
             # F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, cv2.FM_RANSAC, 
             #                                  ransacReprojThreshold=self.ransac_threshold, 
@@ -1332,7 +1332,8 @@ class FeatureTracking(PipelineModule, ABC):
         try:
             return self(state.features)
         except Exception as e:
-            threshold = getattr(self, "RANSAC_threshold", None)
+            # threshold = getattr(self, "RANSAC_threshold", None)
+            threshold = self.RANSAC_threshold 
 
             if threshold is not None and threshold >= 3.0:
                 fix_hint = (
@@ -1381,7 +1382,7 @@ class FeatureTracking(PipelineModule, ABC):
         self.module_name = module_name
         self.description = description
         self.example = example
-
+        self.RANSAC_threshold = RANSAC_threshold
         self.detector = detector
         self.det_free = False
 
@@ -1696,9 +1697,9 @@ class SfMScene:
             # Get Camera Data
             cam_data = CDM.get_camera_data()
             
-            # parent_metric_path = Path(__file__).resolve().parents[2]
-            # metric_file_path = str(parent_metric_path / "results" / f"metrics_results_{id}.txt")
-            metric_file_path = "/work/tmp/metric_" + str(self.id) + ".txt"
+            parent_metric_path = Path(__file__).resolve().parents[2]
+            metric_file_path = str(parent_metric_path / "results" / f"metrics_results_{id}.txt")
+            # metric_file_path = "/work/tmp/metric_" + str(self.id) + ".txt"
             # Create file or erase contents of existing one
             with open(metric_file_path, "w") as file:
                 pass

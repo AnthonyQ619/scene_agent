@@ -6,6 +6,8 @@ from torchvision.models.optical_flow import raft_large, Raft_Large_Weights
 from torchvision.utils import flow_to_image
 import numpy as np
 import cv2
+import glob
+from modules.utilities import image_builder, resize_dataset, clean_dir
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -161,16 +163,26 @@ def read_calibration(cal_file_path: str):
 
         return intrinsics, distortions, extrinsic
 
-def read_camera_flow(image_paths, calib_path):
-    if calib_path is not None:
-        intrinsics, distortion, _ = read_calibration(calib_path)
-    else: 
-        intrinsics, distortion = None, None
+def read_camera_flow(image_paths, intrinsics):
+    important_fields = {
+    "overall_motion_magnitude_score": "How much apparent image motion exists overall.",
+    "high_motion_tail_score": "How severe the larger motion regions are.",
+    "motion_variability_score": "How consistent or inconsistent the motion is across pairs.",
+    "low_baseline_risk_score": "Whether motion/parallax may be too small for good reconstruction.",
+    "large_motion_risk_score": "Whether motion may be too large for reliable matching.",
+    "rotation_change_deg_median": "How much the camera orientation typically changes.",
+    "large_rotation_risk_score": "Whether many pairs have difficult rotation changes.",
+    }
+    # if calib_path is not None:
+    #     intrinsics, distortion, _ = read_calibration(calib_path)
+    # else: 
+    #     intrinsics, distortion = None, None
     
-    image_dir = Path(image_paths)
-    images = sorted(image_dir.glob("*.png"))[:10]
+    # image_dir = Path(image_paths)
+    # images = sorted(image_dir.glob("*.png"))
+    images = sorted(glob.glob(image_paths + "/*"))
 
-    print(images)
+    # print(images)
     flows = []
     for i in range(len(images) - 1):
         flow = estimate_flow(str(images[i]), str(images[i + 1])) 
@@ -182,22 +194,190 @@ def read_camera_flow(image_paths, calib_path):
     median_flow = []
     p75_flow = []
     p90_flow = []
-
+    H, W = cv2.imread(images[0]).shape[:2]
+    # diag = np.sqrt(H**2 + W**2)
     for flow in flows:
         results = flow_magnitude_stats(flow)
-
+        
         mean_flow.append(results["mean_flow"])
         median_flow.append(results["median_flow"])
         p75_flow.append(results["p75_flow"])
         p90_flow.append(results["p90_flow"])
     
-    if intrinsics is None:
-        return mean_flow, median_flow, p75_flow, p90_flow, None
-    else:
+    flow_scores = summarize_flow_pair_stats(mean_flow, median_flow, p75_flow, p90_flow, image_shape=(H, W))
+    # if intrinsics is None:
+    #     results = summarize_flow_pair_stats(mean_flow, median_flow, p75_flow, p90_flow)
+
+    #     return results
+
+    context = f"""
+Overall: Higher Score means larger camera motion/baseline across all metrics.
+
+Overall Motion Magnitude Score: {flow_scores["overall_motion_magnitude_score"]}
+    - {important_fields["overall_motion_magnitude_score"]}
+    - Large score > 0.09
+    - Low means weak apparent motion/parallax; large means stronger camera or scene displacement.
+High Motion Tail Score: {flow_scores["high_motion_tail_score"]}
+    - {important_fields["high_motion_tail_score"]}
+    - Large Score > 0.13
+    - Low means even high-motion regions are mild; large means some regions have strong 
+      displacement that may challenge matching.
+Motion Variabbility Score: {flow_scores["motion_variability_score"]}
+    - {important_fields["motion_variability_score"]}
+    - Large Score > 0.035
+    - Low means pair-to-pair motion is consistent; large means some image pairs move much 
+      more than others.
+Low Baseline Risk Score: {flow_scores["low_baseline_risk_score"]}
+    - {important_fields["low_baseline_risk_score"]}
+    - Large Score > 0.35
+    - Low means few pairs have weak motion; large means many pairs may lack enough parallax 
+    - for good triangulation.
+Large Motion Risk Score: {flow_scores["large_motion_risk_score"]}
+    - {important_fields["large_motion_risk_score"]}
+    - Large Score > 0.45
+    - Low means few pairs have excessive motion; large means many pairs may be difficult for 
+      feature matching/tracking.
+    - Note: If all other scores are within bounds, can ignore this score as it is sensitive to
+      large motion that is still within bounds for feature matching/tracking.
+    """
+    # print(intrinsics)
+    if intrinsics is not None:
         Rs = []
         for flow in flows:
-            result = estimate_motion_from_flow(flow, intrinsics[0])
+            result = estimate_motion_from_flow(flow, intrinsics)#[0])
             R = result["R"]
             # t_dir = result["t_direction"]
-            Rs.append(R)
-        return mean_flow, median_flow, p75_flow, p90_flow, Rs
+            Rs.append(rotation_angle_deg(R))
+        r_scores = summarize_rotation_scores(Rs)
+        rotation_context = f"""
+Rotation Change in Degree: {r_scores["rotation_change_deg_median"]}
+    - {important_fields["rotation_change_deg_median"]}
+    - Large Score > 18.0
+    - Low means little camera orientation change; large means typical image pairs 
+      have significant viewpoint rotation.
+Large Rotation Risk Score: {r_scores["large_rotation_risk_score"]}
+    - {important_fields["large_rotation_risk_score"]}
+    - Large Score > 0.33
+    - Low means few pairs exceed the large-rotation threshold; large means many
+      pairs may be difficult for standard feature matching.
+        """
+
+        context += rotation_context
+
+    return context
+        # return mean_flow, median_flow, p75_flow, p90_flow, Rs
+    
+
+def rotation_angle_deg(R):
+    cos_theta = (np.trace(R) - 1.0) / 2.0
+    cos_theta = np.clip(cos_theta, -1.0, 1.0)
+    return float(np.degrees(np.arccos(cos_theta)))
+
+def summarize_rotation_scores(R_angles):
+    if R_angles is None or len(R_angles) == 0:
+        return {}
+    angles = np.asarray(R_angles, dtype=np.float32)
+    # angles = np.asarray([rotation_angle_deg(R) for R in Rs], dtype=np.float32)
+
+    return {
+        "rotation_change_deg_median": float(np.median(angles)),
+        "rotation_change_deg_p75": float(np.percentile(angles, 75)),
+        "rotation_change_deg_p90": float(np.percentile(angles, 90)),
+        "rotation_variability_deg": float(np.percentile(angles, 75) - np.percentile(angles, 25)),
+        "large_rotation_risk_score": float(np.mean(angles > 20.0)),
+    }
+
+def summarize_flow_pair_stats(
+    mean_flow,
+    median_flow,
+    p75_flow,
+    p90_flow,
+    image_shape=None,
+    low_motion_thresh=0.005,
+    high_motion_thresh=0.08,
+):
+    """
+    Summarizes pairwise optical-flow magnitude stats into dataset-level signals.
+
+    Parameters
+    ----------
+    mean_flow, median_flow, p75_flow, p90_flow:
+        Lists of scalar flow magnitudes, one value per image pair.
+
+    image_shape:
+        Optional (H, W). If given, flow magnitudes are normalized by image diagonal.
+
+    low_motion_thresh:
+        Normalized p75 threshold below which pair may have weak baseline/parallax.
+
+    high_motion_thresh:
+        Normalized p90 threshold above which pair may have large apparent motion.
+
+    Returns
+    -------
+    Dictionary of compact dataset-level motion scores.
+    """
+
+    mean_flow = np.asarray(mean_flow, dtype=np.float32)
+    median_flow = np.asarray(median_flow, dtype=np.float32)
+    p75_flow = np.asarray(p75_flow, dtype=np.float32)
+    p90_flow = np.asarray(p90_flow, dtype=np.float32)
+
+    if image_shape is not None:
+        H, W = image_shape[:2]
+        diag = np.sqrt(H**2 + W**2)
+
+        mean_flow = mean_flow / diag
+        median_flow = median_flow / diag
+        p75_flow = p75_flow / diag
+        p90_flow = p90_flow / diag
+
+    def iqr(x):
+        return float(np.percentile(x, 75) - np.percentile(x, 25))
+
+    scores = {
+        # Main camera/image motion signal
+        "overall_motion_magnitude_score": float(np.median(p75_flow)),
+
+        # Typical apparent motion
+        "typical_motion_score": float(np.median(median_flow)),
+
+        # Strong-motion tail, useful for detecting fast camera motion or large baselines
+        "high_motion_tail_score": float(np.median(p90_flow)),
+
+        # How inconsistent motion is across pairs
+        "motion_variability_score": iqr(p75_flow),
+
+        # Near-worst-case pair motion
+        "max_pair_motion_score": float(np.percentile(p90_flow, 90)),
+
+        # Risk that adjacent pairs have too little baseline/parallax
+        "low_baseline_risk_score": float(np.mean(p75_flow < low_motion_thresh)),
+
+        # Risk that image pairs are too far apart / too much apparent motion
+        "large_motion_risk_score": float(np.mean(p90_flow > high_motion_thresh)),
+
+        # Optional raw averages
+        "mean_pair_mean_flow": float(np.mean(mean_flow)),
+        "mean_pair_median_flow": float(np.mean(median_flow)),
+        "mean_pair_p75_flow": float(np.mean(p75_flow)),
+        "mean_pair_p90_flow": float(np.mean(p90_flow)),
+    }
+
+    return scores
+
+
+# img_path = "/home/anthonyq/datasets/tanks_and_temples/Lighthouse"
+# cal_path = "/home/anthonyq/datasets/tanks_and_temples/calibration_new_2048.npz"
+
+# image_dir = Path(img_path)
+# images = sorted(image_dir.glob("*.jpg"))[:40]
+
+# # result = read_camera_flow(img_path, cal_path)
+# resized_dir, resized_img_list, K = resize_dataset(image_path=images,
+#                                                        max_size=640,
+#                                                        calib_path=cal_path)
+# result = read_camera_flow(resized_dir, K)
+# clean_dir(resized_dir)
+
+# print(result)

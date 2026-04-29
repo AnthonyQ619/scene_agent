@@ -1,5 +1,12 @@
 from autosfm import AutoSFM
-autosfm = AutoSFM(model_name="gpt-5", api_directory='/work/scene_agent/breadth_agent/src/agent/agent_details/tool_context', instruction_path='/work/scene_agent/breadth_agent/src/agent/agent_details/agent_instructions/prompt_enh_examples.txt', reasoning_effort="medium")
+
+api_directory = "/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/agent_details/tool_context"
+instruction_path = "/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/agent_details/agent_instructions/prompt_enh_examples.txt"
+
+autosfm = AutoSFM(model_name="gpt-5", 
+                api_directory=api_directory,#'/work/scene_agent/breadth_agent/src/agent/agent_details/tool_context', 
+                instruction_path=instruction_path,#'/work/scene_agent/breadth_agent/src/agent/agent_details/agent_instructions/prompt_enh_examples.txt', 
+                reasoning_effort="medium")
 
 # from core.generator import Generator
 # model_name="gpt-5"
@@ -8,8 +15,8 @@ autosfm = AutoSFM(model_name="gpt-5", api_directory='/work/scene_agent/breadth_a
 # generator = Generator(model= model_name, api_directory=api_directory, reasoning_effort=reasoning_effort)
 
 # Prompt
-image_path = r"/work/dataset/DTU/scan10/images"
-calibration_path = r"/work/dataset/DTU/calibration_DTU_new.npz"
+image_path = "/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted"#r"/work/dataset/DTU/scan10/images"
+calibration_path = "/home/anthonyq/datasets/ETH/ETH/office/dslr_calibration_undistorted/calibration_ETH_new.npz"#r"/work/dataset/DTU/calibration_DTU_new.npz"
 reconstruction_type = "Sparse Reconstruction"
 gpu_mem = "12gb"
 temp_prompt = {'images':image_path,

@@ -4,7 +4,8 @@ import cv2
 from pathlib import Path
 from sceneprogllm import LLM
 from modules.utilities import image_builder, resize_dataset, clean_dir
-# from utility.optical_flow import read_camera_flow
+from .utility.optical_flow import read_camera_flow
+from .utility.illumination_analysis import generate_illumination_change_prompt
 from concurrent.futures import ThreadPoolExecutor
 
 class Generator:
@@ -129,6 +130,7 @@ Your response should be a single integer indicating the best plan index, without
         img_path = os.path.join(self.CWD, 'agent_details', 'image_context') # MAKE THIS MORE PATH ORIENTED
         self.image_paths = sorted(glob.glob(img_path + "/*"))
         self.new_query_img_path = None
+        self.cam_motion_prompt = None
 
     def get_multiple_plans(self, query, query_video_path, num_plans=5):
         enhanced_prompt = self.enhance_prompt(query, query_video_path)
@@ -208,26 +210,23 @@ Your Output:
         return plan
     
     def enhance_prompt(self, query, query_video_path):
-        enhanced_prompt = f"""
-The following are a few examples of reference procedures to generate with corresponding images:
-{self.context_str}
+        if self.cam_motion_prompt is None:
+            dataset_path = sorted(glob.glob(query_video_path + "/*"))
+            if len(dataset_path) > 40:
+                dataset_path = dataset_path[:40]
+            resized_dir, resized_img_list, K = resize_dataset(image_path=dataset_path,
+                                                              max_size=350)
+            result = read_camera_flow(resized_dir, K)
+            context = generate_illumination_change_prompt(dataset_path)
+            clean_dir(resized_dir)
+            self.cam_motion_prompt = f"""
+            Camera Motion statistics from Optical Flow
+            
+            {result}
+            Illuminance Analysis Statistics:
 
-Each procedure example is titled "Procedure:Num", and each corresponding image is titled "image_context(Num).png",
-where each matching "Num" value between procedure and image title is the corresponding image set and generated procedure.
-In short, the first 8 images provided correspond to the first 8 procedure examples in respective order. The final image 
-is the given scene from the user to generate a procedure for. 
-
-The followiing information is provided to guide your chosen sub-modules for each step of the generated procedure.
-{query}
-"""
-        #TODO: Include enhanced prompt for motion cues here.
-        # mean_flow, median_flow, p75_flow, p90_flow, Rs = read_camera_flow(query_video_path, query["calibration"])
-
-        enhanced_proxmpt_motion = f"""
-TODO: Fill
-"""
-        dataset_path = sorted(glob.glob(query_video_path + "/*  "))
-
+            {context}
+            """
         # This is so we don't repeatedly add the same image to the self.image_paths
         if self.new_query_img_path is None: 
             new_img = image_builder(image_path=query_video_path, 
@@ -246,6 +245,22 @@ TODO: Fill
             self.new_query_img_path = new_img_path + f"/query_img.png"
             self.image_paths.append(new_img_path + f"/query_img.png")
         
+        enhanced_prompt = f"""
+The following are a few examples of reference procedures to generate with corresponding images:
+{self.context_str}
+
+Each procedure example is titled "Procedure:Num", and each corresponding image is titled "image_context(Num).png",
+where each matching "Num" value between procedure and image title is the corresponding image set and generated procedure.
+In short, the first 8 images provided correspond to the first 8 procedure examples in respective order. The final image 
+is the given scene from the user to generate a procedure for. 
+
+Following information are statistics (With context to understand the signal of each score) about camera motion from 
+optical flow and illuminance analysis of the provided images:
+{self.cam_motion_prompt}
+
+The followiing information is provided to guide your chosen sub-modules for each step of the generated procedure.
+{query}
+"""
         return enhanced_prompt
     
 
