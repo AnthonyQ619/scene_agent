@@ -2,6 +2,8 @@ from core.compiler import Compiler
 from core.generator import Generator
 from core.promptenhancer import PromptEnhancerLLM
 from sceneprogllm import LLM
+from pathlib import Path
+import os
 
 class AutoSFM:
     def __init__(self, model_name, api_directory, instruction_path, reasoning_effort):
@@ -10,30 +12,71 @@ class AutoSFM:
         self.enhancer = PromptEnhancerLLM(model=model_name, instruction_path=instruction_path, reasoning_effort=reasoning_effort)
 
         self.evaluator_llm = LLM(
-            system_desc="""
-You are an expert Structure from Motion workflow plans.
-Given the image of the scene and reconstruction guidelines we wish to follow (prompt) and several step-by-step node procedures, your task is to:
+            system_desc=f"""
+You are an expert on Structure from Motion workflow planning and optimization.
+Given the image of the scene, reconstruction guidelines and the generated plan with corresponding metrics/feedback for improvement:
 	1.	Analyze each SfM plan in detail — what modules are called, parameters used, and if we invoke the correct sub-modules for the reconstruction type.
-	2.	Compare how accurately each sub-module that is invoked best fits the given scene we wish to reconstruct.
-	3.	Choose the best procedure and explain why — citing specific SfM planning logic, module selection, and why parameterization of tools make sense.
+	2.	Compare how successful each sub-module is performing for the given plan. Verify if it is successful or can be improved upon.
+	3.	Choose the best plan with the best performing metrics.
+    4.  If all plans only have feedback due to performance errors, select any of the plans available when no metris are provided
 
 Judge using these key aspects:
 	•	Choice of sub-modules accurately coincide with the image of the scene and best use-cases.
-	•	Sub-module selection fits within the system constraints of the user prompt.
+	•	Sub-module performance from the metrics follow accordingly given context examples from the prompt.
 	•	Reconstruction type is followed precisely, and our last sub-module invoked directly represents the prompt (Pose, Sparse, or Dense).
+
+Following are the guidelines of what each metric means:
+{self.generator.metric_prompt}
 
 You are to provide me the index (starting from 1) of the best plan amongst those provided to you, so that I can pick it easily.
 Your response should be a single integer indicating the best plan index, without any additional commentary.
 """,
             response_format="json",
             response_params={"best_plan_index":"int"},
-            model_name=model,
+            model_name=model_name,
             reasoning_effort=reasoning_effort
         )
-    def evaluate_plans(self, plans):
 
+        evaluation_context = ""
 
-        return plans[0][0], plans[0][1], plans[0][2] ## For now, just return the first plan. We can implement a more complex evaluation strategy later.
+        self.CWD = str(Path(__file__).resolve().parents[0])
+
+        full_context_plan_metric_f = os.path.join(self.CWD, 'agent_details', 'optimize_context', 'script_metrics.txt')
+        full_context_file_proc_f = os.path.join(self.CWD, 'agent_details', 'script_context', 'process.txt')
+
+        # Read Process/Metric Files
+        metric_context = full_context_plan_metric_f.read()
+        process_context = full_context_file_proc_f.read()
+
+        ## Split Context
+        metric_context = metric_context.split("=%$%=")
+        process_context = process_context.split("==$#$==")
+
+        for i in range(len(process_context) - 1):
+            plan = process_context[i]
+            metrics = metric_context[i]
+            evaluation_context += f"Example {i + 1}:\n" + plan + "\n" + metrics + "\n"
+
+        self.p_m_context = evaluation_context
+
+    def evaluate_plans(self, plans, user_query):
+        enhanced_prompt = f"""
+Given the user query:
+{user_query}
+And the attached image of the Scene to reconstruct, we want to generate a plan that is optimal for the 
+given scene. 
+Here are a few examples of plans and their resulting metrics:
+{self.p_m_context}
+
+You are now given a set of plans and their resulting metrics from generating a SfM plan to the given scene:\n
+"""
+        for idx, pl, prog, output in enumerate(plans):
+            enhanced_prompt += f"\nPlan {idx+1}:\n{pl}\nResult {idx+1}:\n{output}\n"
+        enhanced_prompt += "\nSelect the plan that generates the best set of metrics, if no metrics are provided (All plans failed to execute), choose any plan as a result"
+
+        response = self.evaluator_llm(enhanced_prompt, image_paths=self.generator.new_query_img_path)["best_plan_index"]
+        best_index = int(response) - 1  # Convert to 0-based index
+        return plans[best_index][0], plans[best_index][1], plans[best_index][2] ## For now, just return the first plan. We can implement a more complex evaluation strategy later.
 
     def run(self, prompt):
         print("Enhancing prompt...")

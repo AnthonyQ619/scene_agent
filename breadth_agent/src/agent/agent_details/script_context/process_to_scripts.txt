@@ -236,7 +236,7 @@ STEP 6: Reconstruct the Scene now that we have the estimated Camera Poses and Tr
 
 STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 - To ensure scene is geometrically correct, we want to set 
-    - Set max_num_iterations=200, 
+    - Set max_num_iterations=400, 
       - Reasoning: Since initial 2D points will not be as accurate due to inaccuracy of certain matches and tracks in previous methods despite
         optimal scene lighting and texture being for ORB features, we have to set interations to 200 to ensure convergence of scene for optimal reconstruction.
     - Set GPU = False,
@@ -258,7 +258,7 @@ reconstructed_scene = SfMScene(ID,
 
 # Step 2: Detect Features
 reconstructed_scene.FeatureDetectionORB(
-    max_keypoints=8000,
+    max_keypoints=10000,
     set_nms=True,
     set_nms_allowed_points=4000
 )
@@ -266,8 +266,8 @@ reconstructed_scene.FeatureDetectionORB(
 # Step 3: Detect Feature Pairs
 reconstructed_scene.FeatureMatchBFPair(
     detector='orb', 
-    RANSAC_threshold=1.0,
-    lowes_thresh=0.6
+    RANSAC_threshold=3.0,
+    lowes_thresh=0.8
 )
 
 # Step 4: Detect/Estimate Camera Poses
@@ -286,7 +286,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureMatchBFTracking(
     detector="orb",
-    RANSAC_threshold=2.0,
+    RANSAC_threshold=3.0,
     lowes_thresh=0.8,
     cross_check=False
 )
@@ -300,7 +300,7 @@ reconstructed_scene.Sparse3DReconstructionMono(
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=200,
+    max_num_iterations=400,
     use_gpu=False
 )
 ==$#$==
@@ -333,9 +333,9 @@ STEP 4: Estimate the camera pose using image data directly
 
 STEP 5: Track Features across multiple images to create feature tracks for 3D point estimation
 - Track Features across multiple images using the SuperGlue Feature Tracking tool. Since the images of the scene have illumination changes, we need a detector
-  more robust to lighting changes, and in this case it is either superglue or lightglue. We opt for SuperGlue for more accurate matches in tracking points.
-    - Set RANSAC_threshold = 3.0 (Default 3.0)
-        - Reasoning: Default setting as we want to build longer feature tracks for more accurate estimate of 3D points optimization in the scene
+  more robust to lighting changes, and in this case it is either superglue or SuperGlue. We opt for SuperGlue for more accurate matches in tracking points.
+    - Set RANSAC_threshold = 1.0 (Default 3.0)
+        - Reasoning: We want to build longer feature tracks for more accurate estimate of 3D points optimization in the scene, so we opt for a strict constraint.
     - Set detector = "superpoint" as that is the detector we are using.
     - Set setting = "Indoor" to utilize the indoor weights of the model ("Outdoor" is for outdoor scenes)
         - Reasoning: Scene is in an indoor setting, so we use the weights of the model trained for indoor environments.
@@ -349,7 +349,7 @@ STEP 6: Reconstruct the Scene now that we have the estimated Camera Poses and Tr
 
 STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 - To ensure scene is geometrically correct, we want to set 
-    - Set max_num_iterations=60
+    - Set max_num_iterations=230
       - Reasoning: Since initial 2D points will not be as accurate due to leniency in 3D point to point map matching from VGGT calculation
       in previous methods despite superpoint being more robust to illumination changing environments.
     - Set GPU = False,
@@ -381,7 +381,7 @@ reconstructed_scene.CamPoseEstimatorVGGTModel()
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureMatchSuperGlueTracking(
     detector='superpoint', 
-    RANSAC_threshold=3.0,
+    RANSAC_threshold=1.0,
     setting="indoor"
 )
 
@@ -390,7 +390,7 @@ reconstructed_scene.Sparse3DReconstructionVGGT(min_observe=4)
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=60,
+    max_num_iterations=230,
     use_gpu=False
 )
 
@@ -448,10 +448,10 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
       - Reasoning: Since we are applying local optimization, the proposed frame we estimate we have higher confidence to be correct.
 
 STEP 5: Track Features across multiple images to create feature tracks for 3D point estimation
-- Track Features across multiple images using the SuperGlue Feature Tracking tool
-    - Set RANSAC_threshold = 2.0 (default 3.0)
-      - Reasoning: less strict since we are using SuperGlue with SuperPoint features (which are inherently inaccuarate), 
-        which is more accurate than lightglue and we want to build longer feature tracks 
+- Track Features across multiple images using the LightGlue Feature Tracking tool
+    - Set RANSAC_threshold = 2.5 (default 3.0)
+      - Reasoning: slightly more strict since we are using LightGlue with SuperPoint features (which are inherently inaccuarate), 
+        but more points are tracked and we want to build longer feature tracks 
         for more accurate estimate of 3D points optimization in the scene
     - Set the detector = "superpoint" as that is the detector we are using.
     - Set the setting = "Indoor" 
@@ -460,7 +460,7 @@ STEP 5: Track Features across multiple images to create feature tracks for 3D po
 STEP 6: Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
 - Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
     - Set min_observe = 4 (Default 3), 
-      - Reasoning: since we are using SuperPoint with SuperGlue, we have accessibility to large tracks as the lighting changes are not extreme enough
+      - Reasoning: since we are using SuperPoint with LightGlue, we have accessibility to large tracks as the lighting changes are not extreme enough
         for SuperPoint features to be extremely inaccurate.
     - Set min_angle = 3.0 (Default 1.0)
       - Reasoning: utilize a larger minimum angle to ensure 3D point estimates are more acccurate, and since we have longer tracks, this is very feasible for this scene.
@@ -485,19 +485,19 @@ image_path = "/work/dataset/CO3Dv2_DATASET/apple/189_20393_38136/images"
 calibration_path = "/work/dataset/CO3Dv2_DATASET/apple/calibration_new_189_20393_38136.npz"
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(ID, 
+reconstructed_scene = SfMScene(ID,
                                 image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
 
 # Step 2: Detect Features
 reconstructed_scene.FeatureDetectionSP(
-    max_keypoints=5000
+    max_keypoints=6000
 )
 
 # Step 3: Detect Feature Pairs
 reconstructed_scene.FeatureMatchSuperGluePair(
-    RANSAC_threshold=1.0
+    RANSAC_threshold=3.0
 )
 
 # Step 4: Detect/Estimate Camera Poses
@@ -515,7 +515,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureMatchLightGlueTracking(
     detector="superpoint",
-    RANSAC_threshold=3.0
+    RANSAC_threshold=2.5
 )
 
 # Step 6: Estimate Sparse Reconstruction
@@ -531,7 +531,6 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
     use_gpu=False
 )
 ==$#$==
-Example Process:
 
 GOAL RECONSTRUCTION: Dense Reconstruction
 
@@ -558,7 +557,7 @@ STEP 3: Detect Feature Matches
   instead of lightglue here for more accuracy, as estimating camera pose using the PnP algorithm is not robust to outliers, and there's intrinsic error in superpoint
   keypoints, so we need very accurate correspondences to offset the baseline error of the detector here. Since the object is a smooth surface, superglue is more 
   robust for detecting point correspondences in this environment setting.
-    - Set RANSAC_threshold = 0.9 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
+    - Set RANSAC_threshold = 1.5 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
       Reasoning: for much more strict outlier rejection since we need to ensure we remove all outlier correspondences possible, since inlier correspondences will 
       inherently contain some errors, especially in this case where the environment contains objects that are smooth and inconsistnet lighting, so point correspondences
       will inherently have some errors.
@@ -586,9 +585,9 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
       - Reasoning: Since we are applying local optimization, the proposed frame we estimate we have higher confidence to be correct.
 
 STEP 5: Track Features across multiple images to create feature tracks for 3D point estimation
-- Track Features across multiple images using the LightGlue Feature Tracking tool
-    - Set RANSAC_threshold = 2.0 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
-      - Reasoning: less strict since we are using LightGlue with SuperPoint features (which are inherently inaccuarate), 
+- Track Features across multiple images using the SuperGlue Feature Tracking tool
+    - Set RANSAC_threshold = 3.0 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
+      - Reasoning: less strict since we are using SuperGlue with SuperPoint features (which are inherently inaccuarate), 
         since the scene is more difficult for detecting features, we need more leniency in point tracking/correspondences since we need to ensure
         we have enough tracks, and long enough, to properly estimate 3D points with good intialization for global optimization to accurately build the scene.
     - Set the detector = "superpoint" as that is the detector we are using.
@@ -596,7 +595,7 @@ STEP 5: Track Features across multiple images to create feature tracks for 3D po
 STEP 6: Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
 - Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
     - Set min_observe = 3 (Default 3), 
-      - Reasoning: since we are using SuperPoint with LightGlue on a scene containing smooth surfaces with less texture, we do not have accessibility to 
+      - Reasoning: since we are using SuperPoint with SuperGlue on a scene containing smooth surfaces with less texture, we do not have accessibility to 
       large tracks as the lighting changes and surface of scene objects leads to higher error keypoint correspondences. Thus, we use the lowest observation
       count for 3D point estimation to allow enough 3D points in the sparse reconstruction.
     - Set min_angle=1.0 (Default 1.0)
@@ -634,7 +633,7 @@ image_path = "/work/dataset/DTU/scan8_normal_lighting"
 calibration_path = "/work/dataset/DTU/calibration_DTU_new.npz"
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(ID,
+reconstructed_scene = SfMScene(ID, 
                                 image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
@@ -647,7 +646,7 @@ reconstructed_scene.FeatureDetectionSP(
 # Step 3: Detect Feature Pairs
 reconstructed_scene.FeatureMatchSuperGluePair(
     detector='superpoint',
-    RANSAC_threshold=0.9
+    RANSAC_threshold=1.5
 )
 
 # Step 4: Detect/Estimate Camera Poses
@@ -663,9 +662,9 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 )
 
 # Step 5: Detect Feature Tracks
-reconstructed_scene.FeatureMatchLightGlueTracking(
+reconstructed_scene.FeatureMatchSuperGlueTracking(
     detector="superpoint",
-    RANSAC_threshold=2.0
+    RANSAC_threshold=3.0
 )
 
 # Step 6: Estimate Sparse Reconstruction
@@ -677,7 +676,7 @@ reconstructed_scene.Sparse3DReconstructionMono(
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=170,
+    max_num_iterations=250,
     use_gpu=False
 )
 
@@ -786,7 +785,7 @@ image_path = "/work/dataset/Tanks_and_Temples/Family"
 calibration_path = "/work/dataset/Tanks_and_Temples/calibration_new_2048.npz"
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(ID,
+reconstructed_scene = SfMScene(ID, 
                                 image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
@@ -834,7 +833,7 @@ reconstructed_scene.Sparse3DReconstructionMono(
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=250,
+    max_num_iterations=280,
     use_gpu=False
 )
 ==$#$==
@@ -917,7 +916,7 @@ image_path = "/work/dataset/CO3Dv2_DATASET/hydrant/167_18184_34441/images"
 calibration_path = "/work/dataset/CO3Dv2_DATASET/hydrant/calibration_new_167_18184_34441.npz"
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(ID,
+reconstructed_scene = SfMScene(ID, 
                                 image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
@@ -1020,7 +1019,7 @@ STEP 5: Track Features across multiple images to create feature tracks for 3D po
         feature tracks, thus we opt for the same threshold as step 3 of the 0.02 we did for pairwise matching 
     - Set lowes_thresh = 0.75 (Default 0.75)
       
-TEP 6: Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
+STEP 6: Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
 - We are usng the Sparse Reconstruction module, specifically the classical approach with a monocular camera, so opt for the Sparse3DReconstruction module
     - Set min_observe=3 (Default 3)
     - Set min_angle=2.0 (Default 1.0) 

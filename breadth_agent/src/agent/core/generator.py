@@ -165,7 +165,7 @@ The followiing information is provided from the user query to guide your chosen 
 {query}
 
 You are now given the following plans/procedures of a Structure from Motion workflow generated from the above query and final image as the
-scene to reconstruct\n:
+scene to reconstruct:\n
 """
         return new_prompt
 

@@ -173,7 +173,7 @@ STEP 6: Reconstruct the Scene now that we have the estimated Camera Poses and Tr
 
 STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 - To ensure scene is geometrically correct, we want to set 
-    - Set max_num_iterations=200, 
+    - Set max_num_iterations=400, 
       - Reasoning: Since initial 2D points will not be as accurate due to inaccuracy of certain matches and tracks in previous methods despite
         optimal scene lighting and texture being for ORB features, we have to set interations to 200 to ensure convergence of scene for optimal reconstruction.
     - Set GPU = False,
@@ -209,9 +209,9 @@ STEP 4: Estimate the camera pose using image data directly
 
 STEP 5: Track Features across multiple images to create feature tracks for 3D point estimation
 - Track Features across multiple images using the SuperGlue Feature Tracking tool. Since the images of the scene have illumination changes, we need a detector
-  more robust to lighting changes, and in this case it is either superglue or lightglue. We opt for SuperGlue for more accurate matches in tracking points.
-    - Set RANSAC_threshold = 3.0 (Default 3.0)
-        - Reasoning: Default setting as we want to build longer feature tracks for more accurate estimate of 3D points optimization in the scene
+  more robust to lighting changes, and in this case it is either superglue or SuperGlue. We opt for SuperGlue for more accurate matches in tracking points.
+    - Set RANSAC_threshold = 1.0 (Default 3.0)
+        - Reasoning: We want to build longer feature tracks for more accurate estimate of 3D points optimization in the scene, so we opt for a strict constraint.
     - Set detector = "superpoint" as that is the detector we are using.
     - Set setting = "Indoor" to utilize the indoor weights of the model ("Outdoor" is for outdoor scenes)
         - Reasoning: Scene is in an indoor setting, so we use the weights of the model trained for indoor environments.
@@ -225,7 +225,7 @@ STEP 6: Reconstruct the Scene now that we have the estimated Camera Poses and Tr
 
 STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 - To ensure scene is geometrically correct, we want to set 
-    - Set max_num_iterations=60
+    - Set max_num_iterations=230
       - Reasoning: Since initial 2D points will not be as accurate due to leniency in 3D point to point map matching from VGGT calculation
       in previous methods despite superpoint being more robust to illumination changing environments.
     - Set GPU = False,
@@ -285,10 +285,10 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
       - Reasoning: Since we are applying local optimization, the proposed frame we estimate we have higher confidence to be correct.
 
 STEP 5: Track Features across multiple images to create feature tracks for 3D point estimation
-- Track Features across multiple images using the SuperGlue Feature Tracking tool
-    - Set RANSAC_threshold = 2.0 (default 3.0)
-      - Reasoning: less strict since we are using SuperGlue with SuperPoint features (which are inherently inaccuarate), 
-        which is more accurate than lightglue and we want to build longer feature tracks 
+- Track Features across multiple images using the LightGlue Feature Tracking tool
+    - Set RANSAC_threshold = 2.5 (default 3.0)
+      - Reasoning: slightly more strict since we are using LightGlue with SuperPoint features (which are inherently inaccuarate), 
+        but more points are tracked and we want to build longer feature tracks 
         for more accurate estimate of 3D points optimization in the scene
     - Set the detector = "superpoint" as that is the detector we are using.
     - Set the setting = "Indoor" 
@@ -297,7 +297,7 @@ STEP 5: Track Features across multiple images to create feature tracks for 3D po
 STEP 6: Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
 - Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
     - Set min_observe = 4 (Default 3), 
-      - Reasoning: since we are using SuperPoint with SuperGlue, we have accessibility to large tracks as the lighting changes are not extreme enough
+      - Reasoning: since we are using SuperPoint with LightGlue, we have accessibility to large tracks as the lighting changes are not extreme enough
         for SuperPoint features to be extremely inaccurate.
     - Set min_angle = 3.0 (Default 1.0)
       - Reasoning: utilize a larger minimum angle to ensure 3D point estimates are more acccurate, and since we have longer tracks, this is very feasible for this scene.
@@ -341,7 +341,7 @@ STEP 3: Detect Feature Matches
   instead of lightglue here for more accuracy, as estimating camera pose using the PnP algorithm is not robust to outliers, and there's intrinsic error in superpoint
   keypoints, so we need very accurate correspondences to offset the baseline error of the detector here. Since the object is a smooth surface, superglue is more 
   robust for detecting point correspondences in this environment setting.
-    - Set RANSAC_threshold = 0.9 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
+    - Set RANSAC_threshold = 1.5 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
       Reasoning: for much more strict outlier rejection since we need to ensure we remove all outlier correspondences possible, since inlier correspondences will 
       inherently contain some errors, especially in this case where the environment contains objects that are smooth and inconsistnet lighting, so point correspondences
       will inherently have some errors.
@@ -369,9 +369,9 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
       - Reasoning: Since we are applying local optimization, the proposed frame we estimate we have higher confidence to be correct.
 
 STEP 5: Track Features across multiple images to create feature tracks for 3D point estimation
-- Track Features across multiple images using the LightGlue Feature Tracking tool
-    - Set RANSAC_threshold = 2.0 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
-      - Reasoning: less strict since we are using LightGlue with SuperPoint features (which are inherently inaccuarate), 
+- Track Features across multiple images using the SuperGlue Feature Tracking tool
+    - Set RANSAC_threshold = 3.0 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
+      - Reasoning: less strict since we are using SuperGlue with SuperPoint features (which are inherently inaccuarate), 
         since the scene is more difficult for detecting features, we need more leniency in point tracking/correspondences since we need to ensure
         we have enough tracks, and long enough, to properly estimate 3D points with good intialization for global optimization to accurately build the scene.
     - Set the detector = "superpoint" as that is the detector we are using.
@@ -379,7 +379,7 @@ STEP 5: Track Features across multiple images to create feature tracks for 3D po
 STEP 6: Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
 - Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
     - Set min_observe = 3 (Default 3), 
-      - Reasoning: since we are using SuperPoint with LightGlue on a scene containing smooth surfaces with less texture, we do not have accessibility to 
+      - Reasoning: since we are using SuperPoint with SuperGlue on a scene containing smooth surfaces with less texture, we do not have accessibility to 
       large tracks as the lighting changes and surface of scene objects leads to higher error keypoint correspondences. Thus, we use the lowest observation
       count for 3D point estimation to allow enough 3D points in the sparse reconstruction.
     - Set min_angle=1.0 (Default 1.0)
