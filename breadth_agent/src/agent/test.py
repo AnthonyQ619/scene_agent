@@ -1,12 +1,14 @@
 from autosfm import AutoSFM
+from core.logger import Logger
 
 api_directory = "/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/agent_details/tool_context"
 instruction_path = "/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/agent_details/agent_instructions/prompt_enh_examples.txt"
-
+logger = Logger(desc="DTU_scan20", log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results")
 autosfm = AutoSFM(model_name="gpt-5", 
                 api_directory=api_directory,#'/work/scene_agent/breadth_agent/src/agent/agent_details/tool_context', 
                 instruction_path=instruction_path,#'/work/scene_agent/breadth_agent/src/agent/agent_details/agent_instructions/prompt_enh_examples.txt', 
-                reasoning_effort="medium")
+                reasoning_effort="medium",
+                logger=logger)
 
 # from core.generator import Generator
 # model_name="gpt-5"

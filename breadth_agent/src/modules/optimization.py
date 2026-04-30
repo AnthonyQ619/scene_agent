@@ -49,8 +49,8 @@ class BundleAdjustmentOptimizerLocal(OptimizationClass):
         refine_principal_point: bool = False,
         refine_extra_params: bool = False,
         max_num_iterations: int = 50,
-        use_gpu: bool = True,
-        gpu_index: int = 0,
+        # use_gpu: bool = True,
+        # gpu_index: int = 0,
         robust_loss: bool = True,
     ):
 
@@ -77,10 +77,6 @@ Initialization/Function Parameters:
     - default (bool): False
 - max_num_iterations: maximum number of iterations to run the Levenberg-Marquardt algorithm for bundle adjustment
     - default (int): 50
-- use_gpu: Whether to use Ceres CUDA linear algebra library, if available. 
-    - default (bool): True
-- gpu_index: Which GPU to use for solving the problem.
-    - default (int): 0 
 - robust_loss: Determins whether to use one of the loss function types
     Loss function types: Trivial (non-robust, robust = False) and Cauchy (robust, robust = True) loss
     - default (bool): True
@@ -93,6 +89,11 @@ Function Calls:
 - Function: Module call (Python __call__ function)
    - Default: NOT used for this module.
 """
+# To use GPU Context now removed.
+# - use_gpu: Whether to use Ceres CUDA linear algebra library, if available. 
+#     - default (bool): True
+# - gpu_index: Which GPU to use for solving the problem.
+#     - default (int): 0 
 
         example = f"""
 Initialization modules
@@ -132,8 +133,8 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
         self.refine_principal_point = refine_principal_point
         self.refine_extra_params = refine_extra_params
         self.max_num_iterations = max_num_iterations
-        self.use_gpu = use_gpu
-        self.gpu_index = gpu_index
+        # self.use_gpu = use_gpu
+        # self.gpu_index = gpu_index
         self.robust_loss = robust_loss
 
         # Set up window size and min_track_length 
@@ -191,9 +192,9 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
         ba_opts.refine_extra_params = self.refine_extra_params
 
         # GPU knobs (only used when supported in your build)
-        if self.use_gpu:
-            ba_opts.use_gpu = bool(self.use_gpu)
-            ba_opts.gpu_index = str(self.gpu_index)
+        # if self.use_gpu:
+        #     ba_opts.use_gpu = bool(self.use_gpu)
+        #     ba_opts.gpu_index = str(self.gpu_index)
 
         # Ceres solver options (requires PyCeres installed in your environment)
         # was ba_opts.solver_options.max_num_iterations = int(self.max_num_iterations) 
@@ -435,8 +436,8 @@ class BundleAdjustmentOptimizerGlobal(OptimizationClass):
         refine_principal_point: bool = False,
         refine_extra_params: bool = False,
         max_num_iterations: int = 50,
-        use_gpu: bool = True,
-        gpu_index: int = 0,
+        # use_gpu: bool = True,
+        # gpu_index: int = 0,
         robust_loss: bool = True,
     ):
         # super().__init__(cam_data=cam_data,
@@ -466,10 +467,6 @@ Initialization/Function Parameters:
     - default (bool): False
 - max_num_iterations: maximum number of iterations to run the Levenberg-Marquardt algorithm for bundle adjustment
     - default (int): 50
-- use_gpu: Whether to use Ceres CUDA linear algebra library, if available. 
-    - default (bool): True
-- gpu_index: Which GPU to use for solving the problem.
-    - default (int): 0 
 - robust_loss: Determins whether to use one of the loss function types
     Loss function types: Trivial (non-robust, robust = False) and Cauchy (robust, robust = True) loss
     - default (bool): True
@@ -513,8 +510,7 @@ reconstructed_scene = SfMScene(image_path = image_path,
 
 # Step 7: Run Global Optimization on Sparsely Reconstructed Scene 
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=200,
-    use_gpu=False
+    max_num_iterations=200
 )
 """
         super().__init__(cam_data=cam_data,
@@ -527,8 +523,8 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         self.refine_principal_point = refine_principal_point
         self.refine_extra_params = refine_extra_params
         self.max_num_iterations = max_num_iterations
-        self.use_gpu = use_gpu
-        self.gpu_index = gpu_index
+        # self.use_gpu = use_gpu
+        # self.gpu_index = gpu_index
         self.robust_loss = robust_loss
 
         # Define workspace location
@@ -590,9 +586,9 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         ba_opts.refine_extra_params = self.refine_extra_params
 
         # GPU knobs (only used when supported in your build)
-        if self.use_gpu:
-            ba_opts.use_gpu = bool(self.use_gpu)
-            ba_opts.gpu_index = str(self.gpu_index)
+        # if self.use_gpu:
+        #     ba_opts.use_gpu = bool(self.use_gpu)
+        #     ba_opts.gpu_index = str(self.gpu_index)
 
         # Ceres solver options (requires PyCeres installed in your environment)
         ba_opts.ceres.solver_options.max_num_iterations = int(self.max_num_iterations) 

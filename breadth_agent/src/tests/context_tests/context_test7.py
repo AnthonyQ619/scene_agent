@@ -107,7 +107,6 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     confidence=0.99,
     optimizer = ("BundleAdjustmentOptimizerLocal", {
         "max_num_iterations": 20,
-        "window_size": 5,
-        "use_gpu": False
+        "window_size": 5
     }),
 )

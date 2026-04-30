@@ -1532,6 +1532,7 @@ class FeatureTracking(PipelineModule, ABC):
 
 class OptimizationClass(PipelineModule, ABC):
     use_base_metrics = True
+    use_no_metrics = False
     _registered_metric_methods: tuple[str, ...] = ()
     output_key = "optimized_scene"
 
@@ -1644,6 +1645,9 @@ class OptimizationClass(PipelineModule, ABC):
         raise NotImplementedError
 
     def calculate_metrics(self, current_scene: Scene) -> None:
+        if self.use_no_metrics:
+            return
+        
         event_msg = self._collect_metrics(current_scene)
         print(json.dumps(event_msg), flush=True)
 

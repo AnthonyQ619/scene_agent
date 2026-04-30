@@ -89,6 +89,5 @@ reconstructed_scene.Sparse3DReconstructionVGGT(min_observe=4)
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=230,
-    use_gpu=False
+    max_num_iterations=230
 )

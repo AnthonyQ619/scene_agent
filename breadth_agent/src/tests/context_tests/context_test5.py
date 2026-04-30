@@ -128,9 +128,8 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     iteration_count=300,
     confidence=0.995,
     optimizer = ("BundleAdjustmentOptimizerLocal", {
-        "max_num_iterations": 301,
-        "window_size": 5,
-        "use_gpu": False
+        "max_num_iterations": 30,
+        "window_size": 5
     }),
 )
 
@@ -154,9 +153,9 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
 )
 
 # STEP 8: Run Rense Reconstruction Algorithm
-# reconstructed_scene.Dense3DReconstructionMono(
-#     reproj_error=3.0,
-#     min_triangulation_angle=1.0,
-#     num_samples=15,
-#     num_iterations=3
-# )
+reconstructed_scene.Dense3DReconstructionMono(
+    reproj_error=3.0,
+    min_triangulation_angle=1.0,
+    num_samples=15,
+    num_iterations=3
+)

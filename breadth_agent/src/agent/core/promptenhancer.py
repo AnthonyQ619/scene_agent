@@ -52,6 +52,10 @@ reconstruction: Description of whether we should reconstruct the scene in sparse
 calibration: Description of if the image data set provided is calibrated or not
 memory: Description of whether we have enough memory for VGGT/MapAnything/MONSt3R to be used in specific cases, or we should use the classical approach of feature detection based solution
 """
+# Description of whether we have enough memory for VGGT/MapAnything/MONSt3R models that are supported to be used in very specific cases of when a detector based
+# solution will not work. Use classical based solution when necessary, especially if low on GPU resources, but opt to detector free models if scene is not good for feature
+# detectors.
+#Description of whether we have enough memory for VGGT/MapAnything/MONSt3R to be used in specific cases, or we should use the classical approach of feature detection based solution
 # scene_summary: Summary of the scene description of which we plan to reconstruct. Utilize the provided information. Don't mention image count as description was only based on a subset of images
         # Build LLM
         sys_desc = system_desc + "\n" + add_instruction + "\n" + footer

@@ -116,8 +116,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     confidence=0.99,
     optimizer = ("BundleAdjustmentOptimizerLocal", {
         "max_num_iterations": 21,
-        "window_size": 12,
-        "use_gpu": False
+        "window_size": 12
     }),
 )
 
@@ -136,6 +135,5 @@ reconstructed_scene.Sparse3DReconstructionMono(
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=450,
-    use_gpu=False
+    max_num_iterations=450
 )
