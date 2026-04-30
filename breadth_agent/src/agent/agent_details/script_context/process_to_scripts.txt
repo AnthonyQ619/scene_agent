@@ -73,9 +73,7 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
     - Set max_num_iterations=200, 
       - Reasoning: Since initial 2D points will not be as accurate due to inaccuracy of certain matches and tracks in previous methods despite
         optimal scene lighting and texture being for SIFT features, we have to set interations to 200 to ensure convergence of scene for optimal reconstruction.
-    - Set GPU = False,
-      - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
-
+    
 STEP 8: Apply Dense Reconstruction Module for dense scene reconstruction. 
 - Since we have a Mono camera, and not using VGGT, we opt for the traditonal approach. Use Dense3DReconstructionMono module.
     - Set reproj_error= 3.0 (Default 3.0, in Pixel Coordinates)
@@ -142,8 +140,7 @@ reconstructed_scene.Sparse3DReconstructionMono(
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=200,
-    use_gpu=False
+    max_num_iterations=200
 )
 
 # STEP 8: Run Rense Reconstruction Algorithm
@@ -196,8 +193,6 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
     - Initialize the Local Optimization module "BundleAdjustmentOptimizerLocal"
         - Set iteration count for Bundle Adjustment to only 20
         - Set window size to 8 (Default) since camera movement is minimal and better pose correction.
-        - Set GPU = False,
-            - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
         - Set robust_lost = True,
             - Reasoniong: Since we are using less accurate features, we need a robust loss function to be resistent to outlier if they are left.
         - Reasoning: We don't need to converge here, just reduce pose error to below 0.5 pixel reprojection error to ensure inital build allows 
@@ -239,8 +234,6 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
     - Set max_num_iterations=400, 
       - Reasoning: Since initial 2D points will not be as accurate due to inaccuracy of certain matches and tracks in previous methods despite
         optimal scene lighting and texture being for ORB features, we have to set interations to 200 to ensure convergence of scene for optimal reconstruction.
-    - Set GPU = False,
-      - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
 
 ==#$#==
 Example Code:
@@ -278,8 +271,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     optimizer = ("BundleAdjustmentOptimizerLocal", {
         "max_num_iterations": 20,
         "window_size": 8,
-        "robust_loss": True,
-        "use_gpu": False
+        "robust_loss": True
     }),
 )
 
@@ -300,8 +292,7 @@ reconstructed_scene.Sparse3DReconstructionMono(
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=400,
-    use_gpu=False
+    max_num_iterations=400
 )
 ==$#$==
 Example Process:
@@ -352,8 +343,6 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
     - Set max_num_iterations=230
       - Reasoning: Since initial 2D points will not be as accurate due to leniency in 3D point to point map matching from VGGT calculation
       in previous methods despite superpoint being more robust to illumination changing environments.
-    - Set GPU = False,
-      - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
 
 ==#$#==
 Example Code:
@@ -390,8 +379,7 @@ reconstructed_scene.Sparse3DReconstructionVGGT(min_observe=4)
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=230,
-    use_gpu=False
+    max_num_iterations=230
 )
 
 ==$#$==
@@ -436,8 +424,6 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
         - Set window_size = 12 (Default is 8)
           - Reasoning: Since camera movement is minimal and we want to ensure we have enough data for better pose correction, we opt for a larger window size. 
             We also do not want Bundle adjustment to not over correct, so a larger window size ensures enough data is collected for optimization and limits over correction.
-        - Set GPU = False,
-            - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
     - Set reprojection_error=3.0 (Pixel Coordinates)
       - Reasoning: since we have inherently less accurate key points (SuperPoint), we leave slightly larger error in pose estimation that will be handled in bundle adjustment
         both global and local optimization.
@@ -473,8 +459,6 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
       - Reasoning: Since initial 2D points will not be as accurate due to inherent inaccauracy of detected features from SuperPoint along with the ML feature matchers,
          we have to set interations to 450 to ensure convergence of scene for optimal reconstruction. This is primarily due to the SuperPoint detect for scenes with lighting
          inconsistency and smoother textured surfaces lacking detectable points from classical detectors.
-    - Set GPU = False,
-      - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
 
 ==#$#==
 Example Code:
@@ -507,8 +491,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     confidence=0.99,
     optimizer = ("BundleAdjustmentOptimizerLocal", {
         "max_num_iterations": 21,
-        "window_size": 12,
-        "use_gpu": False
+        "window_size": 12
     }),
 )
 
@@ -527,8 +510,7 @@ reconstructed_scene.Sparse3DReconstructionMono(
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=450,
-    use_gpu=False
+    max_num_iterations=450
 )
 ==$#$==
 
@@ -573,8 +555,6 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
         - Set window_size = 5 (Default is 8)
           - Reasoning: Since camera movement is non-trivial or minimal, slightly jerky, we opt for a smaller window size since the baseline between frames is slightly larger. 
             We also do not want Bundle adjustment to not over correct, so a larger window size ensures enough data is collected for optimization and limits over correction.
-        - Set GPU = False,
-            - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
     - Set reprojection_error = 3.0 (Pixel Coordinates)
       - Reasoning: since we have inherently less accurate key points (SuperPoint), we leave slightly larger error in pose estimation that will be handled in bundle adjustment
         both global and local optimization.
@@ -610,8 +590,6 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
       - Reasoning: Since initial 2D points will not be as accurate due to inherent inaccauracy of detected features from SuperPoint along with the ML feature matchers,
         we have to set interations to 170 to ensure convergence of scene for optimal reconstruction. This is primarily due to the SuperPoint detect for scenes with lighting
         inconsistency and smoother textured surfaces lacking detectable points from classical detectors.
-    - Set GPU = False,
-      - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
 
 STEP 8:  Apply Dense Reconstruction Module for dense scene reconstruction. 
 - Since we have a Mono camera, and not using VGGT, we opt for the traditonal approach. Use Dense3DReconstructionMono module.
@@ -656,8 +634,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     confidence=0.995,
     optimizer = ("BundleAdjustmentOptimizerLocal", {
         "max_num_iterations": 301,
-        "window_size": 5,
-        "use_gpu": False
+        "window_size": 5
     }),
 )
 
@@ -676,8 +653,7 @@ reconstructed_scene.Sparse3DReconstructionMono(
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=250,
-    use_gpu=False
+    max_num_iterations=250
 )
 
 # STEP 8: Run Rense Reconstruction Algorithm
@@ -741,8 +717,6 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
               Setting the number to 60 iterations ensures poses are optimized close to, or at convergence, of the bundle adjustment algorithm for the first poses
               estimated, ensuring compounding errors of pose estimation is kept to a minimum.
           - Set window_size = 8 (Default is 8)
-          - Set GPU = False,
-            - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
     - Set reprojection_error = 3.0 (Pixel Coordinates)
       - Reasoning: since we have inherently less accurate key points due to scene environment, we leave slightly larger error in pose estimation that will be handled 
         in bundle adjustment both global and local optimization.
@@ -773,8 +747,6 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
     - Set max_num_iterations=250, 
       - Reasoning: Since initial 2D points will not be as accurate due to inaccuracy of certain matches and tracks in previous methods despite
         optimal scene lighting and texture being for SIFT features, we have to set interations to 250 to ensure convergence of scene for optimal reconstruction.
-    - Set GPU = False,
-      - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
 
 ==#$#==
 Example Code:
@@ -812,8 +784,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     iteration_count=300,
     confidence=0.99,
     optimizer = ("BundleAdjustmentOptimizerLocal", {
-        "max_num_iterations": 60,
-        "use_gpu": False
+        "max_num_iterations": 60
     }),
 )
 
@@ -833,8 +804,7 @@ reconstructed_scene.Sparse3DReconstructionMono(
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=280,
-    use_gpu=False
+    max_num_iterations=280
 )
 ==$#$==
 Example Process:
@@ -896,8 +866,6 @@ STEP 4:Estimate the camera pose using detected matching feature pairs.
         - Set window_size = 5 (Default is 8)
           - Reasoning: Since camera movement is non-trivial or minimal, slightly jerky, we opt for a smaller window size since the baseline between frames is slightly larger. 
             We also do not want Bundle adjustment to not over correct, so a larger window size ensures enough data is collected for optimization and limits over correction.
-        - Set GPU = False,
-          - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.    
     - Set reprojection_error=3.0 (Pixel Coordinates)
       - Reasoning: since we have inherently less accurate key points due to scene environment, we leave slightly larger error in pose estimation that will be handled 
         in bundle adjustment both global and local optimization.
@@ -942,8 +910,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     confidence=0.99,
     optimizer = ("BundleAdjustmentOptimizerLocal", {
         "max_num_iterations": 20,
-        "window_size": 5,
-        "use_gpu": False
+        "window_size": 5
     }),
 )
 ==$#$==
@@ -999,8 +966,6 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
               Setting the number to 60 iterations ensures poses are optimized close to, or at convergence, of the bundle adjustment algorithm for the first poses
               estimated, ensuring compounding errors of pose estimation is kept to a minimum.
           - Set window_size = 8 (Default is 8)
-          - Set GPU = False,
-            - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
     - Set reprojection_error=3.0 (Pixel Coordinates)
       - Reasoning: since we have inherently less accurate key points due to scene environment, we leave slightly larger error in pose estimation that will be handled 
         in bundle adjustment both global and local optimization.
@@ -1032,8 +997,6 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
     - Set max_num_iterations=330, 
       - Reasoning: Since initial 2D points will not be as accurate due to inaccuracy of certain matches and tracks in previous methods despite
         optimal scene lighting and texture being for SIFT features, we have to set interations to 250 to ensure convergence of scene for optimal reconstruction.
-    - Set GPU = False,
-      - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
 
 ==#$#==
 Example Code:
@@ -1070,8 +1033,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     iteration_count=300,
     confidence=0.99,
     optimizer = ("BundleAdjustmentOptimizerLocal", {
-        "max_num_iterations": 60,
-        "use_gpu": False
+        "max_num_iterations": 60
     }),
 )
 
@@ -1091,7 +1053,6 @@ reconstructed_scene.Sparse3DReconstructionMono(
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=330,
-    use_gpu=False
+    max_num_iterations=330
 )
 ==$#$==
