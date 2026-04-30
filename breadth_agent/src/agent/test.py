@@ -15,8 +15,12 @@ autosfm = AutoSFM(model_name="gpt-5",
 # generator = Generator(model= model_name, api_directory=api_directory, reasoning_effort=reasoning_effort)
 
 # Prompt
-image_path = "/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted"#r"/work/dataset/DTU/scan10/images"
-calibration_path = "/home/anthonyq/datasets/ETH/ETH/office/dslr_calibration_undistorted/calibration_ETH_new.npz"#r"/work/dataset/DTU/calibration_DTU_new.npz"
+# Fail Test
+# image_path = "/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted"#r"/work/dataset/DTU/scan10/images"
+# calibration_path = "/home/anthonyq/datasets/ETH/ETH/office/dslr_calibration_undistorted/calibration_ETH_new.npz"#r"/work/dataset/DTU/calibration_DTU_new.npz"
+# Successful Test
+image_path = "/home/anthonyq/datasets/DTU/DTU/scan20/images"
+calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
 reconstruction_type = "Sparse Reconstruction"
 gpu_mem = "12gb"
 temp_prompt = {'images':image_path,

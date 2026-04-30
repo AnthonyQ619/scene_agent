@@ -203,18 +203,18 @@ def tool_building():
     camera_pose_est = [CamPoseEstimatorEssentialToPnP(cam_data=camera_data),
                        CamPoseEstimatorVGGTModel(cam_data=camera_data)]
     
-    # scene_estimators = [Sparse3DReconstructionMono(cam_data=camera_data),
-    #                     Sparse3DReconstructionVGGT(cam_data=camera_data),
-    #                     Dense3DReconstructionMono(cam_data=camera_data),
-    #                     Dense3DReconstructionVGGT(cam_data=camera_data)
-    #                     ]
+    scene_estimators = [Sparse3DReconstructionMono(cam_data=camera_data),
+                        Sparse3DReconstructionVGGT(cam_data=camera_data),
+                        Dense3DReconstructionMono(cam_data=camera_data),
+                        Dense3DReconstructionVGGT(cam_data=camera_data)
+                        ]
     optimizers = [BundleAdjustmentOptimizerLocal(cam_data = camera_data), 
                   BundleAdjustmentOptimizerGlobal(cam_data = camera_data)]
 
     build_tool_context_file('feature_context.txt', features, "Features")
     build_tool_context_file('feature_matching_context.txt', matchers, "Feature Matcher")
     build_tool_context_file('camera_pose_context.txt', camera_pose_est, "Pose Estimation")
-    # build_tool_context_file('scene_const_context.txt', scene_estimators, "Scene Reconstruction")
+    build_tool_context_file('scene_const_context.txt', scene_estimators, "Scene Reconstruction")
     build_tool_context_file('feature_tracking_context.txt', trackers, "Feature Tracker")
     build_tool_context_file('optimization_context.txt', optimizers, "Optimization Module")
 
