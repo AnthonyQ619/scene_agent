@@ -71,8 +71,8 @@ STEP 4:Estimate the camera pose using detected matching feature pairs.
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path = "D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\167_18184_34441\\images"
-calibration_path = "D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\calibration_new_167_18184_34441.npz"
+image_path = "/home/anthonyq/datasets/co3d_v2/hydrant/167_18184_34441/images" #"D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\167_18184_34441\\images"
+calibration_path = "/home/anthonyq/datasets/co3d_v2/hydrant/calibration_new_167_18184_34441.npz" #"D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\calibration_new_167_18184_34441.npz"
 
 from modules.features import FeatureDetectionSIFT
 from modules.featurematching import FeatureMatchFlannPair
@@ -82,7 +82,7 @@ from modules.optimization import BundleAdjustmentOptimizerLocal
 from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
+reconstructed_scene = SfMScene(id=7, image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
 
@@ -96,7 +96,7 @@ reconstructed_scene.FeatureDetectionSIFT(
 # Step 3: Detect Feature Pairs
 reconstructed_scene.FeatureMatchFlannPair(
     detector="sift", 
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=1.0,
     lowes_thresh=0.8
 )
 

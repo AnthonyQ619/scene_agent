@@ -308,12 +308,12 @@ reconstructed_scene.{module_name}(
                          example=example)
         
         # Initialize Model
-        # if os.name == 'nt':
-        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
-        # elif os.name == 'posix':
-        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
+        if os.name == 'nt':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        elif os.name == 'posix':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
 
-        WEIGHT_MODULE = "/work/model_weights/model.pt"
+        # WEIGHT_MODULE = "/work/model_weights/model.pt"
             
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -944,12 +944,12 @@ reconstructed_scene.{module_name}()
                          example=example)
         
         # Initialize Model
-        # if os.name == 'nt':
-        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
-        # elif os.name == 'posix':
-        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
+        if os.name == 'nt':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        elif os.name == 'posix':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
 
-        WEIGHT_MODULE = "/work/model_weights/model.pt"
+        # WEIGHT_MODULE = "/work/model_weights/model.pt"
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         if self.device == "cuda":
@@ -1143,7 +1143,7 @@ reconstructed_scene.{module_name}(reproj_error=3.0,
         
         self.opts = pycolmap.PatchMatchOptions()
         if use_gpu:
-            self.opts.gpu_index = "0"
+            self.opts.gpu_index = ["0","0"]
         self.opts.geom_consistency_max_cost = reproj_error
         self.opts.min_triangulation_angle = min_triangulation_angle
         self.opts.num_samples = num_samples

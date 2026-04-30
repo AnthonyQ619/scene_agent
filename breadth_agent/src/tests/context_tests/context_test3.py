@@ -52,7 +52,7 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_illumination_change"
+image_path = "/home/anthonyq/datasets/DTU/scan6_illumination_change" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_illumination_change"
 
 from modules.features import FeatureDetectionSP
 from modules.featurematching import FeatureMatchSuperGlueTracking
@@ -62,7 +62,8 @@ from modules.optimization import BundleAdjustmentOptimizerGlobal
 from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path=image_path,
+reconstructed_scene = SfMScene(id=3,
+                                image_path=image_path,
                                 max_images=20,
                                 target_resolution=[1024, 1024]
 )
@@ -79,7 +80,7 @@ reconstructed_scene.CamPoseEstimatorVGGTModel()
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureMatchSuperGlueTracking(
     detector='superpoint', 
-    RANSAC_threshold=0.01,
+    RANSAC_threshold=1.0,
     setting="indoor"
 )
 
@@ -88,6 +89,6 @@ reconstructed_scene.Sparse3DReconstructionVGGT(min_observe=4)
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=60,
+    max_num_iterations=230,
     use_gpu=False
 )

@@ -1198,34 +1198,97 @@ class FeatureMatching(PipelineModule, ABC):
         W, H = matching_points.image_size[:]
 
         repeatabilities = []
-        for pair in range(len(matched_points)):
-            pt_set = matched_points[pair]
-            print(pt_set)
-            pt_set_A = pt_set[:, :2]
-            pt_set_B = pt_set[:, 2:]
+        for pair_idx in range(len(matched_points)):
+            pt_set = matched_points[pair_idx]
 
-            H_mat, _ = cv2.findHomography(pt_set_A, pt_set_B, cv2.RANSAC, 5.0)
+            if pt_set.shape[0] < 4:
+                repeatabilities.append(0.0)
+                continue
 
-            KA = features[pair]
-            KB = features[pair + 1]
+            pts_A = pt_set[:, :2].astype(np.float32)
+            pts_B = pt_set[:, 2:].astype(np.float32)
 
-            print("BEFORE", KB.shape)
-            KA_prime = self._warp_points(KA.reshape(-1, 1, 2), H_mat, [W, H])
-            KB_prime = self._warp_points(KB.reshape(-1, 1, 2), np.linalg.inv(H_mat),[W, H])
-            KB = self._warp_points(KB_prime.reshape(-1, 1, 2), H_mat, [W, H])
-            print("AFTER", KB.shape)
+            H_mat, inlier_mask = cv2.findHomography(
+                pts_A,
+                pts_B,
+                cv2.RANSAC,
+                5.0
+            )
+
+            if H_mat is None:
+                repeatabilities.append(0.0)
+                continue
+
+            try:
+                H_inv = np.linalg.inv(H_mat)
+            except np.linalg.LinAlgError:
+                repeatabilities.append(0.0)
+                continue
+
+            KA = features[pair_idx].astype(np.float32)
+            KB = features[pair_idx + 1].astype(np.float32)
+
+            if len(KA) == 0 or len(KB) == 0:
+                repeatabilities.append(0.0)
+                continue
+
+            # A features projected into B
+            KA_to_B = self._warp_points(
+                KA.reshape(-1, 1, 2),
+                H_mat,
+                [W, H]
+            )
+
+            # B features projected into A, only for visibility count
+            KB_to_A = self._warp_points(
+                KB.reshape(-1, 1, 2),
+                H_inv,
+                [W, H]
+            )
+
+            if len(KA_to_B) == 0 or len(KB_to_A) == 0:
+                repeatabilities.append(0.0)
+                continue
+
+            # Compare warped A features against actual B features
             tree = cKDTree(KB)
 
-            # k=2 because first neighbor is itself
-            dists, _ = tree.query(KA_prime, k=2)
+            dists, _ = tree.query(KA_to_B, k=1)
 
-            nearest = dists[:,1]
+            repeated = np.sum(dists <= epsilon)
 
-            repeated = nearest[nearest <= epsilon].shape[0]
-            print(repeated)
-            repeatability = repeated / min(len(KA_prime), len(KB))
+            denom = min(len(KA_to_B), len(KB_to_A))
 
-            repeatabilities.append(repeatability)
+            repeatability = repeated / denom if denom > 0 else 0.0
+            repeatabilities.append(float(repeatability))
+        # for pair in range(len(matched_points)):
+        #     pt_set = matched_points[pair]
+        #     # print(pt_set)
+        #     pt_set_A = pt_set[:, :2]
+        #     pt_set_B = pt_set[:, 2:]
+
+        #     H_mat, _ = cv2.findHomography(pt_set_A, pt_set_B, cv2.RANSAC, 5.0)
+
+        #     KA = features[pair]
+        #     KB = features[pair + 1]
+
+        #     # print("BEFORE", KB.shape)
+        #     KA_prime = self._warp_points(KA.reshape(-1, 1, 2), H_mat, [W, H])
+        #     KB_prime = self._warp_points(KB.reshape(-1, 1, 2), np.linalg.inv(H_mat),[W, H])
+        #     KB = self._warp_points(KB_prime.reshape(-1, 1, 2), H_mat, [W, H])
+        #     # print("AFTER", KB.shape)
+        #     tree = cKDTree(KB)
+
+        #     # k=2 because first neighbor is itself
+        #     dists, _ = tree.query(KA_prime, k=1)
+
+        #     nearest = dists[:,1]
+
+        #     repeated = nearest[nearest <= epsilon].shape[0]
+        #     # print(repeated)
+        #     repeatability = repeated / min(len(KA_prime), len(KB))
+
+        #     repeatabilities.append(repeatability)
 
 
         return float(np.array(repeatabilities).mean())

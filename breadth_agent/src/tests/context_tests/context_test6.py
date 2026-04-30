@@ -89,8 +89,8 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\Family"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\calibration_new_2048.npz"
+image_path = "/home/anthonyq/datasets/tanks_and_temples/Family" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\Family"
+calibration_path = "/home/anthonyq/datasets/tanks_and_temples/calibration_new_2048.npz" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\calibration_new_2048.npz"
 
 from modules.features import FeatureDetectionSIFT
 from modules.featurematching import FeatureMatchBFPair, FeatureMatchBFTracking
@@ -101,7 +101,7 @@ from modules.optimization import BundleAdjustmentOptimizerGlobal
 from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
+reconstructed_scene = SfMScene(id=6, image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
 
@@ -117,7 +117,7 @@ reconstructed_scene.FeatureMatchBFPair(
     detector="sift",
     cross_check=False,
     RANSAC_homography=False,
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=1.0,
     lowes_thresh=0.70
 )
 
@@ -135,7 +135,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureMatchBFTracking(
     detector="sift",
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=1.0,
     lowes_thresh=0.75
 )
 
@@ -148,6 +148,6 @@ reconstructed_scene.Sparse3DReconstructionMono(
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=250,
+    max_num_iterations=280,
     use_gpu=False
 )

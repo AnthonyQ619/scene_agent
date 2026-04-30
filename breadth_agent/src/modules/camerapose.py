@@ -75,12 +75,12 @@ reconstructed_scene.{module_name}() # Images read in previous step (1)
                          example=example)
         
         # Initialize Model
-        # if os.name == 'nt':
-        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
-        # elif os.name == 'posix':
-        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
+        if os.name == 'nt':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        elif os.name == 'posix':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
 
-        WEIGHT_MODULE = "/work/model_weights/model.pt"
+        # WEIGHT_MODULE = "/work/model_weights/model.pt"
 
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -215,6 +215,7 @@ class CamPoseEstimatorEssentialToPnP(CameraPoseEstimatorClass):
                  iteration_count: int = 200,
                  reprojection_error: float = 3.0,
                  confidence: float = 0.99,
+                 ba_per_frame: int = 4,
                  optimizer: BundleAdjustmentOptimizerLocal | None = None
                  ):
 
@@ -308,11 +309,11 @@ reconstructed_scene.{module_name}(
         self.reproj_error = reprojection_error
         self.iteration_ct = iteration_count
         self.confidence = confidence
+        self.ba_per_frame = ba_per_frame
         self.optimizer = optimizer
         
     def _estimate_camera_poses(self,
-                               feature_pairs: PointsMatched,
-                               ba_per_frame: int = 4) -> None:
+                               feature_pairs: PointsMatched) -> None:
         assert(feature_pairs.multi_view == False), (
             "Features passed must be two view correspondences. "
             "Ensure to invoke Feature Matching Two View tools prior to this call."
@@ -395,7 +396,7 @@ reconstructed_scene.{module_name}(
                 # median_reproj_error.append(median_error)
 
                 # 6) Local BA every ba_per_frame frames
-                if ((new_img_id) % ba_per_frame) == 0:
+                if ((new_img_id) % self.ba_per_frame) == 0:
                     state = self.optimizer(state, new_image_id=new_img_id)
 
                     # copy refined poses back

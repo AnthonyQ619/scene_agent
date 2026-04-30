@@ -93,8 +93,8 @@ STEP 8: Apply Dense Reconstruction Module for dense scene reconstruction.
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan14_normal_lighting"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
+image_path ="/home/anthonyq/datasets/DTU/DTU/scan14" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan14_normal_lighting"
+calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
 
 from modules.features import FeatureDetectionSIFT
 from modules.featurematching import FeatureMatchFlannPair, FeatureMatchBFTracking
@@ -105,7 +105,8 @@ from modules.optimization import BundleAdjustmentOptimizerGlobal
 from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
+reconstructed_scene = SfMScene(id=1,
+                                image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
 
@@ -121,7 +122,7 @@ reconstructed_scene.FeatureMatchFlannPair(
     detector="sift",
     lowes_thresh=0.8,
     RANSAC_homography=False,
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=2.0,
 )
 
 # Step 4: Detect/Estimate Camera Poses
@@ -134,7 +135,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureMatchBFTracking(
     detector="sift",
-    RANSAC_threshold=0.008,
+    RANSAC_threshold=1.0,
     lowes_thresh=0.65
 )
 

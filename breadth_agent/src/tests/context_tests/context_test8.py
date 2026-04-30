@@ -89,8 +89,8 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\images\\dslr_images_undistorted"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\dslr_calibration_undistorted\\calibration_new.npz"
+image_path ="/home/anthonyq/datasets/ETH/ETH/statue/images/dslr_images_undistorted" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\images\\dslr_images_undistorted"
+calibration_path = "/home/anthonyq/datasets/ETH/ETH/statue/dslr_calibration_undistorted/calibration_new.npz" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\dslr_calibration_undistorted\\calibration_new.npz"
 
 from modules.features import FeatureDetectionSIFT
 from modules.featurematching import FeatureMatchBFPair, FeatureMatchBFTracking
@@ -101,7 +101,8 @@ from modules.optimization import BundleAdjustmentOptimizerGlobal
 from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
+reconstructed_scene = SfMScene(id=8,
+                                image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
 
@@ -116,7 +117,7 @@ reconstructed_scene.FeatureDetectionSIFT(
 reconstructed_scene.FeatureMatchBFPair(
     detector="sift",
     cross_check=False,
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=1.0,
     lowes_thresh=0.70
 )
 
@@ -134,7 +135,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureMatchBFTracking(
     detector="sift",
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=1.0,
     lowes_thresh=0.75
 )
 

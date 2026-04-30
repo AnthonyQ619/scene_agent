@@ -82,8 +82,8 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path = "D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\apple\\189_20393_38136\\images"
-calibration_path = "D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\apple\\calibration_new_189_20393_38136.npz"
+image_path = "/home/anthonyq/datasets/co3d_v2/apple/189_20393_38136/images" #"D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\apple\\189_20393_38136\\images"
+calibration_path = "/home/anthonyq/datasets/co3d_v2/apple/calibration_new_189_20393_38136.npz" #"D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\apple\\calibration_new_189_20393_38136.npz"
 
 from modules.features import FeatureDetectionSP
 from modules.featurematching import FeatureMatchSuperGluePair, FeatureMatchLightGlueTracking
@@ -94,18 +94,19 @@ from modules.optimization import BundleAdjustmentOptimizerGlobal, BundleAdjustme
 from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
+reconstructed_scene = SfMScene(id=4,
+                                image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
 
 # Step 2: Detect Features
 reconstructed_scene.FeatureDetectionSP(
-    max_keypoints=5000
+    max_keypoints=6000
 )
 
 # Step 3: Detect Feature Pairs
 reconstructed_scene.FeatureMatchSuperGluePair(
-    RANSAC_threshold=0.03
+    RANSAC_threshold=3.0
 )
 
 # Step 4: Detect/Estimate Camera Poses
@@ -123,7 +124,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureMatchLightGlueTracking(
     detector="superpoint",
-    RANSAC_threshold=0.05
+    RANSAC_threshold=2.5
 )
 
 # Step 6: Estimate Sparse Reconstruction
