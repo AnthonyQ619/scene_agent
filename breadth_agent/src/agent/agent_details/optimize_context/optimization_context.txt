@@ -59,8 +59,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     reprojection_error = 3.0,
     optimizer = ("BundleAdjustmentOptimizerLocal", {
         "max_num_iterations": 25,
-        "robust_loss": True,
-        "use_gpu": False
+        "robust_loss": True
     }),
 )
 
@@ -77,13 +76,12 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     reprojection_error = 2.5,
     optimizer = ("BundleAdjustmentOptimizerLocal", {
         "max_num_iterations": 30,
-        "robust_loss": True,
-        "use_gpu": False
+        "robust_loss": True
     }),
 )
 
 ==$%$==
-Results from Feature Matching Module using Brute-Force Algorithm:
+Results from Feature Tracking Module using Brute-Force Algorithm:
 reconstructed_scene.FeatureMatchBFTracking(
     detector = "sift",
     k=2,
@@ -119,23 +117,23 @@ reconstructed_scene.FeatureMatchBFTracking(
 ==$%$==
 Results from Optimization using global optimization:
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=200,
-    use_gpu=False
+    max_num_iterations=230
 )
 
 Current Metric Results:
 {
     "Scene Metrics from Optimization": {
         "Optimizer": "BundleAdjustmentOptimizerGlobal",
-        "Num Points3D": 1360,
-        "Convergence": "BundleAdjustmentTerminationType.NO_CONVERGENCE",
-        "Initial Cost": 358.0130940932776,
-        "Final Cost": 30.917416895489
+        "Num Points3D": 8784,
+        "Convergence": "NO_CONVERGENCE",
+        "Initial Cost": 15112.056310885826,
+        "Final Cost": 2060.2466952636446,
+        "Initial Reprojection Error": 2.5905805264826602,
+        "Final Reprojection Error": 0.4095078205665802
     }
 }
 
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=240,
-    use_gpu=False
+    max_num_iterations=280
 )
 ==$%$==

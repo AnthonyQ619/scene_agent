@@ -282,8 +282,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     reprojection_error = 3.0,
     optimizer = ("BundleAdjustmentOptimizerLocal", {
         "max_num_iterations": 25,
-        "robust_loss": True,
-        "use_gpu": False
+        "robust_loss": True
     }),
 )
 
@@ -300,8 +299,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     reprojection_error = 2.5,
     optimizer = ("BundleAdjustmentOptimizerLocal", {
         "max_num_iterations": 30,
-        "robust_loss": True,
-        "use_gpu": False
+        "robust_loss": True
     }),
 )
 
@@ -322,6 +320,8 @@ and for the provided scene:
         - Convergence: Indicates whether the optimizer successfully reached a stable solution.
         - Initial Cost: The optimization objective value before refinement. Usually represents the starting geometric error.
         - Final Cost: The optimization objective value after refinement. Lower final cost usually indicates improved consistency.
+        - Initial Reprojection Error: The mean reprojection error of all 3D points in pixel coordinates prior to optimization.
+        - Final Reprojection Error: The mean reprojection error of all 3D points in pixel coordinate AFTER optimization.
     - Value interpretation
         - Low Number Points3D: Many points may have been filtered, triangulation may be weak, or tracking/matching may be poor.
         - Convergence = True: Optimizer found a stable solution according to its stopping criteria.
@@ -331,6 +331,8 @@ and for the provided scene:
         - Final Cost > Initial Cost: Something may be wrong: bad initialization, bad constraints, incorrect residuals, poor intrinsics, or unstable optimization.
         - Large drop from initial to final cost: Optimization significantly improved geometric consistency.
         - Very low final cost but few points/cameras: The result may be clean but incomplete.
+        - Initial Reprojection Error > Final Reprojection Error: Optimization improved, the greater the difference, the better the SfM Pipeline.
+        - Initial Reprojection Error < Final Reprojection Error: Optimization failed, bad initialization, bad constraints, incorrect residuals, poor intrinsics, or unstable optimization.
     - How to improve: 
         - If optimization does not converge or the final cost remains high, improve the inputs before optimization: remove bad matches, 
           filter outlier tracks, verify camera intrinsics, improve pose initialization, and make sure triangulated 3D points are valid.
@@ -341,23 +343,22 @@ and for the provided scene:
 Example: 
 Results from Optimization using global optimization:
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=200,
-    use_gpu=False
+    max_num_iterations=200
 )
 
-Current Metric Results:
 {
     "Scene Metrics from Optimization": {
         "Optimizer": "BundleAdjustmentOptimizerGlobal",
-        "Num Points3D": 1360,
-        "Convergence": "BundleAdjustmentTerminationType.NO_CONVERGENCE",
-        "Initial Cost": 358.0130940932776,
-        "Final Cost": 30.917416895489
+        "Num Points3D": 1764,
+        "Convergence": "NO_CONVERGENCE",
+        "Initial Cost": 5297.199842381916,
+        "Final Cost": 975.9353824890026,
+        "Initial Reprojection Error": 1.8865424829530237,
+        "Final Reprojection Error": 0.46286240098271736
     }
 }
 
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=240,
-    use_gpu=False
+    max_num_iterations=240
 )
 ========================================================================================================================================================

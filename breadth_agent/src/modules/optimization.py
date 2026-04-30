@@ -143,6 +143,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 
         # Do not use metrics for this module
         self.use_base_metrics = False
+        self.use_no_metrics = True
     
     def _optimize_scene(self, 
                         state: IncrementalSfMState, 
@@ -550,6 +551,10 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         # --- Step 3: Build and Run Solver with Options/Config/Reconstruction ---
         # bundle_adjuster = pycolmap.create_default_bundle_adjuster(ba_opts, config, recon)
         # summary = bundle_adjuster.solve()
+        # Get initial Cost
+        recon.update_point_3d_errors()
+        self.initial_mean_error = recon.compute_mean_reprojection_error()
+        # Run Optimizer
         summary = self._solve(ba_opts, config, recon)
 
         print("SUMMARY", summary)
@@ -560,6 +565,11 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         # Write reconstructed scene to workspace (Sparse Scene Currently)
         recon.write(self.directory_path)
         recon.export_PLY(str(self.dir_path / "results" / "workspace" / "sparse.ply"))
+
+        # Get final Metric (reprojection errors)
+        recon.update_point_3d_errors()
+        # Mean reprojection error in pixels (final cost)
+        self.mean_error = recon.compute_mean_reprojection_error()
 
         return current_scene #, summary
     
@@ -872,9 +882,11 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
 
     @module_metric
     def _metric_ba_results(self) -> dict:
-        return {"Convergence": str(self.summary.termination_type),
+        return {"Convergence": str(self.summary.termination_type.name),
                 "Initial Cost": float(self.summary.ceres_summary.initial_cost),
-                "Final Cost": float(self.summary.ceres_summary.final_cost)}
+                "Final Cost": float(self.summary.ceres_summary.final_cost),
+                "Initial Reprojection Error": float(self.initial_mean_error), 
+                "Final Reprojection Error": float(self.mean_error)}
     # def optimize(self, 
     #              scene: Scene):
     #             #  points: PointsMatched, 

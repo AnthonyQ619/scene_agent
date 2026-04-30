@@ -148,8 +148,7 @@ reconstructed_scene.Sparse3DReconstructionMono(
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=250,
-    use_gpu=False
+    max_num_iterations=250
 )
 
 # STEP 8: Run Rense Reconstruction Algorithm
