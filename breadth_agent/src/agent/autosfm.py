@@ -24,6 +24,11 @@ Given the image of the scene, reconstruction guidelines and the generated plan w
     4.  If all plans only have feedback due to performance errors, select any of the plans available when no metris are provided
 
 Judge using these key aspects:
+	•	Keep in mind, the context provided are just baselines, when aiming to choose the best work flow consider the following:
+    	•	Lower reprojection error across Pose Estimation and Global Optimization when Relevant
+    	•	Number of 3D points in reconstruction (The Higher the better, but still consider costs and reprojection error)
+    	•	Whether Global optimization Converges (Prioritize other metrics, such as Feature Matches/Tracks, 3D Points, etc higher, but still consider
+            Convergence when multiple plans are performing similarly - Essentially use it as a tie breaker)
 	•	Choice of sub-modules accurately coincide with the image of the scene and best use-cases.
 	•	Sub-module performance from the metrics follow accordingly given context examples from the prompt.
 	•	Reconstruction type is followed precisely, and our last sub-module invoked directly represents the prompt (Pose, Sparse, or Dense).

@@ -25,10 +25,6 @@ Initialization/Function Parameters:
     - default (bool): False
 - max_num_iterations: maximum number of iterations to run the Levenberg-Marquardt algorithm for bundle adjustment
     - default (int): 50
-- use_gpu: Whether to use Ceres CUDA linear algebra library, if available. 
-    - default (bool): True
-- gpu_index: Which GPU to use for solving the problem.
-    - default (int): 0 
 - robust_loss: Determins whether to use one of the loss function types
     Loss function types: Trivial (non-robust, robust = False) and Cauchy (robust, robust = True) loss
     - default (bool): True
@@ -65,8 +61,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     reprojection_error = 3.0,
     optimizer = ("BundleAdjustmentOptimizerLocal", {
         "max_num_iterations": 25,
-        "robust_loss": True,
-        "use_gpu": False
+        "robust_loss": True
     }),
 )
 
@@ -92,10 +87,6 @@ Initialization/Function Parameters:
     - default (bool): False
 - max_num_iterations: maximum number of iterations to run the Levenberg-Marquardt algorithm for bundle adjustment
     - default (int): 50
-- use_gpu: Whether to use Ceres CUDA linear algebra library, if available. 
-    - default (bool): True
-- gpu_index: Which GPU to use for solving the problem.
-    - default (int): 0 
 - robust_loss: Determins whether to use one of the loss function types
     Loss function types: Trivial (non-robust, robust = False) and Cauchy (robust, robust = True) loss
     - default (bool): True
@@ -139,8 +130,7 @@ reconstructed_scene = SfMScene(image_path = image_path,
 
 # Step 7: Run Global Optimization on Sparsely Reconstructed Scene 
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=200,
-    use_gpu=False
+    max_num_iterations=200
 )
 
 

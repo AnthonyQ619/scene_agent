@@ -115,8 +115,7 @@ Key things to ensure:
 1. For setting local bundle adjustment in pose estimation, apply the parameter like this to the pose estimation module: reconstructed_scene.CamPoseEstimatorEssentialToPnP(..., optimizer = ("BundleAdjustmentOptimizerLocal", 
         'max_num_iterations': 20,
         'window_size': 8,
-        'robust_loss': True,
-        'use_gpu': False
+        'robust_loss': True
     ) as this is a special case for the inclusion of the parameter.
 2. For constructing dense reconstruction with VGGT explicitly, skip sparse reconstruction from the VGGT module, and follow the pipeline of CamPoseEstimatorVGGTModel(...) to Dense3DReconstructionVGGT(...) as this is a special case.
 3. Most importantly, do not write your own code to bypass any errors. Resolve any errors by either fixing incorrect parameters, or fixing syntax errors. Do not generate any python code outside of the API usage.

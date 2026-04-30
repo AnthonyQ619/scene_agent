@@ -3,7 +3,7 @@ from core.logger import Logger
 
 api_directory = "/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/agent_details/tool_context"
 instruction_path = "/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/agent_details/agent_instructions/prompt_enh_examples.txt"
-logger = Logger(desc="DTU_scan20", log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results")
+logger = Logger(desc="DTU_scan20_48gb_test", log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results")
 autosfm = AutoSFM(model_name="gpt-5", 
                 api_directory=api_directory,#'/work/scene_agent/breadth_agent/src/agent/agent_details/tool_context', 
                 instruction_path=instruction_path,#'/work/scene_agent/breadth_agent/src/agent/agent_details/agent_instructions/prompt_enh_examples.txt', 
@@ -24,7 +24,7 @@ autosfm = AutoSFM(model_name="gpt-5",
 image_path = "/home/anthonyq/datasets/DTU/DTU/scan20/images"
 calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
 reconstruction_type = "Sparse Reconstruction"
-gpu_mem = "12gb"
+gpu_mem = "48gb"
 temp_prompt = {'images':image_path,
 'calibration':calibration_path,
 'recon_type':reconstruction_type,

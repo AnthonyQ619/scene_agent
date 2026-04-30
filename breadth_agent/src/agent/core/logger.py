@@ -51,7 +51,7 @@ class Logger:
         return plt.imread(path)
 
     # --- Logging methods ---
-    def add_inital_prompt(self, image_path, reconstruction_type, gpu_mem, calibration_path = None, scene_img=None):
+    def add_initial_prompt(self, image_path, reconstruction_type, gpu_mem, calibration_path = None, scene_img=None):
         image = self._read_image(scene_img) if scene_img else None
         self.initial_prompt.append((image_path, reconstruction_type, gpu_mem, calibration_path))
         self.query_image = image
@@ -87,17 +87,17 @@ class Logger:
             # self.best_plan1 = plan
             # self.best_code1 = program
             # self.best_output1 = output
-            self.best_workflow1.append(plan, program, output)
+            self.best_workflow1.append((plan, program, output))
         elif index == 2: 
             # self.best_plan2 = plan
             # self.best_code2 = program
             # self.best_output2 = output
-            self.best_workflow2.append(plan, program, output)
+            self.best_workflow2.append((plan, program, output))
         elif index == 3: 
             # self.best_plan3 = plan
             # self.best_code3 = program
             # self.best_output3 = output
-            self.best_workflow3.append(plan, program, output)
+            self.best_workflow3.append((plan, program, output))
 
     def add_final_code(self, plan, program, output):
         self.final_code = program

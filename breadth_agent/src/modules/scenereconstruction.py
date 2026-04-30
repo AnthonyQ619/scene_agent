@@ -1143,7 +1143,7 @@ reconstructed_scene.{module_name}(reproj_error=3.0,
         
         self.opts = pycolmap.PatchMatchOptions()
         if use_gpu:
-            self.opts.gpu_index = ["0","0"]
+            self.opts.gpu_index = "0"
         self.opts.geom_consistency_max_cost = reproj_error
         self.opts.min_triangulation_angle = min_triangulation_angle
         self.opts.num_samples = num_samples
