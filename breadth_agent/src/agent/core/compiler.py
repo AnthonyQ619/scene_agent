@@ -1,4 +1,5 @@
 import os
+import ast
 import glob
 from pathlib import Path
 from sceneprogllm import LLM
@@ -144,7 +145,9 @@ reconstructed_scene = SfMScene(ID,
         num_failures = 0
         failed_programs = []
         for p in programs:
-            output, success = self.exec(p)
+            # Remove Dense Reconstuction module prior to run time!
+            temp_p = remove_module_call(p, module_name="Dense3DReconstructionMono")
+            output, success = self.exec(temp_p) #self.exec(p)
             if success: 
                 #temp_path = "/home/anthonyq/projects/scene_agent/breadth_agent/results" + f"/metrics_results_{self.id}.txt"
                 temp_path = self.log_dir + f"/metrics_results_{id}.txt" 
@@ -181,6 +184,58 @@ reconstructed_scene = SfMScene(ID,
 def generate_program_worker(runner, process, imports):
     return imports + "\n" + runner(process)
 
+def remove_module_call(script: str, module_name: str) -> str:
+    """
+    Removes calls like:
+        reconstructed_scene.<module_name>(...)
+    from a Python script string.
+
+    Example:
+        remove_module_call(script, "Dense3DReconstructionMono")
+    """
+    tree = ast.parse(script)
+
+    lines = script.splitlines()
+
+    ranges_to_remove = []
+
+    for node in ast.walk(tree):
+        # Looking for standalone expressions:
+        # reconstructed_scene.Dense3DReconstructionMono(...)
+        if not isinstance(node, ast.Expr):
+            continue
+
+        call = node.value
+        if not isinstance(call, ast.Call):
+            continue
+
+        func = call.func
+        if not isinstance(func, ast.Attribute):
+            continue
+
+        if func.attr != module_name:
+            continue
+
+        # Optional: make sure it is called from reconstructed_scene
+        if isinstance(func.value, ast.Name) and func.value.id == "reconstructed_scene":
+            start = node.lineno
+            end = node.end_lineno
+            ranges_to_remove.append((start, end))
+
+    if not ranges_to_remove:
+        return script
+
+    # Remove the last matching module call
+    start, end = ranges_to_remove[-1]
+
+    new_lines = [
+        line
+        for i, line in enumerate(lines, start=1)
+        if not (start <= i <= end)
+    ]
+
+    # Clean trailing blank lines
+    return "\n".join(new_lines).rstrip() + "\n"
 
 class Executor:
     def __init__(self, id):

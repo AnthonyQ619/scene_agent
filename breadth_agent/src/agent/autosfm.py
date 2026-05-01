@@ -4,6 +4,7 @@ from core.promptenhancer import PromptEnhancerLLM
 from core.logger import Logger
 from sceneprogllm import LLM
 from pathlib import Path
+import ast
 import os
 
 class AutoSFM:
@@ -147,6 +148,87 @@ Use Calibration Path in Code: {prompt['calibration']}
         self.logger.add_final_code(best_plan, best_program, best_output)
         print("Done with iterations. Returning best plan and output.")
         breakpoint()
+        print("Running Best Plan/Output in Full!")
+        full_best_program = remove_keyword_from_first_call(
+            best_program,
+            call_name="SfMScene",
+            keyword_name="max_images",
+        )
+        self.compiler.exec(full_best_program)
         self.logger.save()
         return best_plan, best_program, best_output
         # return program, output
+
+# Helper function to clean code before final run!
+def remove_keyword_from_first_call(
+    script: str,
+    call_name: str,
+    keyword_name: str,
+) -> str:
+    """
+    Removes one keyword argument from the first call to `call_name`.
+
+    Example:
+        remove_keyword_from_first_call(
+            script,
+            call_name="SfMScene",
+            keyword_name="max_images"
+        )
+
+    Removes:
+        max_images=20
+
+    while preserving the rest of the script, including comments.
+    """
+
+    tree = ast.parse(script)
+
+    # Convert line/column offsets to absolute string offsets
+    line_starts = []
+    offset = 0
+    for line in script.splitlines(keepends=True):
+        line_starts.append(offset)
+        offset += len(line)
+
+    def abs_offset(lineno: int, col: int) -> int:
+        return line_starts[lineno - 1] + col
+
+    target_keyword = None
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+
+        # Match SfMScene(...)
+        if isinstance(node.func, ast.Name) and node.func.id == call_name:
+            for kw in node.keywords:
+                if kw.arg == keyword_name:
+                    target_keyword = kw
+                    break
+
+        if target_keyword is not None:
+            break
+
+    if target_keyword is None:
+        return script
+
+    start = abs_offset(target_keyword.lineno, target_keyword.col_offset)
+    end = abs_offset(target_keyword.end_lineno, target_keyword.end_col_offset)
+
+    # Extend removal to include a following comma, if present
+    i = end
+    while i < len(script) and script[i].isspace():
+        i += 1
+
+    if i < len(script) and script[i] == ",":
+        end = i + 1
+    else:
+        # Otherwise remove the preceding comma
+        j = start - 1
+        while j >= 0 and script[j].isspace():
+            j -= 1
+
+        if j >= 0 and script[j] == ",":
+            start = j
+
+    return script[:start] + script[end:]
