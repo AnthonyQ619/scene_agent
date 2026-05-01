@@ -571,6 +571,9 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         # Mean reprojection error in pixels (final cost)
         self.mean_error = recon.compute_mean_reprojection_error()
 
+        #Record Camera Poses
+        self._store_extrinsics_information(recon)
+
         return current_scene #, summary
     
     def _solve(self, ba_opts, config, recon):
@@ -858,6 +861,73 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
 
         return recon, trackid_to_point3Did
 
+    def _store_extrinsics_information(self, recon) -> None:
+        out_path = os.path.join(self.log_dir, f"cam_poses_log.npz")
+        image_records = []
+
+        for image_id, image in recon.images.items():
+            if not image.has_pose:
+                continue
+
+            camera = recon.cameras[image.camera_id]
+
+            R_wc, t_wc = self.get_image_pose_world_to_cam(image)
+            C_w = -R_wc.T @ t_wc
+
+            K, cam_params = self.camera_to_K_and_dist(camera)
+
+            image_records.append(
+                {
+                    "image_id": int(image_id),
+                    "image_name": image.name,
+                    "camera_id": int(image.camera_id),
+                    "width": int(camera.width),
+                    "height": int(camera.height),
+                    "camera_model": str(camera.model),
+                    "camera_params": cam_params,
+                    "K": K,
+                    "R_world_to_cam": R_wc,
+                    "t_world_to_cam": t_wc,
+                    "camera_center_world": C_w,
+                }
+            )
+
+        # Sort by image name for deterministic ordering.
+        image_records = sorted(image_records, key=lambda x: x["image_name"])
+
+        image_ids = np.array([r["image_id"] for r in image_records], dtype=np.int64)
+        image_names = np.array([r["image_name"] for r in image_records])
+        camera_ids = np.array([r["camera_id"] for r in image_records], dtype=np.int64)
+
+        widths = np.array([r["width"] for r in image_records], dtype=np.int64)
+        heights = np.array([r["height"] for r in image_records], dtype=np.int64)
+        camera_models = np.array([r["camera_model"] for r in image_records])
+
+        K = np.stack([r["K"] for r in image_records], axis=0)
+        R_world_to_cam = np.stack([r["R_world_to_cam"] for r in image_records], axis=0)
+        t_world_to_cam = np.stack([r["t_world_to_cam"] for r in image_records], axis=0)
+        camera_center_world = np.stack([r["camera_center_world"] for r in image_records], axis=0)
+
+        # Camera params can be different lengths depending on model.
+        # Store as object array.
+        camera_params = np.array([r["camera_params"] for r in image_records], dtype=object)
+
+        save_dict = {
+            "image_ids": image_ids,
+            "image_names": image_names,
+            "camera_ids": camera_ids,
+            "widths": widths,
+            "heights": heights,
+            "camera_models": camera_models,
+            "camera_params": camera_params,
+            "K": K,
+            "R_world_to_cam": R_world_to_cam,
+            "t_world_to_cam": t_world_to_cam,
+            "camera_center_world": camera_center_world,
+        }
+
+        np.savez_compressed(out_path, **save_dict)
+
     def _write_back_to_scene(self, 
                             scene: Scene,
                             recon,
@@ -887,6 +957,108 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
                 "Final Cost": float(self.summary.ceres_summary.final_cost),
                 "Initial Reprojection Error": float(self.initial_mean_error), 
                 "Final Reprojection Error": float(self.mean_error)}
+    
+
+    # Helper File to extract camera pose information
+    def get_image_pose_world_to_cam(self, image):
+        """
+        Returns R_world_to_cam, t_world_to_cam from a pycolmap Image.
+
+        pycolmap versions differ slightly, so this tries the common APIs.
+        """
+        # Newer pycolmap versions
+        if hasattr(image, "cam_from_world"):
+            cam_from_world = image.cam_from_world
+
+            # Rigid3d-like object
+            if hasattr(cam_from_world, "rotation") and hasattr(cam_from_world, "translation"):
+                rot = cam_from_world.rotation
+                t = np.asarray(cam_from_world.translation, dtype=np.float64)
+
+                if hasattr(rot, "matrix"):
+                    R = np.asarray(rot.matrix(), dtype=np.float64)
+                elif hasattr(rot, "to_matrix"):
+                    R = np.asarray(rot.to_matrix(), dtype=np.float64)
+                else:
+                    R = np.asarray(rot, dtype=np.float64)
+
+                return R, t
+
+            # Sometimes transform matrix may be exposed
+            if hasattr(cam_from_world, "matrix"):
+                T = np.asarray(cam_from_world.matrix(), dtype=np.float64)
+                return T[:3, :3], T[:3, 3]
+
+        # Older pycolmap-style API
+        if hasattr(image, "qvec") and hasattr(image, "tvec"):
+            qvec = np.asarray(image.qvec, dtype=np.float64)
+            t = np.asarray(image.tvec, dtype=np.float64)
+            R = self.qvec_to_rotmat(qvec)
+            return R, t
+
+        raise RuntimeError(f"Could not extract pose for image {image.name}")
+
+
+    def qvec_to_rotmat(self, qvec):
+        """
+        COLMAP quaternion convention: q = [qw, qx, qy, qz].
+        """
+        qvec = np.asarray(qvec, dtype=np.float64)
+        qw, qx, qy, qz = qvec
+
+        return np.array([
+            [
+                1 - 2 * qy ** 2 - 2 * qz ** 2,
+                2 * qx * qy - 2 * qz * qw,
+                2 * qz * qx + 2 * qy * qw,
+            ],
+            [
+                2 * qx * qy + 2 * qz * qw,
+                1 - 2 * qx ** 2 - 2 * qz ** 2,
+                2 * qy * qz - 2 * qx * qw,
+            ],
+            [
+                2 * qz * qx - 2 * qy * qw,
+                2 * qy * qz + 2 * qx * qw,
+                1 - 2 * qx ** 2 - 2 * qy ** 2,
+            ],
+        ], dtype=np.float64)
+
+
+    def camera_to_K_and_dist(self, camera):
+        """
+        Returns a 3x3 calibration matrix K and raw COLMAP camera params.
+
+        camera.params is model-dependent. We save both:
+        - K for easy evaluation
+        - raw params/model for exact reconstruction reference
+        """
+        if hasattr(camera, "calibration_matrix"):
+            K = np.asarray(camera.calibration_matrix(), dtype=np.float64)
+        else:
+            # Fallback for common COLMAP models.
+            params = np.asarray(camera.params, dtype=np.float64)
+            model = str(camera.model)
+
+            if "SIMPLE" in model:
+                f, cx, cy = params[:3]
+                fx, fy = f, f
+            else:
+                fx, fy, cx, cy = params[:4]
+
+            K = np.array(
+                [
+                    [fx, 0.0, cx],
+                    [0.0, fy, cy],
+                    [0.0, 0.0, 1.0],
+                ],
+                dtype=np.float64,
+            )
+
+        params = np.asarray(camera.params, dtype=np.float64)
+
+        return K, params
+
     # def optimize(self, 
     #              scene: Scene):
     #             #  points: PointsMatched, 

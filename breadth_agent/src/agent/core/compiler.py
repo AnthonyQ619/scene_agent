@@ -10,12 +10,14 @@ class Compiler:
                  instruction_path: str | None = None,
                  api_directory: str | None = None,
                  temperature: float = 0.8,
-                 reasoning_effort: str ="medium"
+                 reasoning_effort: str ="medium",
+                 log_dir: str = 'tmp'
                  ):
         self.CWD = str(Path(__file__).resolve().parents[1])
 
         import uuid
         self.id = uuid.uuid4()
+        self.log_dir = log_dir
         self.exec = Executor(self.id)
 
          # Further Written Instructions
@@ -92,6 +94,7 @@ from modules.scenereconstruction import (Sparse3DReconstructionMono, Sparse3DRec
 from modules.optimization import (BundleAdjustmentOptimizerLocal, BundleAdjustmentOptimizerGlobal)
 from modules.baseclass import SfMScene
 ID = "{self.id}"
+log_dir = "{self.log_dir}"
 """
 
         full_desc = api_desc + "\n" + system_desc

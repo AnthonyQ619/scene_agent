@@ -8,11 +8,15 @@ import os
 
 class AutoSFM:
     def __init__(self, model_name, api_directory, instruction_path, reasoning_effort, logger):
-        self.compiler = Compiler(model=model_name, api_directory=api_directory, instruction_path=instruction_path, reasoning_effort=reasoning_effort)
+        self.logger = logger
+        self.log_dir = logger.log_dir
+
+        self.compiler = Compiler(model=model_name, api_directory=api_directory, instruction_path=instruction_path, reasoning_effort=reasoning_effort, log_dir=self.log_dir)
         self.generator = Generator(model=model_name, api_directory=api_directory, reasoning_effort=reasoning_effort)
         self.enhancer = PromptEnhancerLLM(model=model_name, instruction_path=instruction_path, reasoning_effort=reasoning_effort)
 
-        self.logger = logger
+        # self.logger = logger
+        # self.log_dir = logger.log_dir
 
         self.evaluator_llm = LLM(
             system_desc=f"""

@@ -1739,6 +1739,7 @@ class SfMScene:
     def __init__(
         self,
         id,
+        log_dir,
         image_path: str | None = None,
         calibration_path: str | None = None,
         cam_data: CameraData | None = None,
@@ -1746,6 +1747,7 @@ class SfMScene:
         target_resolution: Tuple[int, int] | None = None,
     ):
         self.id = id
+        self.log_dir = log_dir
         if cam_data is None:
             # if image_path is None or calibration_path is None:
                 # raise ValueError(
@@ -1764,8 +1766,9 @@ class SfMScene:
             # Get Camera Data
             cam_data = CDM.get_camera_data()
             
-            parent_metric_path = Path(__file__).resolve().parents[2]
-            metric_file_path = str(parent_metric_path / "results" / f"metrics_results_{id}.txt")
+            # parent_metric_path = Path(__file__).resolve().parents[2]
+            # metric_file_path = str(parent_metric_path / "results" / f"metrics_results_{id}.txt")
+            metric_file_path = self.log_dir + f"metrics_results_{id}.txt"
             # metric_file_path = "/work/tmp/metric_" + str(self.id) + ".txt"
             # Create file or erase contents of existing one
             with open(metric_file_path, "w") as file:
@@ -1777,6 +1780,7 @@ class SfMScene:
 
         self.cam_data = cam_data
         self.cam_data.metric_file_path = metric_file_path 
+        self.cam_data.logging_dir = self.log_dir
         self.state = SceneState(cam_data=cam_data)
 
     def __getattr__(self, name: str):
