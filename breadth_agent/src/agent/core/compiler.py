@@ -115,13 +115,26 @@ Program:
 {program}
 I want you to verify if the code that you generated adheres to the syntax and guidelines of the API. If it does, return the same code as your final answer. If it does not, please fix the code and return the corrected code as your final answer.
 Key things to ensure:
-1. For setting local bundle adjustment in pose estimation, apply the parameter like this to the pose estimation module: reconstructed_scene.CamPoseEstimatorEssentialToPnP(..., optimizer = ("BundleAdjustmentOptimizerLocal", 
+1. If using any of the VGGT tools, ensure you resize the images accordingly when reading the dataset by using target resolution and using a square image size (like [1024, 1024]).
+   When using (Sparse3DReconstructionVGGT), (Dense3DReconstructionVGGT), or (CamPoseEstimatorVGGTModel) do this at the first step:
+reconstructed_scene = SfMScene(ID,
+                                image_path=image_path,
+                                max_images=20,
+                                target_resolution=[1024, 1024]
+)
+2. If using CamPoseEstimatorVGGTModel for pose estimation (Feature detectors not strong enough), ensure to follow with Sparse3DReconstructionVGGT in Sparse scenarios or
+   Dense3DReconstructionVGGT in Dense reconstruction scenarios when applicable. Do not follow with the module (Sparse3DReconstructionMono) specifically since the VGGT generated
+   intrinsics do not work well with the geometric approach!
+   In the sparse case, for example, replace the Sparse3DReconstructionMono with Sparse3DReconstructionVGGT and utilize the correct parameters:
+   reconstructed_scene.Sparse3DReconstructionVGGT(min_observe=4)
+2. For setting local bundle adjustment in pose estimation, apply the parameter like this to the pose estimation module: reconstructed_scene.CamPoseEstimatorEssentialToPnP(..., optimizer = ("BundleAdjustmentOptimizerLocal",
         'max_num_iterations': 20,
         'window_size': 8,
         'robust_loss': True
     ) as this is a special case for the inclusion of the parameter.
-2. For constructing dense reconstruction with VGGT explicitly, skip sparse reconstruction from the VGGT module, and follow the pipeline of CamPoseEstimatorVGGTModel(...) to Dense3DReconstructionVGGT(...) as this is a special case.
-3. Most importantly, do not write your own code to bypass any errors. Resolve any errors by either fixing incorrect parameters, or fixing syntax errors. Do not generate any python code outside of the API usage.
+3. For constructing dense reconstruction with VGGT explicitly, skip sparse reconstruction from the VGGT module, and follow the pipeline of CamPoseEstimatorVGGTModel(...) to Dense3DReconstructionVGGT(...) as this is a special case.
+4. If using Sparse reconstruction with VGGT to include the Global Bundle Adjustment Optimizer (Only Sparse can include BA), use the Dense3DReconstructionMono(...) module instead!
+5. Most importantly, do not write your own code to bypass any errors. Resolve any errors by either fixing incorrect parameters, or fixing syntax errors. Do not generate any python code outside of the API usage.
 """
         refined_program = self.compiler(prompt)
         return refined_program
