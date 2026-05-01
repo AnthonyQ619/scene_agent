@@ -37,6 +37,7 @@ class IncrementalSfMState:
 @dataclass
 class CameraData:
     # --- Image Data ---
+    image_names: List[str]
     image_list: List[np.ndarray]        
     image_shape_old: Tuple[int, int]    # (width, height)
     image_shape_new: Tuple[int, int]    # (width, height)

@@ -999,12 +999,19 @@ reconstructed_scene.{module_name}()
         
         num_cameras = len(cam_poses.camera_pose)
 
-        depth_conf = depth_conf.squeeze(0).detach().cpu().numpy()
-        depth_map = depth_map.squeeze(0).detach().cpu().numpy() 
+        print("DEPTH CONFIDENCE MAP", depth_conf.shape)
+        depth_conf_np = depth_conf.squeeze(0).detach().cpu().numpy()
+        depth_map_np = depth_map.squeeze(0).detach().cpu().numpy() 
         print(point_map.shape)
         print(depth_conf.shape) 
-        points_3d = self.collect_PM_points(point_maps=point_map, 
-                                           conf_maps=depth_conf)
+        points_3d = self.export_vggt_dense_ply(
+            point_map,   # preferred
+            conf=depth_conf,
+            conf_threshold=0.5,
+            stride=2,
+        )
+        # points_3d = self.collect_PM_points(point_maps=point_map, 
+        #                                    conf_maps=depth_conf)
         
         # points_3d = self.voxel_downsample(points=points_3d)
         
@@ -1013,18 +1020,108 @@ reconstructed_scene.{module_name}()
         pts.set_all_points(points = points_3d)
         scene = Scene(points3D = pts,
                       cam_poses = cam_poses.camera_pose,
-                      depth_maps = depth_map,
+                      depth_maps = depth_map_np,
                       sparse = False)
-        print(points_3d.shape)
+        # print(points_3d.shape)
 
-        val = self.point_density(points=points_3d)
-        print("POINT DENSITY", val)
-        val = self.coverage(points = points_3d)
-        print("OCCUPANCY GRID", val)
-        val = self.depth_consistency(depth_maps=depth_map)
-        print("DEPTH CONSISTENCY", val)
+        # val = self.point_density(points=points_3d)
+        # print("POINT DENSITY", val)
+        # val = self.coverage(points = points_3d)
+        # print("OCCUPANCY GRID", val)
+        # val = self.depth_consistency(depth_maps=depth_map)
+        # print("DEPTH CONSISTENCY", val)
         return scene
-    
+    # Helper Function to grab proper dense point cloud
+    def to_numpy(self, x):
+        import torch
+        import numpy as np
+
+        if isinstance(x, torch.Tensor):
+            return x.detach().cpu().numpy()
+        return np.asarray(x)
+    def save_ply_xyzrgb(self, path, points_xyz, colors_rgb=None):
+        """
+        points_xyz: (M, 3) float array
+        colors_rgb: optional (M, 3) uint8 array
+        """
+        points_xyz = np.asarray(points_xyz, dtype=np.float32)
+
+        if colors_rgb is not None:
+            colors_rgb = np.asarray(colors_rgb, dtype=np.uint8)
+            assert len(points_xyz) == len(colors_rgb)
+
+        with open(path, "w") as f:
+            f.write("ply\n")
+            f.write("format ascii 1.0\n")
+            f.write(f"element vertex {len(points_xyz)}\n")
+            f.write("property float x\n")
+            f.write("property float y\n")
+            f.write("property float z\n")
+
+            if colors_rgb is not None:
+                f.write("property uchar red\n")
+                f.write("property uchar green\n")
+                f.write("property uchar blue\n")
+
+            f.write("end_header\n")
+
+            if colors_rgb is None:
+                for x, y, z in points_xyz:
+                    f.write(f"{x} {y} {z}\n")
+            else:
+                for (x, y, z), (r, g, b) in zip(points_xyz, colors_rgb):
+                    f.write(f"{x} {y} {z} {r} {g} {b}\n")
+
+    def export_vggt_dense_ply(self,
+        point_maps,          # N,H,W,3
+        images_rgb=None,     # optional N,H,W,3 uint8
+        conf=None,           # optional N,H,W or N,H,W,1
+        conf_threshold=None,
+        max_depth=None,
+        stride=1,
+    ):
+        dense_path = os.path.join(self.cam_data.logging_dir, f"fused_dense_vggt.ply")
+        points = np.asarray(point_maps)
+
+        if points.ndim != 4 or points.shape[-1] != 3:
+            raise ValueError(f"Expected point_maps with shape (N,H,W,3), got {points.shape}")
+
+        # Optional spatial subsampling. Useful because dense VGGT clouds can be huge.
+        points = points[:, ::stride, ::stride, :]
+
+        colors = None
+        if images_rgb is not None:
+            colors = np.asarray(images_rgb)[:, ::stride, ::stride, :]
+
+        valid = np.isfinite(points).all(axis=-1)
+
+        # Optional confidence filtering
+        if conf is not None and conf_threshold is not None:
+            conf_arr = self.to_numpy(conf)
+            # depth_conf from VGGT: 1,N,H,W -> N,H,W
+            if conf_arr.ndim == 4 and conf_arr.shape[0] == 1:
+                conf_arr = conf_arr[0]
+            elif conf_arr.ndim == 4 and conf_arr.shape[-1] == 1:
+                conf_arr = conf_arr[..., 0]
+            conf_arr = conf_arr[:, ::stride, ::stride]
+            valid &= conf_arr >= conf_threshold
+
+        # Optional depth/radius filtering to remove far junk
+        if max_depth is not None:
+            radius = np.linalg.norm(points, axis=-1)
+            valid &= radius <= max_depth
+
+        flat_points = points[valid].reshape(-1, 3)
+
+        flat_colors = None
+        if colors is not None:
+            flat_colors = colors[valid].reshape(-1, 3).astype(np.uint8)
+
+        self.save_ply_xyzrgb(dense_path, flat_points, flat_colors)
+
+        print(flat_points.shape)
+        return flat_points
+
     def point_density(self, points):
             mins = points.min(axis=0)
             maxs = points.max(axis=0)
@@ -1225,7 +1322,8 @@ reconstructed_scene.{module_name}(reproj_error=3.0,
                       cam_poses = poses,
                       depth_maps = depth_maps,
                       sparse = False)
-        recon.export_PLY(str(self.workspace_path / "dense" / "fused.ply")) #(os.path.join(self.workspace_path, "dense", "fused.ply"))
+        dense_path = os.path.join(self.cam_data.logging_dir, f"fused_dense.ply")
+        recon.export_PLY(dense_path) #str(self.workspace_path / "dense" / "fused.ply")) #(os.path.join(self.workspace_path, "dense", "fused.ply"))
         return scene #super().build_reconstruction(sparse_scene)
     
     def read_colmap_depth(self) -> list[np.ndarray]:

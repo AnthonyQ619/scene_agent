@@ -146,7 +146,8 @@ reconstructed_scene = SfMScene(ID,
         for p in programs:
             output, success = self.exec(p)
             if success: 
-                temp_path = "/home/anthonyq/projects/scene_agent/breadth_agent/results" + f"/metrics_results_{self.id}.txt"
+                #temp_path = "/home/anthonyq/projects/scene_agent/breadth_agent/results" + f"/metrics_results_{self.id}.txt"
+                temp_path = self.log_dir + f"/metrics_results_{id}.txt" 
                 # with open("/work/tmp/metric_" + str(self.id) + ".txt", "r") as f:
                 with open(temp_path, "r") as f:
                     metric = f.read().strip()
@@ -160,7 +161,7 @@ reconstructed_scene = SfMScene(ID,
         return p, output
 
 
-    def __call__(self, query, num_samples=5):
+    def __call__(self, query, num_samples=2): # Was 5
         with ThreadPoolExecutor(max_workers=min(20, num_samples)) as executor:
             futures = [
                 executor.submit(

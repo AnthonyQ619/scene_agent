@@ -26,7 +26,8 @@ class CameraDataManager():
                  max_images: int | None = None,
                  calibration_path: str | None = None,
                  target_resolution: Tuple[int, int] | None = None):
-        
+
+        file_names = sorted(p.name for p in Path(image_path).glob("*"))
         if max_images is None:
             if os.name == 'nt':
                 image_files = sorted(glob.glob(image_path + "\\*"))#[:5]
@@ -81,7 +82,8 @@ class CameraDataManager():
         if intrinsics is not None and len(intrinsics) > 2:
             multi_camera = True
 
-        self.cam_data = CameraData(image_list=image_list,
+        self.cam_data = CameraData(image_names=file_names,
+                                   image_list=image_list,
                                    image_shape_old=image_shape_old,
                                    image_shape_new=image_shape_new,
                                    image_scale=image_scale,

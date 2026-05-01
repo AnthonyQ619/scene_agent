@@ -564,7 +564,9 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
 
         # Write reconstructed scene to workspace (Sparse Scene Currently)
         recon.write(self.directory_path)
-        recon.export_PLY(str(self.dir_path / "results" / "workspace" / "sparse.ply"))
+        # recon.export_PLY(str(self.dir_path / "results" / "workspace" / "sparse.ply"))
+        sparse_path = os.path.join(self.cam_data.logging_dir, f"sparse.ply")
+        recon.export_PLY(str(sparse_path))
 
         # Get final Metric (reprojection errors)
         recon.update_point_3d_errors()
@@ -862,12 +864,36 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         return recon, trackid_to_point3Did
 
     def _store_extrinsics_information(self, recon) -> None:
-        out_path = os.path.join(self.log_dir, f"cam_poses_log.npz")
+        out_path = os.path.join(self.cam_data.logging_dir, f"cam_poses_log.npz")
         image_records = []
 
-        for image_id, image in recon.images.items():
-            if not image.has_pose:
+        image_items_sorted = sorted(
+            recon.images.items(),
+            key=lambda kv: kv[1].name
+        )
+
+        for image_id, image in image_items_sorted:
+            has_pose = bool(getattr(image, "has_pose", False))
+            if not has_pose:
+                # print(f"[Warning] Image is not registered, no pose available: {image.name}")
+                image_records.append(
+                    {
+                        "image_id": int(image_id),
+                        "image_name": image.name,
+                        "camera_id": int(image.camera_id),
+                        "width": int(camera.width),
+                        "height": int(camera.height),
+                        "camera_model": str(camera.model),
+                        "camera_params": np.asarray(camera.params, dtype=np.float64),
+                        "K": camera_to_K_and_dist(camera)[0],
+                        "R_world_to_cam": np.full((3, 3), np.nan),
+                        "t_world_to_cam": np.full(3, np.nan),
+                        "camera_center_world": np.full(3, np.nan),
+                        "pose_available": False,
+                    }
+                )
                 continue
+
 
             camera = recon.cameras[image.camera_id]
 
@@ -968,7 +994,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         """
         # Newer pycolmap versions
         if hasattr(image, "cam_from_world"):
-            cam_from_world = image.cam_from_world
+            cam_from_world = image.cam_from_world()
 
             # Rigid3d-like object
             if hasattr(cam_from_world, "rotation") and hasattr(cam_from_world, "translation"):

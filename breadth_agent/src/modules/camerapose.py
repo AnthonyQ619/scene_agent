@@ -156,9 +156,90 @@ reconstructed_scene.{module_name}() # Images read in previous step (1)
 
         self.cam_data.apply_new_calibration(intrins, dists)
 
+        self._save_camera_poses(extrinsic, intrinsic, self.cam_data.image_names, (518, 518))
+
         torch.cuda.empty_cache() #Empty GPU cache
         # return camera_poses
     
+    def _save_camera_poses(self,
+        extrinsic,
+        intrinsic,
+        image_names=None,
+        image_size=None,
+        extra_metadata=None,
+    ):
+        """
+        Save VGGT camera predictions for pose evaluation.
+
+        Parameters
+        ----------
+        output_path:
+            Path to output .npz file.
+
+        extrinsic:
+            VGGT extrinsic output, shape (N, 3, 4).
+            Convention: world-to-camera / camera-from-world.
+
+        intrinsic:
+            VGGT intrinsic output, shape (N, 3, 3).
+
+        image_names:
+            Optional list of image filenames in the same order used by VGGT.
+
+        image_size:
+            Optional tuple/list: (H, W).
+
+        extra_metadata:
+            Optional dict of extra scalar/string metadata.
+        """
+        out_path = os.path.join(self.cam_data.logging_dir, "vggt_poses.npz")
+
+        extrinsics_w2c = self.to_numpy(extrinsic)
+
+        if extrinsics_w2c.ndim == 4 and extrinsics_w2c.shape[0] == 1:
+            extrinsics_w2c = extrinsics_w2c[0]
+
+        intrinsics = self.to_numpy(intrinsic)
+
+        if intrinsics.ndim == 4 and intrinsics.shape[0] == 1:
+            intrinsics = intrinsics[0]
+
+        if extrinsics_w2c.shape[-2:] != (3, 4):
+            raise ValueError(f"Expected extrinsics shape (N,3,4), got {extrinsics_w2c.shape}")
+
+        if intrinsics.shape[-2:] != (3, 3):
+            raise ValueError(f"Expected intrinsics shape (N,3,3), got {intrinsics.shape}")
+
+        if len(extrinsics_w2c) != len(intrinsics):
+            raise ValueError("Number of extrinsics and intrinsics does not match.")
+
+        R_w2c = extrinsics_w2c[:, :3, :3]
+        t_w2c = extrinsics_w2c[:, :3, 3]
+
+        extrinsics_c2w, cam_centers_world = self.w2c_3x4_to_c2w_4x4(extrinsics_w2c)
+
+        save_dict = {
+            "extrinsics_w2c": extrinsics_w2c.astype(np.float64),
+            "intrinsics": intrinsics.astype(np.float64),
+            "R_w2c": R_w2c.astype(np.float64),
+            "t_w2c": t_w2c.astype(np.float64),
+            "extrinsics_c2w": extrinsics_c2w.astype(np.float64),
+            "cam_centers_world": cam_centers_world.astype(np.float64),
+            "pose_convention": np.array("OpenCV camera-from-world / world-to-camera"),
+        }
+
+        if image_names is not None:
+            save_dict["image_names"] = np.asarray(image_names)
+
+        if image_size is not None:
+            save_dict["image_size"] = np.asarray(image_size, dtype=np.int32)
+
+        if extra_metadata is not None:
+            for k, v in extra_metadata.items():
+                save_dict[k] = np.asarray(v)
+
+        np.savez_compressed(out_path, **save_dict)
+
     @module_metric
     def _metric_pose_matrix_quality(self) -> dict:
         if len(self.camera_poses.camera_pose) == 0:
@@ -189,6 +270,35 @@ reconstructed_scene.{module_name}() # Images read in previous step (1)
                 "Median Translation Norm": float(np.median(trans_norms))}
         }
 
+    # Helper Functions for Poses Recording
+    def to_numpy(self, x):
+        if isinstance(x, torch.Tensor):
+            return x.detach().cpu().float().numpy()
+        return np.asarray(x)
+
+
+    def w2c_3x4_to_c2w_4x4(self, extrinsics_w2c):
+        """
+        Convert OpenCV-style world-to-camera extrinsics [R|t]
+        into camera-to-world 4x4 matrices.
+
+        extrinsics_w2c: (N, 3, 4)
+        returns: (N, 4, 4)
+        """
+        extrinsics_w2c = np.asarray(extrinsics_w2c, dtype=np.float64)
+
+        R_w2c = extrinsics_w2c[:, :3, :3]
+        t_w2c = extrinsics_w2c[:, :3, 3]
+
+        R_c2w = np.transpose(R_w2c, (0, 2, 1))
+        cam_centers_world = -np.einsum("nij,nj->ni", R_c2w, t_w2c)
+
+        N = extrinsics_w2c.shape[0]
+        c2w = np.tile(np.eye(4, dtype=np.float64)[None], (N, 1, 1))
+        c2w[:, :3, :3] = R_c2w
+        c2w[:, :3, 3] = cam_centers_world
+
+        return c2w, cam_centers_world
     # @module_metric
     # def _metric_intrinsics_summary(self) -> dict:
     #     if len(self._pred_intrinsics) == 0:
