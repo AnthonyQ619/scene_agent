@@ -102,6 +102,10 @@ Utilize this module in cases where images do not have extreme overlap, scale is 
 monocular camera setup, GPU memory is accessible, or calibration is not provided, and we need 
 to estimate camera pose and calibration parameters to reconstruct the scene.
 
+
+If calibration is provided and we utilize this module due to lack of good feature correspondences for
+pose estimation, make note that we do rewrite calibration with this module and update it. 
+
 Initialization Parameters:
 - None -> Handled internally through the SfMScene object
 

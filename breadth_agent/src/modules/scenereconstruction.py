@@ -890,8 +890,8 @@ Use this module when specified for dense reconstruction and the scene doesn't al
 from classical feature detectors (SIFT or ORB), or ML Detectors. Utilize this module in conjuction with the VGGT pose 
 estimation module in these cases where feature detection is low. This module is for reconstructing the scene using 
 the deep learning approach. 
-Computation time should matter when invoking this tool, KEEP IN MIND of system constraints such as GPU memory prior
-to USING THIS TOOL.
+This is especially useful for cases where feature tracking fails, even with robust matchers/trackers and feature detectors.
+Opt for this module in those cases!
 
 Initialization Parameters:
 None - Not applicable here
@@ -1211,6 +1211,7 @@ from modules.scenereconstruction import ... (Sparse), {module_name} (Dense)
 from modules.baseclass import SfMScene
 
 Function Use:
+### EXAMPLE 1 - CLASSICAL FEATURE BASED###
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(image_path = image_path, 
                                calibration_path = calibration_path)
@@ -1226,6 +1227,31 @@ reconstructed_scene = SfMScene(image_path = image_path,
 # Step 6: Estimate Sparse Reconstruction module using the Classical Method for Step 7
 
 # Step 7: Run Global Optimizer to build Colmap Workspace Piror to step 8
+
+# Step 8: Run Dense Reconstruction Algorithm
+reconstructed_scene.{module_name}(reproj_error=3.0,
+                                  min_triangulation_angle=1.0,
+                                  num_samples=15,
+                                  num_iterations=3)
+
+### EXAMPLE 2 - VGGT PIPELINE BASED###
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                               calibration_path = calibration_path)
+
+# Step 2: Detect Features Prior to Step 3 (Data filled in SfMScene)
+
+# Step 3: Don't need Feature pairs for VGGT Pose Estimation pipeline (Ignore)
+
+# Step 4: Detect/Estimate Camera Poses (Utilizing VGGT)
+reconstructed_scene.CamPoseEstimatorVGGTModel()
+
+# Step 5: Detect Feature Tracks Prior to Step 6 (Data filled in SfMScene)
+
+# Step 6: Estimate Sparse Reconstruction
+reconstructed_scene.Sparse3DReconstructionVGGT(min_observe=4)
+
+# Step 7: Run Optimization Global Optimizer to build Colmap Workspace Piror to step 8
 
 # Step 8: Run Dense Reconstruction Algorithm
 reconstructed_scene.{module_name}(reproj_error=3.0,
