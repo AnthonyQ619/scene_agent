@@ -106,8 +106,9 @@ from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(id=1,
+                                log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/ETH/eth_living_room",
                                 image_path = image_path, 
-                                max_images = 20,
+                                max_images = 25,
                                 calibration_path = calibration_path)
 
 # Step 2: Detect Features
@@ -152,9 +153,9 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
 )
 
 # STEP 8: Run Rense Reconstruction Algorithm
-reconstructed_scene.Dense3DReconstructionMono(
-    reproj_error=3.0,
-    min_triangulation_angle=1.0,
-    num_samples=15,
-    num_iterations=3
-)
+# reconstructed_scene.Dense3DReconstructionMono(
+#     reproj_error=3.0,
+#     min_triangulation_angle=1.0,
+#     num_samples=15,
+#     num_iterations=3
+# )

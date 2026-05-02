@@ -52,24 +52,25 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path = "/home/anthonyq/datasets/DTU/scan6_illumination_change" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_illumination_change"
+image_path = "/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted" #"/home/anthonyq/datasets/DTU/scan6_illumination_change" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_illumination_change"
 
 from modules.features import FeatureDetectionSP
 from modules.featurematching import FeatureMatchSuperGlueTracking
 from modules.camerapose import CamPoseEstimatorVGGTModel
-from modules.scenereconstruction import Sparse3DReconstructionVGGT
+from modules.scenereconstruction import Sparse3DReconstructionVGGT, Dense3DReconstructionVGGT
 from modules.optimization import BundleAdjustmentOptimizerGlobal
 from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(id=3,
+                              log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/ETH/eth_living_room",
                                 image_path=image_path,
-                                max_images=20,
+                                max_images=25,
                                 target_resolution=[1024, 1024]
 )
 
 # Step 2: Detect Features
-reconstructed_scene.FeatureDetectionSP(max_keypoints=5000)
+reconstructed_scene.FeatureDetectionSP(max_keypoints=6000)
 
 # Step 3: Detect Feature Pairs
 # Ignore since pose estimation is using VGGT as the backbone structure
@@ -78,10 +79,10 @@ reconstructed_scene.FeatureDetectionSP(max_keypoints=5000)
 reconstructed_scene.CamPoseEstimatorVGGTModel()
 
 # Step 5: Detect Feature Tracks
-reconstructed_scene.FeatureMatchSuperGlueTracking(
+reconstructed_scene.FeatureMatchLightGlueTracking(
     detector='superpoint', 
-    RANSAC_threshold=1.0,
-    setting="indoor"
+    RANSAC_threshold=2.0,
+    # setting="indoor"
 )
 
 # Step 6: Estimate Sparse Reconstruction
@@ -89,5 +90,5 @@ reconstructed_scene.Sparse3DReconstructionVGGT(min_observe=4)
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=230
+    max_num_iterations=130,
 )
