@@ -566,7 +566,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         # Write reconstructed scene to workspace (Sparse Scene Currently)
         recon.write(self.directory_path)
         # recon.export_PLY(str(self.dir_path / "results" / "workspace" / "sparse.ply"))
-        sparse_path = os.path.join(self.cam_data.logging_dir, f"sparse.ply")
+        sparse_path = os.path.join(self.cam_data.logging_dir, str(self.cam_data.script_id), f"sparse.ply")
         recon.export_PLY(str(sparse_path))
 
         # Get final Metric (reprojection errors)
@@ -865,7 +865,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         return recon, trackid_to_point3Did
 
     def _store_extrinsics_information(self, recon) -> None:
-        out_path = os.path.join(self.cam_data.logging_dir, f"cam_poses_log.npz")
+        out_path = os.path.join(self.cam_data.logging_dir, str(self.cam_data.script_id), f"cam_poses_log.npz")
         image_records = []
 
         image_items_sorted = sorted(
