@@ -122,38 +122,60 @@ def read_image(image_path: str,
                 max_size: int,
                 interpolation=cv2.INTER_AREA):
             
-            img = cv2.imread(image_path, cv2.IMREAD_COLOR) #cv2.cvtColor(cv2.imread(image_path, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
-            if img is None:
-                raise ValueError(f"Could not read image: {image_path}")
+    img = cv2.imread(image_path, cv2.IMREAD_COLOR) #cv2.cvtColor(cv2.imread(image_path, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
+    if img is None:
+        raise ValueError(f"Could not read image: {image_path}")
 
-            h, w = img.shape[:2]
-            max_dim = max(h, w)
+    h, w = img.shape[:2]
+    max_dim = max(h, w)
 
-            # No resize needed
-            if max_dim <= max_size:
-                return img, 1.0
+    # No resize needed
+    if max_dim <= max_size:
+        return img, 1.0
 
-            scale = max_size / max_dim
-            new_w = int(round(w * scale))
-            new_h = int(round(h * scale))
+    scale = max_size / max_dim
+    new_w = int(round(w * scale))
+    new_h = int(round(h * scale))
 
-            resized = cv2.resize(
-                img,
-                (new_w, new_h),
-                interpolation=interpolation
-            )   
+    resized = cv2.resize(
+        img,
+        (new_w, new_h),
+        interpolation=interpolation
+    )   
+    scale = (new_w / w, new_h / h)
 
-            return resized
+    return resized, scale
 
-def resize_dataset(image_path: list, max_size: int) -> str:
+def resize_dataset(image_path: list, max_size: int, calib_path: str | None = None) -> str:
     temp_directory = Path(__file__).resolve().parents[3] / "results" / "resized_dataset"
     if not os.path.exists(str(temp_directory)):
             os.makedirs(str(temp_directory))
 
     for i in range(len(image_path)):
-        temp_img = read_image(image_path[i], max_size=max_size)
+        temp_img, scale = read_image(image_path[i], max_size=max_size)
         cv2.imwrite(str(temp_directory / f"image{i}.png"), temp_img)
-    return str(temp_directory), sorted(glob.glob(str(temp_directory / "*")))
+
+    if calib_path is not None:
+        width_scale, height_scale = scale
+        data = np.load(calib_path)
+        data.allow_pickle = True 
+        full_cal_data = dict(data)
+
+        # Keys are
+        # - k_mats: (N, 3, 3) -> N = num of cameras
+        # - dists: (N, 1, 5) -> N = num of cameras 
+        # - baseline_ext: None or (3, 4) -> the baseline of stereo camera
+
+        intrinsics = full_cal_data['k_mats'][0]
+    
+        intrinsics[0,0] = width_scale * intrinsics[0,0]   # fx x width_scale = fx'
+        intrinsics[1,1] = height_scale * intrinsics[1,1]  # fy x height_scale = fy'
+        intrinsics[0,2] = width_scale * intrinsics[0,2]   # cx x width_scale = cx'
+        intrinsics[1,2] = height_scale * intrinsics[1,2]  # cy x height_scale = cy'
+    else:
+        intrinsics = None
+
+    return str(temp_directory), sorted(glob.glob(str(temp_directory / "*"))), intrinsics
 
 
 def clean_dir(directory: str) -> None:

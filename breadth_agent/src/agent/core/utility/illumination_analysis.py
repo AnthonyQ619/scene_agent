@@ -429,13 +429,31 @@ def make_agent_interpretation(
         "recommended_actions": recommended_actions,
     }
 
-# Test script
-path = "..."
-image_paths = sorted(glob.glob(path + "/*"))
-
-summary = compute_dataset_illumination_summary(image_paths)
-
-print(summary["dataset_labels"])
-print(summary["dataset_scores"])
-print(summary["problem_pair_ratios"])
-print(summary["agent_interpretation"])
+def generate_illumination_change_prompt(image_data_set: list[str]):
+    summary = compute_dataset_illumination_summary(image_data_set)
+    scores = summary["dataset_scores"]
+    context = f"""
+illumination_change_score_p75: This score measures how much the grayscale/luminance appearance changes across the dataset.
+    - it is mainly looking at: global brightness changes, median scene brightness changes, contrast/spread changes, overall luminance distribution changes
+    - Generated Score: {scores['illumination_change_score_p75']}
+color_shift_score_p75: This score measures chromatic/color appearance changes across the dataset.
+    - It evaluates the color changes in the channels of A/B in the LAB color space of images
+    - changes in white balance or color cast
+    - This score affects SuperPoint usability more than Sift or ORB since it runs on RGB images.
+    - Generated Score: {scores['color_shift_score_p75']}
+exposure_shift_score_p75: This score measures exposure instability and clipping risk.
+    - It is mainly looking at:
+        - brightness change
+        - increase/decrease in dark clipped pixels
+        - increase/decrease in highlight clipped pixels
+        - minor contrast/spread change
+    - It answers if some images underexposed, overexposed, or losing detail in shadows/highlights.
+    - Generated Score: {scores['exposure_shift_score_p75']}
+combined_change_score_p75: overall appearance-change score.
+    - it is weighted toward:
+        - luminance/brightness/contrast changes
+        - color/white-balance changes
+        - exposure/clipping changes
+    - A high combined score means the dataset has non-trivial photometric instability.
+    - Generated Score: {scores['combined_change_score_p75']}
+    """

@@ -71,21 +71,21 @@ from modules.utilities import image_builder
 #     return new_img
 
 def main():
-    image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\images\\dslr_images_undistorted"
-    img_to_save = r"C:\Users\Anthony\Documents\Projects\scene_agent\breadth_agent\src\tests\context_images"
-    i = 8
+    image_path = "/home/anthonyq/datasets/ETH/ETH/office/images/dslr_images_undistorted"
+    img_to_save = r"/home/anthonyq/projects/scene_agent/breadth_agent/src/tests/context_images"
+    i = 9
 
     # Use equivalent parameters to 
     new_img = image_builder(image_path=image_path, 
                             max_size=350, 
                             k=5)
     
-    # Show Image to User
-    imgplot = plt.imshow(new_img)
-    plt.show()
+    # # Show Image to User
+    # imgplot = plt.imshow(new_img)
+    # plt.show()
     
     # Save Image for Context
-    cv2.imwrite(img_to_save + f"\\image_context{i}.png", cv2.cvtColor(new_img, cv2.COLOR_RGB2BGR))
+    cv2.imwrite(img_to_save + f"/image_context{i}.png", new_img) #cv2.cvtColor(new_img, cv2.COLOR_RGB2BGR))
     
 
 if __name__ == "__main__":

@@ -1010,7 +1010,7 @@ class FeatureMatching(PipelineModule, ABC):
         try:
             return self(state.features)
         except Exception as e:
-            threshold = getattr(self, "RANSAC_threshold", None)
+            threshold = self.ransac_threshold #getattr(self, "RANSAC_threshold", None)
 
             if threshold is not None and threshold >= 3.0:
                 fix_hint = (
@@ -1031,15 +1031,14 @@ class FeatureMatching(PipelineModule, ABC):
                 "[FeatureMatching Error]\n"
                 "Feature matching failed.\n\n"
                 "Likely causes:\n"
-                "- Not enough feature points were detected to produce valid matches.\n"
+                "- Not enough feature points were detected to produce enough matches.\n"
                 "- Not enough matches survived outlier rejection.\n"
                 "- The outlier rejection threshold is too strict.\n"
                 "- The selected feature detector may not be producing enough reliable keypoints.\n\n"
                 "Suggested fixes:\n"
                 f"- {fix_hint}\n"
-                "- Increase the maximum number of detected keypoints if the detector supports it.\n"
-                "- Use a more robust detector/descriptor combination for the image set.\n"
-                "- Check that image overlap is sufficient between matched frames.\n"
+                "- Improve parameterization to increase the number of detected keypoints if the detector supports it.\n"
+                "- Use a more robust detector/descriptor combination for the image set (If SuperPoint is used, think about Detector Free approach).\n"
                 "- Final try, swap to a detector free approach, such as using VGGT directly for Pose/Reconstruction.\n\n"
                 f"Current outlier rejection threshold: {threshold}\n"
                 f"Original error: {type(e).__name__}: {e}"
@@ -1105,6 +1104,7 @@ class FeatureMatching(PipelineModule, ABC):
 
         pts1_t = pts1.points2D
         pts2_t = pts2.points2D
+        # print("SHAPE", pts2_t.shape)
         if self.homography:
             # F, mask = cv2.findFundamentalMat(pts1_norm, pts2_norm, cv2.FM_RANSAC, 
             #                                  ransacReprojThreshold=self.ransac_threshold, 
@@ -1198,34 +1198,97 @@ class FeatureMatching(PipelineModule, ABC):
         W, H = matching_points.image_size[:]
 
         repeatabilities = []
-        for pair in range(len(matched_points)):
-            pt_set = matched_points[pair]
-            print(pt_set)
-            pt_set_A = pt_set[:, :2]
-            pt_set_B = pt_set[:, 2:]
+        for pair_idx in range(len(matched_points)):
+            pt_set = matched_points[pair_idx]
 
-            H_mat, _ = cv2.findHomography(pt_set_A, pt_set_B, cv2.RANSAC, 5.0)
+            if pt_set.shape[0] < 4:
+                repeatabilities.append(0.0)
+                continue
 
-            KA = features[pair]
-            KB = features[pair + 1]
+            pts_A = pt_set[:, :2].astype(np.float32)
+            pts_B = pt_set[:, 2:].astype(np.float32)
 
-            print("BEFORE", KB.shape)
-            KA_prime = self._warp_points(KA.reshape(-1, 1, 2), H_mat, [W, H])
-            KB_prime = self._warp_points(KB.reshape(-1, 1, 2), np.linalg.inv(H_mat),[W, H])
-            KB = self._warp_points(KB_prime.reshape(-1, 1, 2), H_mat, [W, H])
-            print("AFTER", KB.shape)
+            H_mat, inlier_mask = cv2.findHomography(
+                pts_A,
+                pts_B,
+                cv2.RANSAC,
+                5.0
+            )
+
+            if H_mat is None:
+                repeatabilities.append(0.0)
+                continue
+
+            try:
+                H_inv = np.linalg.inv(H_mat)
+            except np.linalg.LinAlgError:
+                repeatabilities.append(0.0)
+                continue
+
+            KA = features[pair_idx].astype(np.float32)
+            KB = features[pair_idx + 1].astype(np.float32)
+
+            if len(KA) == 0 or len(KB) == 0:
+                repeatabilities.append(0.0)
+                continue
+
+            # A features projected into B
+            KA_to_B = self._warp_points(
+                KA.reshape(-1, 1, 2),
+                H_mat,
+                [W, H]
+            )
+
+            # B features projected into A, only for visibility count
+            KB_to_A = self._warp_points(
+                KB.reshape(-1, 1, 2),
+                H_inv,
+                [W, H]
+            )
+
+            if len(KA_to_B) == 0 or len(KB_to_A) == 0:
+                repeatabilities.append(0.0)
+                continue
+
+            # Compare warped A features against actual B features
             tree = cKDTree(KB)
 
-            # k=2 because first neighbor is itself
-            dists, _ = tree.query(KA_prime, k=2)
+            dists, _ = tree.query(KA_to_B, k=1)
 
-            nearest = dists[:,1]
+            repeated = np.sum(dists <= epsilon)
 
-            repeated = nearest[nearest <= epsilon].shape[0]
-            print(repeated)
-            repeatability = repeated / min(len(KA_prime), len(KB))
+            denom = min(len(KA_to_B), len(KB_to_A))
 
-            repeatabilities.append(repeatability)
+            repeatability = repeated / denom if denom > 0 else 0.0
+            repeatabilities.append(float(repeatability))
+        # for pair in range(len(matched_points)):
+        #     pt_set = matched_points[pair]
+        #     # print(pt_set)
+        #     pt_set_A = pt_set[:, :2]
+        #     pt_set_B = pt_set[:, 2:]
+
+        #     H_mat, _ = cv2.findHomography(pt_set_A, pt_set_B, cv2.RANSAC, 5.0)
+
+        #     KA = features[pair]
+        #     KB = features[pair + 1]
+
+        #     # print("BEFORE", KB.shape)
+        #     KA_prime = self._warp_points(KA.reshape(-1, 1, 2), H_mat, [W, H])
+        #     KB_prime = self._warp_points(KB.reshape(-1, 1, 2), np.linalg.inv(H_mat),[W, H])
+        #     KB = self._warp_points(KB_prime.reshape(-1, 1, 2), H_mat, [W, H])
+        #     # print("AFTER", KB.shape)
+        #     tree = cKDTree(KB)
+
+        #     # k=2 because first neighbor is itself
+        #     dists, _ = tree.query(KA_prime, k=1)
+
+        #     nearest = dists[:,1]
+
+        #     repeated = nearest[nearest <= epsilon].shape[0]
+        #     # print(repeated)
+        #     repeatability = repeated / min(len(KA_prime), len(KB))
+
+        #     repeatabilities.append(repeatability)
 
 
         return float(np.array(repeatabilities).mean())
@@ -1332,7 +1395,8 @@ class FeatureTracking(PipelineModule, ABC):
         try:
             return self(state.features)
         except Exception as e:
-            threshold = getattr(self, "RANSAC_threshold", None)
+            # threshold = getattr(self, "RANSAC_threshold", None)
+            threshold = self.RANSAC_threshold 
 
             if threshold is not None and threshold >= 3.0:
                 fix_hint = (
@@ -1381,7 +1445,7 @@ class FeatureTracking(PipelineModule, ABC):
         self.module_name = module_name
         self.description = description
         self.example = example
-
+        self.RANSAC_threshold = RANSAC_threshold
         self.detector = detector
         self.det_free = False
 
@@ -1468,6 +1532,7 @@ class FeatureTracking(PipelineModule, ABC):
 
 class OptimizationClass(PipelineModule, ABC):
     use_base_metrics = True
+    use_no_metrics = False
     _registered_metric_methods: tuple[str, ...] = ()
     output_key = "optimized_scene"
 
@@ -1580,6 +1645,9 @@ class OptimizationClass(PipelineModule, ABC):
         raise NotImplementedError
 
     def calculate_metrics(self, current_scene: Scene) -> None:
+        if self.use_no_metrics:
+            return
+        
         event_msg = self._collect_metrics(current_scene)
         print(json.dumps(event_msg), flush=True)
 
@@ -1671,6 +1739,7 @@ class SfMScene:
     def __init__(
         self,
         id,
+        log_dir,
         image_path: str | None = None,
         calibration_path: str | None = None,
         cam_data: CameraData | None = None,
@@ -1678,6 +1747,9 @@ class SfMScene:
         target_resolution: Tuple[int, int] | None = None,
     ):
         self.id = id
+        self.log_dir = log_dir
+        #Colmap Workspace
+        colmap_dir = log_dir + f"/{id}/workspace"
         if cam_data is None:
             # if image_path is None or calibration_path is None:
                 # raise ValueError(
@@ -1686,19 +1758,22 @@ class SfMScene:
             if max_images is None:
                 CDM = CameraDataManager(image_path=image_path,
                             calibration_path=calibration_path,
-                            target_resolution=target_resolution)
+                            target_resolution=target_resolution,
+                            colmap_workspace=colmap_dir)
             else:
                 CDM = CameraDataManager(image_path=image_path,
                             max_images=max_images,
                             calibration_path=calibration_path,
-                            target_resolution=target_resolution)
+                            target_resolution=target_resolution,
+                            colmap_workspace=colmap_dir)
 
             # Get Camera Data
             cam_data = CDM.get_camera_data()
             
             # parent_metric_path = Path(__file__).resolve().parents[2]
             # metric_file_path = str(parent_metric_path / "results" / f"metrics_results_{id}.txt")
-            metric_file_path = "/work/tmp/metric_" + str(self.id) + ".txt"
+            metric_file_path = self.log_dir + f"/metrics_results_{id}.txt"
+            # metric_file_path = "/work/tmp/metric_" + str(self.id) + ".txt"
             # Create file or erase contents of existing one
             with open(metric_file_path, "w") as file:
                 pass
@@ -1709,6 +1784,8 @@ class SfMScene:
 
         self.cam_data = cam_data
         self.cam_data.metric_file_path = metric_file_path 
+        self.cam_data.logging_dir = self.log_dir
+        self.cam_data.script_id = id
         self.state = SceneState(cam_data=cam_data)
 
     def __getattr__(self, name: str):

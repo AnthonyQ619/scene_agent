@@ -37,6 +37,7 @@ class IncrementalSfMState:
 @dataclass
 class CameraData:
     # --- Image Data ---
+    image_names: List[str]
     image_list: List[np.ndarray]        
     image_shape_old: Tuple[int, int]    # (width, height)
     image_shape_new: Tuple[int, int]    # (width, height)
@@ -50,7 +51,10 @@ class CameraData:
     multi_cam: bool = False
     extrinsic: Optional[np.ndarray] = None    # Rotation | Translation of Stereo Camera
 
+    # Logging Info
     metric_file_path: str = ""
+    logging_dir: str = ""
+    script_id: str = ""
 
     def update_K(self, cam_idx: int, img_scale: Tuple[float, float]):
         # Assume Monocular Camera for now with OpenCV calibration convention (Wide belief)

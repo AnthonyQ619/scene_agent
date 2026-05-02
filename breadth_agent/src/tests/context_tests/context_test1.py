@@ -93,8 +93,8 @@ STEP 8: Apply Dense Reconstruction Module for dense scene reconstruction.
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan14_normal_lighting"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
+image_path ="/home/anthonyq/datasets/DTU/DTU/scan14" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan14_normal_lighting"
+calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
 
 from modules.features import FeatureDetectionSIFT
 from modules.featurematching import FeatureMatchFlannPair, FeatureMatchBFTracking
@@ -105,8 +105,10 @@ from modules.optimization import BundleAdjustmentOptimizerGlobal
 from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
-                                max_images = 20,
+reconstructed_scene = SfMScene(id=1,
+                                log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/ETH/eth_living_room",
+                                image_path = image_path, 
+                                max_images = 25,
                                 calibration_path = calibration_path)
 
 # Step 2: Detect Features
@@ -121,7 +123,7 @@ reconstructed_scene.FeatureMatchFlannPair(
     detector="sift",
     lowes_thresh=0.8,
     RANSAC_homography=False,
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=2.0,
 )
 
 # Step 4: Detect/Estimate Camera Poses
@@ -134,7 +136,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureMatchBFTracking(
     detector="sift",
-    RANSAC_threshold=0.008,
+    RANSAC_threshold=1.0,
     lowes_thresh=0.65
 )
 
@@ -147,14 +149,13 @@ reconstructed_scene.Sparse3DReconstructionMono(
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=200,
-    use_gpu=False
+    max_num_iterations=200
 )
 
 # STEP 8: Run Rense Reconstruction Algorithm
-reconstructed_scene.Dense3DReconstructionMono(
-    reproj_error=3.0,
-    min_triangulation_angle=1.0,
-    num_samples=15,
-    num_iterations=3
-)
+# reconstructed_scene.Dense3DReconstructionMono(
+#     reproj_error=3.0,
+#     min_triangulation_angle=1.0,
+#     num_samples=15,
+#     num_iterations=3
+# )

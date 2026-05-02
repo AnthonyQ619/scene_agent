@@ -4,7 +4,8 @@ import cv2
 from pathlib import Path
 from sceneprogllm import LLM
 from modules.utilities import image_builder, resize_dataset, clean_dir
-# from utility.optical_flow import read_camera_flow
+from .utility.optical_flow import read_camera_flow
+from .utility.illumination_analysis import generate_illumination_change_prompt
 from concurrent.futures import ThreadPoolExecutor
 
 class Generator:
@@ -110,8 +111,15 @@ Given the image of the scene and reconstruction guidelines we wish to follow (pr
 	1.	Analyze each SfM plan in detail — what modules are called, parameters used, and if we invoke the correct sub-modules for the reconstruction type.
 	2.	Compare how accurately each sub-module that is invoked best fits the given scene we wish to reconstruct.
 	3.	Choose the best procedure and explain why — citing specific SfM planning logic, module selection, and why parameterization of tools make sense.
+    4.  If all plans only have feedback due to performance errors, select any of the plans available when no metris are provided, but always prioritize the
+        plans that provide metrics!
 
 Judge using these key aspects:
+	•	Keep in mind, the context provided are just baselines, when aiming to choose the best work flow consider the following:
+        •	Lower reprojection error across Pose Estimation and Global Optimization when Relevant
+        •	Number of 3D points in reconstruction (The Higher the better, but still consider costs and reprojection error)
+        •	Whether Global optimization Converges (Prioritize other metrics, such as Feature Matches/Tracks, 3D Points, etc higher, but still consider
+            Convergence when multiple plans are performing similarly - Essentially use it as a tie breaker)
 	•	Choice of sub-modules accurately coincide with the image of the scene and best use-cases.
 	•	Sub-module selection fits within the system constraints of the user prompt.
 	•	Reconstruction type is followed precisely, and our last sub-module invoked directly represents the prompt (Pose, Sparse, or Dense).
@@ -127,8 +135,9 @@ Your response should be a single integer indicating the best plan index, without
 
          # Build In-Context image examples here
         img_path = os.path.join(self.CWD, 'agent_details', 'image_context') # MAKE THIS MORE PATH ORIENTED
-        self.image_paths = sorted(glob.glob(img_path + "/*"))
+        self.image_paths = sorted(glob.glob(img_path + "/*"))#[:8] # Was 8 now 9
         self.new_query_img_path = None
+        self.cam_motion_prompt = None
 
     def get_multiple_plans(self, query, query_video_path, num_plans=5):
         enhanced_prompt = self.enhance_prompt(query, query_video_path)
@@ -163,7 +172,7 @@ The followiing information is provided from the user query to guide your chosen 
 {query}
 
 You are now given the following plans/procedures of a Structure from Motion workflow generated from the above query and final image as the
-scene to reconstruct\n:
+scene to reconstruct:\n
 """
         return new_prompt
 
@@ -186,11 +195,12 @@ scene to reconstruct\n:
             enhanced_prompt += f"""
 Last time, you have created the following plan for the user query:
 {self.plan}
-Upon execution of the plan, the system has provided you with the following feedback containing various metrics on the quality of the plan:
+Upon execution of the plan, the system has provided you with the following feedback containing various metrics (Or Feedback of failure due to incorrect 
+sub-module/parameterization selection) on the quality of the plan:
 {feedback}
 Consider the following ideas on how to improve the plan based on the received metrics: 
 {self.metric_prompt}
-Please create a new plan that incorporates the feedback and improvement ideas to better fit the user query and scene. 
+Please create a new plan that incorporates the feedback and improvement ideas to better fit the user query and scene. Remember, only call each module once
 Your Output:
 """ 
 
@@ -208,26 +218,23 @@ Your Output:
         return plan
     
     def enhance_prompt(self, query, query_video_path):
-        enhanced_prompt = f"""
-The following are a few examples of reference procedures to generate with corresponding images:
-{self.context_str}
+        if self.cam_motion_prompt is None:
+            dataset_path = sorted(glob.glob(query_video_path + "/*"))
+            if len(dataset_path) > 40:
+                dataset_path = dataset_path[:40]
+            resized_dir, resized_img_list, K = resize_dataset(image_path=dataset_path,
+                                                              max_size=350)
+            result = read_camera_flow(resized_dir, K)
+            context = generate_illumination_change_prompt(dataset_path)
+            clean_dir(resized_dir)
+            self.cam_motion_prompt = f"""
+            Camera Motion statistics from Optical Flow
+            
+            {result}
+            Illuminance Analysis Statistics:
 
-Each procedure example is titled "Procedure:Num", and each corresponding image is titled "image_context(Num).png",
-where each matching "Num" value between procedure and image title is the corresponding image set and generated procedure.
-In short, the first 8 images provided correspond to the first 8 procedure examples in respective order. The final image 
-is the given scene from the user to generate a procedure for. 
-
-The followiing information is provided to guide your chosen sub-modules for each step of the generated procedure.
-{query}
-"""
-        #TODO: Include enhanced prompt for motion cues here.
-        # mean_flow, median_flow, p75_flow, p90_flow, Rs = read_camera_flow(query_video_path, query["calibration"])
-
-        enhanced_proxmpt_motion = f"""
-TODO: Fill
-"""
-        dataset_path = sorted(glob.glob(query_video_path + "/*  "))
-
+            {context}
+            """
         # This is so we don't repeatedly add the same image to the self.image_paths
         if self.new_query_img_path is None: 
             new_img = image_builder(image_path=query_video_path, 
@@ -246,6 +253,23 @@ TODO: Fill
             self.new_query_img_path = new_img_path + f"/query_img.png"
             self.image_paths.append(new_img_path + f"/query_img.png")
         
+        enhanced_prompt = f"""
+The following are a few examples of reference procedures to generate with corresponding images:
+{self.context_str}
+
+Each procedure example is titled "Procedure:Num", and each corresponding image is titled "image_context(Num).png",
+where each matching "Num" value between procedure and image title is the corresponding image set and generated procedure.
+In short, the first 8 images provided correspond to the first 9 procedure examples in respective order. The final image 
+is the given scene from the user to generate a procedure for. 
+
+Following information are statistics (With context to understand the signal of each score) about camera motion from 
+optical flow and illuminance analysis of the provided images:
+{self.cam_motion_prompt}
+
+The followiing information is provided to guide your chosen sub-modules for each step of the generated procedure.
+{query}
+"""
+
         return enhanced_prompt
     
 

@@ -49,8 +49,8 @@ class BundleAdjustmentOptimizerLocal(OptimizationClass):
         refine_principal_point: bool = False,
         refine_extra_params: bool = False,
         max_num_iterations: int = 50,
-        use_gpu: bool = True,
-        gpu_index: int = 0,
+        # use_gpu: bool = True,
+        # gpu_index: int = 0,
         robust_loss: bool = True,
     ):
 
@@ -77,10 +77,6 @@ Initialization/Function Parameters:
     - default (bool): False
 - max_num_iterations: maximum number of iterations to run the Levenberg-Marquardt algorithm for bundle adjustment
     - default (int): 50
-- use_gpu: Whether to use Ceres CUDA linear algebra library, if available. 
-    - default (bool): True
-- gpu_index: Which GPU to use for solving the problem.
-    - default (int): 0 
 - robust_loss: Determins whether to use one of the loss function types
     Loss function types: Trivial (non-robust, robust = False) and Cauchy (robust, robust = True) loss
     - default (bool): True
@@ -93,6 +89,11 @@ Function Calls:
 - Function: Module call (Python __call__ function)
    - Default: NOT used for this module.
 """
+# To use GPU Context now removed.
+# - use_gpu: Whether to use Ceres CUDA linear algebra library, if available. 
+#     - default (bool): True
+# - gpu_index: Which GPU to use for solving the problem.
+#     - default (int): 0 
 
         example = f"""
 Initialization modules
@@ -132,8 +133,8 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
         self.refine_principal_point = refine_principal_point
         self.refine_extra_params = refine_extra_params
         self.max_num_iterations = max_num_iterations
-        self.use_gpu = use_gpu
-        self.gpu_index = gpu_index
+        # self.use_gpu = use_gpu
+        # self.gpu_index = gpu_index
         self.robust_loss = robust_loss
 
         # Set up window size and min_track_length 
@@ -142,6 +143,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 
         # Do not use metrics for this module
         self.use_base_metrics = False
+        self.use_no_metrics = True
     
     def _optimize_scene(self, 
                         state: IncrementalSfMState, 
@@ -191,9 +193,9 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
         ba_opts.refine_extra_params = self.refine_extra_params
 
         # GPU knobs (only used when supported in your build)
-        if self.use_gpu:
-            ba_opts.use_gpu = bool(self.use_gpu)
-            ba_opts.gpu_index = str(self.gpu_index)
+        # if self.use_gpu:
+        #     ba_opts.use_gpu = bool(self.use_gpu)
+        #     ba_opts.gpu_index = str(self.gpu_index)
 
         # Ceres solver options (requires PyCeres installed in your environment)
         # was ba_opts.solver_options.max_num_iterations = int(self.max_num_iterations) 
@@ -435,8 +437,8 @@ class BundleAdjustmentOptimizerGlobal(OptimizationClass):
         refine_principal_point: bool = False,
         refine_extra_params: bool = False,
         max_num_iterations: int = 50,
-        use_gpu: bool = True,
-        gpu_index: int = 0,
+        # use_gpu: bool = True,
+        # gpu_index: int = 0,
         robust_loss: bool = True,
     ):
         # super().__init__(cam_data=cam_data,
@@ -466,10 +468,6 @@ Initialization/Function Parameters:
     - default (bool): False
 - max_num_iterations: maximum number of iterations to run the Levenberg-Marquardt algorithm for bundle adjustment
     - default (int): 50
-- use_gpu: Whether to use Ceres CUDA linear algebra library, if available. 
-    - default (bool): True
-- gpu_index: Which GPU to use for solving the problem.
-    - default (int): 0 
 - robust_loss: Determins whether to use one of the loss function types
     Loss function types: Trivial (non-robust, robust = False) and Cauchy (robust, robust = True) loss
     - default (bool): True
@@ -513,8 +511,7 @@ reconstructed_scene = SfMScene(image_path = image_path,
 
 # Step 7: Run Global Optimization on Sparsely Reconstructed Scene 
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=200,
-    use_gpu=False
+    max_num_iterations=200
 )
 """
         super().__init__(cam_data=cam_data,
@@ -527,16 +524,17 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         self.refine_principal_point = refine_principal_point
         self.refine_extra_params = refine_extra_params
         self.max_num_iterations = max_num_iterations
-        self.use_gpu = use_gpu
-        self.gpu_index = gpu_index
+        # self.use_gpu = use_gpu
+        # self.gpu_index = gpu_index
         self.robust_loss = robust_loss
 
         # Define workspace location
         self.output_dir = output_dir
 
         # Define the workspace for Sparse Reconstruction
-        self.dir_path = Path(__file__).resolve().parents[2]
-        self.directory_path = str(self.dir_path / "results" / "workspace" / "sparse") #C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace\\sparse"
+        # self.dir_path = Path(__file__).resolve().parents[2]
+        # self.directory_path = str(self.dir_path / "results" / "workspace" / "sparse") #C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace\\sparse"
+        self.directory_path = self.cam_data.logging_dir + f"/{self.cam_data.script_id}/workspace/sparse"
         if os.path.exists(self.directory_path):
             # Delete the directory and all its contents
             shutil.rmtree(self.directory_path)
@@ -554,6 +552,10 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         # --- Step 3: Build and Run Solver with Options/Config/Reconstruction ---
         # bundle_adjuster = pycolmap.create_default_bundle_adjuster(ba_opts, config, recon)
         # summary = bundle_adjuster.solve()
+        # Get initial Cost
+        recon.update_point_3d_errors()
+        self.initial_mean_error = recon.compute_mean_reprojection_error()
+        # Run Optimizer
         summary = self._solve(ba_opts, config, recon)
 
         print("SUMMARY", summary)
@@ -563,7 +565,17 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
 
         # Write reconstructed scene to workspace (Sparse Scene Currently)
         recon.write(self.directory_path)
-        recon.export_PLY(str(self.dir_path / "results" / "workspace" / "sparse.ply"))
+        # recon.export_PLY(str(self.dir_path / "results" / "workspace" / "sparse.ply"))
+        sparse_path = os.path.join(self.cam_data.logging_dir, f"sparse.ply")
+        recon.export_PLY(str(sparse_path))
+
+        # Get final Metric (reprojection errors)
+        recon.update_point_3d_errors()
+        # Mean reprojection error in pixels (final cost)
+        self.mean_error = recon.compute_mean_reprojection_error()
+
+        #Record Camera Poses
+        self._store_extrinsics_information(recon)
 
         return current_scene #, summary
     
@@ -590,9 +602,9 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         ba_opts.refine_extra_params = self.refine_extra_params
 
         # GPU knobs (only used when supported in your build)
-        if self.use_gpu:
-            ba_opts.use_gpu = bool(self.use_gpu)
-            ba_opts.gpu_index = str(self.gpu_index)
+        # if self.use_gpu:
+        #     ba_opts.use_gpu = bool(self.use_gpu)
+        #     ba_opts.gpu_index = str(self.gpu_index)
 
         # Ceres solver options (requires PyCeres installed in your environment)
         ba_opts.ceres.solver_options.max_num_iterations = int(self.max_num_iterations) 
@@ -852,6 +864,97 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
 
         return recon, trackid_to_point3Did
 
+    def _store_extrinsics_information(self, recon) -> None:
+        out_path = os.path.join(self.cam_data.logging_dir, f"cam_poses_log.npz")
+        image_records = []
+
+        image_items_sorted = sorted(
+            recon.images.items(),
+            key=lambda kv: kv[1].name
+        )
+
+        for image_id, image in image_items_sorted:
+            has_pose = bool(getattr(image, "has_pose", False))
+            if not has_pose:
+                # print(f"[Warning] Image is not registered, no pose available: {image.name}")
+                image_records.append(
+                    {
+                        "image_id": int(image_id),
+                        "image_name": image.name,
+                        "camera_id": int(image.camera_id),
+                        "width": int(camera.width),
+                        "height": int(camera.height),
+                        "camera_model": str(camera.model),
+                        "camera_params": np.asarray(camera.params, dtype=np.float64),
+                        "K": camera_to_K_and_dist(camera)[0],
+                        "R_world_to_cam": np.full((3, 3), np.nan),
+                        "t_world_to_cam": np.full(3, np.nan),
+                        "camera_center_world": np.full(3, np.nan),
+                        "pose_available": False,
+                    }
+                )
+                continue
+
+
+            camera = recon.cameras[image.camera_id]
+
+            R_wc, t_wc = self.get_image_pose_world_to_cam(image)
+            C_w = -R_wc.T @ t_wc
+
+            K, cam_params = self.camera_to_K_and_dist(camera)
+
+            image_records.append(
+                {
+                    "image_id": int(image_id),
+                    "image_name": image.name,
+                    "camera_id": int(image.camera_id),
+                    "width": int(camera.width),
+                    "height": int(camera.height),
+                    "camera_model": str(camera.model),
+                    "camera_params": cam_params,
+                    "K": K,
+                    "R_world_to_cam": R_wc,
+                    "t_world_to_cam": t_wc,
+                    "camera_center_world": C_w,
+                }
+            )
+
+        # Sort by image name for deterministic ordering.
+        image_records = sorted(image_records, key=lambda x: x["image_name"])
+
+        image_ids = np.array([r["image_id"] for r in image_records], dtype=np.int64)
+        image_names = np.array([r["image_name"] for r in image_records])
+        camera_ids = np.array([r["camera_id"] for r in image_records], dtype=np.int64)
+
+        widths = np.array([r["width"] for r in image_records], dtype=np.int64)
+        heights = np.array([r["height"] for r in image_records], dtype=np.int64)
+        camera_models = np.array([r["camera_model"] for r in image_records])
+
+        K = np.stack([r["K"] for r in image_records], axis=0)
+        R_world_to_cam = np.stack([r["R_world_to_cam"] for r in image_records], axis=0)
+        t_world_to_cam = np.stack([r["t_world_to_cam"] for r in image_records], axis=0)
+        camera_center_world = np.stack([r["camera_center_world"] for r in image_records], axis=0)
+
+        # Camera params can be different lengths depending on model.
+        # Store as object array.
+        camera_params = np.array([r["camera_params"] for r in image_records], dtype=object)
+
+        save_dict = {
+            "image_ids": image_ids,
+            "image_names": image_names,
+            "camera_ids": camera_ids,
+            "widths": widths,
+            "heights": heights,
+            "camera_models": camera_models,
+            "camera_params": camera_params,
+            "K": K,
+            "R_world_to_cam": R_world_to_cam,
+            "t_world_to_cam": t_world_to_cam,
+            "camera_center_world": camera_center_world,
+        }
+
+        np.savez_compressed(out_path, **save_dict)
+
     def _write_back_to_scene(self, 
                             scene: Scene,
                             recon,
@@ -876,9 +979,113 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
 
     @module_metric
     def _metric_ba_results(self) -> dict:
-        return {"Convergence": str(self.summary.termination_type),
+        return {"Convergence": str(self.summary.termination_type.name),
                 "Initial Cost": float(self.summary.ceres_summary.initial_cost),
-                "Final Cost": float(self.summary.ceres_summary.final_cost)}
+                "Final Cost": float(self.summary.ceres_summary.final_cost),
+                "Initial Reprojection Error": float(self.initial_mean_error), 
+                "Final Reprojection Error": float(self.mean_error)}
+    
+
+    # Helper File to extract camera pose information
+    def get_image_pose_world_to_cam(self, image):
+        """
+        Returns R_world_to_cam, t_world_to_cam from a pycolmap Image.
+
+        pycolmap versions differ slightly, so this tries the common APIs.
+        """
+        # Newer pycolmap versions
+        if hasattr(image, "cam_from_world"):
+            cam_from_world = image.cam_from_world()
+
+            # Rigid3d-like object
+            if hasattr(cam_from_world, "rotation") and hasattr(cam_from_world, "translation"):
+                rot = cam_from_world.rotation
+                t = np.asarray(cam_from_world.translation, dtype=np.float64)
+
+                if hasattr(rot, "matrix"):
+                    R = np.asarray(rot.matrix(), dtype=np.float64)
+                elif hasattr(rot, "to_matrix"):
+                    R = np.asarray(rot.to_matrix(), dtype=np.float64)
+                else:
+                    R = np.asarray(rot, dtype=np.float64)
+
+                return R, t
+
+            # Sometimes transform matrix may be exposed
+            if hasattr(cam_from_world, "matrix"):
+                T = np.asarray(cam_from_world.matrix(), dtype=np.float64)
+                return T[:3, :3], T[:3, 3]
+
+        # Older pycolmap-style API
+        if hasattr(image, "qvec") and hasattr(image, "tvec"):
+            qvec = np.asarray(image.qvec, dtype=np.float64)
+            t = np.asarray(image.tvec, dtype=np.float64)
+            R = self.qvec_to_rotmat(qvec)
+            return R, t
+
+        raise RuntimeError(f"Could not extract pose for image {image.name}")
+
+
+    def qvec_to_rotmat(self, qvec):
+        """
+        COLMAP quaternion convention: q = [qw, qx, qy, qz].
+        """
+        qvec = np.asarray(qvec, dtype=np.float64)
+        qw, qx, qy, qz = qvec
+
+        return np.array([
+            [
+                1 - 2 * qy ** 2 - 2 * qz ** 2,
+                2 * qx * qy - 2 * qz * qw,
+                2 * qz * qx + 2 * qy * qw,
+            ],
+            [
+                2 * qx * qy + 2 * qz * qw,
+                1 - 2 * qx ** 2 - 2 * qz ** 2,
+                2 * qy * qz - 2 * qx * qw,
+            ],
+            [
+                2 * qz * qx - 2 * qy * qw,
+                2 * qy * qz + 2 * qx * qw,
+                1 - 2 * qx ** 2 - 2 * qy ** 2,
+            ],
+        ], dtype=np.float64)
+
+
+    def camera_to_K_and_dist(self, camera):
+        """
+        Returns a 3x3 calibration matrix K and raw COLMAP camera params.
+
+        camera.params is model-dependent. We save both:
+        - K for easy evaluation
+        - raw params/model for exact reconstruction reference
+        """
+        if hasattr(camera, "calibration_matrix"):
+            K = np.asarray(camera.calibration_matrix(), dtype=np.float64)
+        else:
+            # Fallback for common COLMAP models.
+            params = np.asarray(camera.params, dtype=np.float64)
+            model = str(camera.model)
+
+            if "SIMPLE" in model:
+                f, cx, cy = params[:3]
+                fx, fy = f, f
+            else:
+                fx, fy, cx, cy = params[:4]
+
+            K = np.array(
+                [
+                    [fx, 0.0, cx],
+                    [0.0, fy, cy],
+                    [0.0, 0.0, 1.0],
+                ],
+                dtype=np.float64,
+            )
+
+        params = np.asarray(camera.params, dtype=np.float64)
+
+        return K, params
+
     # def optimize(self, 
     #              scene: Scene):
     #             #  points: PointsMatched, 

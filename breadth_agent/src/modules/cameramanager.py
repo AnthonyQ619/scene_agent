@@ -19,14 +19,31 @@ import shutil
 from pathlib import Path
 # from baseclass import ImageProcessorClass
 
+def uniform_image_subset(image_files, num_samples):
+    if num_samples <= 0:
+        return []
+
+    if len(image_files) <= num_samples:
+        return image_files
+
+    indices = np.linspace(
+        0,
+        len(image_files) - 1,
+        num_samples,
+        dtype=int
+    )
+
+    return [image_files[i] for i in indices]
 
 class CameraDataManager():
     def __init__(self, 
                  image_path: str,
                  max_images: int | None = None,
                  calibration_path: str | None = None,
-                 target_resolution: Tuple[int, int] | None = None):
-        
+                 target_resolution: Tuple[int, int] | None = None,
+                 colmap_workspace: str | None = None):
+
+        file_names = sorted(p.name for p in Path(image_path).glob("*"))
         if max_images is None:
             if os.name == 'nt':
                 image_files = sorted(glob.glob(image_path + "\\*"))#[:5]
@@ -38,12 +55,13 @@ class CameraDataManager():
             else:
                 image_files = sorted(glob.glob(image_path + "/*"))
             if len(image_files) > max_images:
+                # image_files = uniform_image_subset(image_files, num_samples=max_images)
                 image_files = image_files[:max_images]
 
         print(image_files)
-        self.directory_path = Path(__file__).resolve().parents[2]
-        self.directory_path = str(self.directory_path / "results" / "workspace") 
-        # self.directory_path = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace"
+        # self.directory_path = Path(__file__).resolve().parents[2]
+        # self.directory_path = str(self.directory_path / "results" / "workspace") 
+        self.directory_path = colmap_workspace
         if os.path.exists(self.directory_path):
             # Delete the directory and all its contents
             shutil.rmtree(self.directory_path)
@@ -81,7 +99,8 @@ class CameraDataManager():
         if intrinsics is not None and len(intrinsics) > 2:
             multi_camera = True
 
-        self.cam_data = CameraData(image_list=image_list,
+        self.cam_data = CameraData(image_names=file_names,
+                                   image_list=image_list,
                                    image_shape_old=image_shape_old,
                                    image_shape_new=image_shape_new,
                                    image_scale=image_scale,

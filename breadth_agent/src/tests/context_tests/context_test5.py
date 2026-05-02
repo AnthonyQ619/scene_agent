@@ -95,11 +95,11 @@ STEP 8:  Apply Dense Reconstruction Module for dense scene reconstruction.
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan8_normal_lighting" # Scan 21 came out really good!
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
+image_path = "/home/anthonyq/datasets/DTU/scan8_normal_lighting" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan8_normal_lighting" # Scan 21 came out really good!
+calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
 
 from modules.features import FeatureDetectionSP
-from modules.featurematching import FeatureMatchSuperGluePair, FeatureMatchLightGlueTracking
+from modules.featurematching import FeatureMatchSuperGluePair, FeatureMatchSuperGlueTracking
 from modules.camerapose import CamPoseEstimatorEssentialToPnP
 from modules.optimization import BundleAdjustmentOptimizerLocal
 from modules.scenereconstruction import Sparse3DReconstructionMono
@@ -107,7 +107,7 @@ from modules.optimization import BundleAdjustmentOptimizerGlobal, BundleAdjustme
 from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
+reconstructed_scene = SfMScene(id=5, image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
 
@@ -119,7 +119,7 @@ reconstructed_scene.FeatureDetectionSP(
 # Step 3: Detect Feature Pairs
 reconstructed_scene.FeatureMatchSuperGluePair(
     detector='superpoint',
-    RANSAC_threshold=0.03
+    RANSAC_threshold=1.5
 )
 
 # Step 4: Detect/Estimate Camera Poses
@@ -128,16 +128,15 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     iteration_count=300,
     confidence=0.995,
     optimizer = ("BundleAdjustmentOptimizerLocal", {
-        "max_num_iterations": 301,
-        "window_size": 5,
-        "use_gpu": False
+        "max_num_iterations": 30,
+        "window_size": 5
     }),
 )
 
 # Step 5: Detect Feature Tracks
-reconstructed_scene.FeatureMatchLightGlueTracking(
+reconstructed_scene.FeatureMatchSuperGlueTracking(
     detector="superpoint",
-    RANSAC_threshold=0.05
+    RANSAC_threshold=3.0
 )
 
 # Step 6: Estimate Sparse Reconstruction
@@ -149,8 +148,7 @@ reconstructed_scene.Sparse3DReconstructionMono(
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=170,
-    use_gpu=False
+    max_num_iterations=250
 )
 
 # STEP 8: Run Rense Reconstruction Algorithm

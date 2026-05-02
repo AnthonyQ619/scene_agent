@@ -89,8 +89,8 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan21_normal_lighting"
-calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
+image_path = "/home/anthonyq/datasets/DTU/DTU/scan21" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan21_normal_lighting"
+calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
 
 from modules.features import FeatureDetectionORB
 from modules.featurematching import FeatureMatchBFPair, FeatureMatchBFTracking
@@ -101,13 +101,14 @@ from modules.optimization import BundleAdjustmentOptimizerGlobal, BundleAdjustme
 from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
+reconstructed_scene = SfMScene(id=2,
+                                image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
 
 # Step 2: Detect Features
 reconstructed_scene.FeatureDetectionORB(
-    max_keypoints=8000,
+    max_keypoints=10000,
     set_nms=True,
     set_nms_allowed_points=4000
 )
@@ -115,8 +116,8 @@ reconstructed_scene.FeatureDetectionORB(
 # Step 3: Detect Feature Pairs
 reconstructed_scene.FeatureMatchBFPair(
     detector='orb', 
-    RANSAC_threshold=0.01,
-    lowes_thresh=0.6
+    RANSAC_threshold=3.0,
+    lowes_thresh=0.8
 )
 
 # Step 4: Detect/Estimate Camera Poses
@@ -127,15 +128,14 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     optimizer = ("BundleAdjustmentOptimizerLocal", {
         "max_num_iterations": 20,
         "window_size": 8,
-        "robust_loss": True,
-        "use_gpu": False
+        "robust_loss": True
     }),
 )
 
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureMatchBFTracking(
     detector="orb",
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=3.0,
     lowes_thresh=0.8,
     cross_check=False
 )
@@ -149,6 +149,5 @@ reconstructed_scene.Sparse3DReconstructionMono(
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=200,
-    use_gpu=False
+    max_num_iterations=400
 )

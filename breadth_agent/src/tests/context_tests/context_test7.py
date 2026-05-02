@@ -71,18 +71,21 @@ STEP 4:Estimate the camera pose using detected matching feature pairs.
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path = "D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\167_18184_34441\\images"
-calibration_path = "D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\calibration_new_167_18184_34441.npz"
+image_path = "/home/anthonyq/datasets/co3d_v2/hydrant/167_18184_34441/images" #"D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\167_18184_34441\\images"
+calibration_path = "/home/anthonyq/datasets/co3d_v2/hydrant/calibration_new_167_18184_34441.npz" #"D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\calibration_new_167_18184_34441.npz"
 
 from modules.features import FeatureDetectionSIFT
 from modules.featurematching import FeatureMatchFlannPair
 from modules.camerapose import CamPoseEstimatorEssentialToPnP
 from modules.optimization import BundleAdjustmentOptimizerLocal
-
+from modules.scenereconstruction import Sparse3DReconstructionMono
+from modules.optimization import BundleAdjustmentOptimizerGlobal
 from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
+reconstructed_scene = SfMScene(id=7, 
+                                log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/ETH/eth_living_room",
+                                image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
 
@@ -96,7 +99,7 @@ reconstructed_scene.FeatureDetectionSIFT(
 # Step 3: Detect Feature Pairs
 reconstructed_scene.FeatureMatchFlannPair(
     detector="sift", 
-    RANSAC_threshold=0.02,
+    RANSAC_threshold=1.0,
     lowes_thresh=0.8
 )
 
@@ -107,7 +110,25 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     confidence=0.99,
     optimizer = ("BundleAdjustmentOptimizerLocal", {
         "max_num_iterations": 20,
-        "window_size": 5,
-        "use_gpu": False
+        "window_size": 5
     }),
+)
+
+# Step 5: Detect Feature Tracks
+reconstructed_scene.FeatureMatchBFTracking(
+    detector="sift",
+    RANSAC_threshold=1.0,
+    lowes_thresh=0.75
+)
+
+# Step 6: Estimate Sparse Reconstruction
+reconstructed_scene.Sparse3DReconstructionMono(
+    min_observe=3,
+    min_angle=1.0,
+    multi_view=True
+)
+
+# Step 7: Run Optimization
+reconstructed_scene.BundleAdjustmentOptimizerGlobal(
+    max_num_iterations=280
 )
