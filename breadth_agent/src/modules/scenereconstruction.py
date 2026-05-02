@@ -1248,7 +1248,7 @@ reconstructed_scene.{module_name}(reproj_error=3.0,
 
         # self.workspace_path = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace"
         # self.workspace_path = Path(__file__).resolve().parents[2] / "results" / "workspace"
-        self.directory_path = Path(self.cam_data.logging_dir + f"/{self.cam_data.script_id}/workspace")
+        self.workspace_path = Path(self.cam_data.logging_dir + f"/{self.cam_data.script_id}/workspace")
 
         # Create Dense Directory
         dense_path = str(self.workspace_path / "dense") #f"{self.workspace_path}\\dense"
