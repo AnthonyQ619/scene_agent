@@ -98,6 +98,7 @@ calibration_path = "/work/dataset/DTU/calibration_DTU_new.npz"
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(ID,
+                                log_dir=log_dir,
                                 image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
@@ -245,6 +246,7 @@ calibration_path = "/work/dataset/DTU/calibration_DTU_new.npz"
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(ID,
+                                log_dir=log_dir,
                                 image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
@@ -353,6 +355,7 @@ image_path = "/work/dataset/DTU/scan6_illumination_change"
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(ID,
+                                log_dir=log_dir,
                                 image_path=image_path,
                                 max_images=20,
                                 target_resolution=[1024, 1024]
@@ -470,6 +473,7 @@ calibration_path = "/work/dataset/CO3Dv2_DATASET/apple/calibration_new_189_20393
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(ID,
+                                log_dir=log_dir,
                                 image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
@@ -611,7 +615,8 @@ image_path = "/work/dataset/DTU/scan8_normal_lighting"
 calibration_path = "/work/dataset/DTU/calibration_DTU_new.npz"
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(ID, 
+reconstructed_scene = SfMScene(ID,
+                                log_dir=log_dir,
                                 image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
@@ -757,7 +762,8 @@ image_path = "/work/dataset/Tanks_and_Temples/Family"
 calibration_path = "/work/dataset/Tanks_and_Temples/calibration_new_2048.npz"
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(ID, 
+reconstructed_scene = SfMScene(ID,
+                                log_dir=log_dir,
                                 image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
@@ -884,7 +890,8 @@ image_path = "/work/dataset/CO3Dv2_DATASET/hydrant/167_18184_34441/images"
 calibration_path = "/work/dataset/CO3Dv2_DATASET/hydrant/calibration_new_167_18184_34441.npz"
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(ID, 
+reconstructed_scene = SfMScene(ID,
+                                log_dir=log_dir,
                                 image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
@@ -1008,6 +1015,7 @@ calibration_path = "/work/dataset/ETH/statue/dslr_calibration_undistorted/calibr
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(ID,
+                                log_dir=log_dir,
                                 image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)

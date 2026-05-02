@@ -1,0 +1,47 @@
+/home/anthonyq/miniconda3/envs/test_env2/bin/python
+['/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1535.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1536.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1537.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1538.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1539.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1540.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1541.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1542.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1543.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1544.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1545.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1546.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1547.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1548.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1549.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1550.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1551.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1556.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1560.JPG', '/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted/DSC_1561.JPG']
+<class 'numpy.ndarray'>
+Reading Images:   0%|          | 0/20 [00:00<?, ?it/s]Reading Images:   5%|▌         | 1/20 [00:01<00:30,  1.59s/it]Reading Images:  10%|█         | 2/20 [00:03<00:28,  1.60s/it]Reading Images:  15%|█▌        | 3/20 [00:04<00:27,  1.60s/it]Reading Images:  20%|██        | 4/20 [00:06<00:25,  1.59s/it]Reading Images:  25%|██▌       | 5/20 [00:07<00:23,  1.59s/it]Reading Images:  30%|███       | 6/20 [00:09<00:22,  1.58s/it]Reading Images:  35%|███▌      | 7/20 [00:11<00:20,  1.59s/it]Reading Images:  40%|████      | 8/20 [00:12<00:19,  1.61s/it]Reading Images:  45%|████▌     | 9/20 [00:14<00:17,  1.61s/it]Reading Images:  50%|█████     | 10/20 [00:15<00:16,  1.61s/it]Reading Images:  55%|█████▌    | 11/20 [00:17<00:14,  1.60s/it]Reading Images:  60%|██████    | 12/20 [00:19<00:12,  1.58s/it]Reading Images:  65%|██████▌   | 13/20 [00:20<00:11,  1.61s/it]Reading Images:  70%|███████   | 14/20 [00:22<00:09,  1.61s/it]Reading Images:  75%|███████▌  | 15/20 [00:24<00:08,  1.61s/it]Reading Images:  80%|████████  | 16/20 [00:25<00:06,  1.61s/it]Reading Images:  85%|████████▌ | 17/20 [00:27<00:04,  1.60s/it]Reading Images:  90%|█████████ | 18/20 [00:28<00:03,  1.60s/it]Reading Images:  95%|█████████▌| 19/20 [00:30<00:01,  1.59s/it]Reading Images: 100%|██████████| 20/20 [00:31<00:00,  1.58s/it]Reading Images: 100%|██████████| 20/20 [00:31<00:00,  1.60s/it]
+Detecting Features:   0%|          | 0/20 [00:00<?, ?it/s]Detecting Features:   5%|▌         | 1/20 [00:00<00:11,  1.59it/s]Detecting Features:  20%|██        | 4/20 [00:00<00:02,  6.70it/s]Detecting Features:  35%|███▌      | 7/20 [00:00<00:01, 11.42it/s]Detecting Features:  50%|█████     | 10/20 [00:00<00:00, 15.55it/s]Detecting Features:  65%|██████▌   | 13/20 [00:01<00:00, 18.98it/s]Detecting Features:  80%|████████  | 16/20 [00:01<00:00, 21.69it/s]Detecting Features: 100%|██████████| 20/20 [00:01<00:00, 25.62it/s]Detecting Features: 100%|██████████| 20/20 [00:01<00:00, 15.82it/s]
+{"Average": 2140.75, "Minimum": 1524, "Maximum": 2635}
+{"Average": 10.488455263727195, "Minimum": 10.042587904771512, "Maximum": 11.233210572135325}
+Traceback (most recent call last):
+  File "/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/generated_code/tmp/tmp_prog_93b6ff04-61d2-4cbf-bb7d-f97b4e0c77fa.py", line 29, in <module>
+    reconstructed_scene.CamPoseEstimatorVGGTModel()
+  File "/home/anthonyq/projects/scene_agent/breadth_agent/src/modules/baseclass.py", line 1791, in runner
+    module = module_cls(cam_data=self.cam_data, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/anthonyq/projects/scene_agent/breadth_agent/src/modules/camerapose.py", line 93, in __init__
+    self.model = VGGT().to(device)
+                 ^^^^^^
+  File "/home/anthonyq/projects/scene_agent/breadth_agent/src/modules/models/sfm_models/vggt/models/vggt.py", line 27, in __init__
+    self.track_head = TrackHead(dim_in=2 * embed_dim, patch_size=patch_size) if enable_track else None
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/anthonyq/miniconda3/envs/test_env2/lib/python3.11/site-packages/vggt/heads/track_head.py", line 61, in __init__
+    self.tracker = BaseTrackerPredictor(
+                   ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/anthonyq/miniconda3/envs/test_env2/lib/python3.11/site-packages/vggt/heads/track_modules/base_track_predictor.py", line 61, in __init__
+    self.updateformer = EfficientUpdateFormer(
+                        ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/anthonyq/miniconda3/envs/test_env2/lib/python3.11/site-packages/vggt/heads/track_modules/blocks.py", line 78, in __init__
+    self.initialize_weights()
+  File "/home/anthonyq/miniconda3/envs/test_env2/lib/python3.11/site-packages/vggt/heads/track_modules/blocks.py", line 88, in initialize_weights
+    self.apply(_basic_init)
+  File "/home/anthonyq/miniconda3/envs/test_env2/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1075, in apply
+    module.apply(fn)
+  File "/home/anthonyq/miniconda3/envs/test_env2/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1075, in apply
+    module.apply(fn)
+  File "/home/anthonyq/miniconda3/envs/test_env2/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1075, in apply
+    module.apply(fn)
+  [Previous line repeated 1 more time]
+  File "/home/anthonyq/miniconda3/envs/test_env2/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1076, in apply
+    fn(self)
+  File "/home/anthonyq/miniconda3/envs/test_env2/lib/python3.11/site-packages/vggt/heads/track_modules/blocks.py", line 83, in _basic_init
+    torch.nn.init.xavier_uniform_(module.weight)
+  File "/home/anthonyq/miniconda3/envs/test_env2/lib/python3.11/site-packages/torch/nn/init.py", line 509, in xavier_uniform_
+    return _no_grad_uniform_(tensor, -a, a, generator)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/anthonyq/miniconda3/envs/test_env2/lib/python3.11/site-packages/torch/nn/init.py", line 73, in _no_grad_uniform_
+    return tensor.uniform_(a, b, generator=generator)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

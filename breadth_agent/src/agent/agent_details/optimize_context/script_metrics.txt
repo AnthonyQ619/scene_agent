@@ -142,14 +142,14 @@ Script 3:
 ======================Features Metrics======================
 {
     "Features Detected per Frame": {
-        "Average": 3039.55,
-        "Minimum": 2303,
-        "Maximum": 3630
+        "Average": 1940.12,
+        "Minimum": 1296,
+        "Maximum": 2367
     },
     "Feature Spatial Distribution per Frame": {
-        "Average": 6.934127722165608,
-        "Minimum": 6.572192340593656,
-        "Maximum": 7.223572144736729
+        "Average": 6.731836921441008,
+        "Minimum": 6.435763882954796,
+        "Maximum": 7.242116572994656
     }
 }
 ============================================================
@@ -157,16 +157,16 @@ Script 3:
 =====================CameraPose Metrics=====================
 {
     "Validity Analysis of Rotation Matrices in Pose Estimation": {
-        "Average Rotation Orthonormality Error": 1.34730825890661e-07,
-        "Max Rotation Orthonormality Error": 2.881348078893946e-07,
-        "Average det(R)": 0.9999999940395355,
-        "Mean Abs det(R)-1": 4.1723251342773435e-08
+        "Average Rotation Orthonormality Error": 2.1104717570703473e-07,
+        "Max Rotation Orthonormality Error": 6.410797981456496e-07,
+        "Average det(R)": 0.9999999856948852,
+        "Mean Abs det(R)-1": 1.1920928955078125e-07
     },
     "Translation Analysis for Stable Trajectory Estimation": {
-        "Translation Norm Std": 0.2473727557376644,
-        "Min Translation Norm": 5.660234819515608e-05,
-        "Max Translation Norm": 1.0414578914642334,
-        "Median Translation Norm": 0.5199659466743469
+        "Translation Norm Std": 0.2720913912128956,
+        "Min Translation Norm": 0.00029953147168271244,
+        "Max Translation Norm": 0.9352313280105591,
+        "Median Translation Norm": 0.5861191749572754
     }
 }
 ============================================================
@@ -174,14 +174,14 @@ Script 3:
 ==================Feature Tracking Metrics==================
 {
     "Feature Track Metrics for Survivability and Stability": {
-        "Avg. track length": 2.5624937755203665,
-        "Max. track length": 13.0,
+        "Avg. track length": 2.8423168876331233,
+        "Max. track length": 9.0,
         "Median track length": 2.0,
-        "Survival Tracks of 3": 0.29021013843242704,
-        "Survival Tracks of 5": 0.06851907180559705,
-        "Survival Tracks of 10": 0.003186933572353351,
-        "Fragmentation": 0.3902448503692188,
-        "Obs. per Track": 2.5624937755203665
+        "Survival Tracks of 3": 0.4953271028037383,
+        "Survival Tracks of 5": 0.09726146489893502,
+        "Survival Tracks of 10": 0.0,
+        "Fragmentation": 0.3518256547505257,
+        "Obs. per Track": 2.8423168876331233
     }
 }
 ============================================================
@@ -190,12 +190,12 @@ Script 3:
 {
     "Scene Metrics from Optimization": {
         "Optimizer": "BundleAdjustmentOptimizerGlobal",
-        "Num Points3D": 8784,
+        "Num Points3D": 7071,
         "Convergence": "NO_CONVERGENCE",
-        "Initial Cost": 15112.056310885826,
-        "Final Cost": 2060.2466952636446,
-        "Initial Reprojection Error": 2.5905805264826602,
-        "Final Reprojection Error": 0.4095078205665802
+        "Initial Cost": 21231.063475650135,
+        "Final Cost": 3503.5627749853534,
+        "Initial Reprojection Error": 7.714025494020539,
+        "Final Reprojection Error": 0.6908951948391547
     }
 }
 ============================================================
@@ -442,8 +442,37 @@ Script 7:
 =====================CameraPose Metrics=====================
 {
     "Number of Camera Poses": 20,
-    "Average Reprojection Error per Frame": 2.2629052919610455,
-    "Average Median Reprojection Error per Frame": 0.8379977663153108
+    "Average Reprojection Error per Frame": 5.285089294100231,
+    "Average Median Reprojection Error per Frame": 2.4426805491911736
+}
+============================================================
+============================================================
+==================Feature Tracking Metrics==================
+{
+    "Feature Track Metrics for Survivability and Stability": {
+        "Avg. track length": 3.6857422200033283,
+        "Max. track length": 20.0,
+        "Median track length": 3.0,
+        "Survival Tracks of 3": 0.5671700782160093,
+        "Survival Tracks of 5": 0.22441337993010485,
+        "Survival Tracks of 10": 0.040168913296721585,
+        "Fragmentation": 0.27131577313594574,
+        "Obs. per Track": 3.6857422200033283
+    }
+}
+============================================================
+============================================================
+====================Optimization Metrics====================
+{
+    "Scene Metrics from Optimization": {
+        "Optimizer": "BundleAdjustmentOptimizerGlobal",
+        "Num Points3D": 9870,
+        "Convergence": "NO_CONVERGENCE",
+        "Initial Cost": 15154.047795094364,
+        "Final Cost": 12433.791196254686,
+        "Initial Reprojection Error": 1.027387219903213,
+        "Final Reprojection Error": 0.9140642764530333
+    }
 }
 ============================================================
 
@@ -516,4 +545,23 @@ Script 8:
 }
 ============================================================
 
+=%$%=
+Script 9:
 
+============================================================
+=====================CameraPose Metrics=====================
+{
+    "Validity Analysis of Rotation Matrices in Pose Estimation": {
+        "Average Rotation Orthonormality Error": 1.1261065399276838e-07,
+        "Max Rotation Orthonormality Error": 3.04293229299012e-07,
+        "Average det(R)": 0.9999999880790711,
+        "Mean Abs det(R)-1": 5.006790161132812e-08
+    },
+    "Translation Analysis for Stable Trajectory Estimation": {
+        "Translation Norm Std": 0.16208847883412075,
+        "Min Translation Norm": 0.000499935878906399,
+        "Max Translation Norm": 0.7185757160186768,
+        "Median Translation Norm": 0.18446661531925201
+    }
+}
+============================================================

@@ -128,7 +128,7 @@ Your response should be a single integer indicating the best plan index, without
 
          # Build In-Context image examples here
         img_path = os.path.join(self.CWD, 'agent_details', 'image_context') # MAKE THIS MORE PATH ORIENTED
-        self.image_paths = sorted(glob.glob(img_path + "/*"))
+        self.image_paths = sorted(glob.glob(img_path + "/*"))[:8] # Was 8 now 9
         self.new_query_img_path = None
         self.cam_motion_prompt = None
 

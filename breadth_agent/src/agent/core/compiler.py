@@ -150,7 +150,7 @@ reconstructed_scene = SfMScene(ID,
             output, success = self.exec(temp_p) #self.exec(p)
             if success: 
                 #temp_path = "/home/anthonyq/projects/scene_agent/breadth_agent/results" + f"/metrics_results_{self.id}.txt"
-                temp_path = self.log_dir + f"/metrics_results_{id}.txt" 
+                temp_path = self.log_dir + f"/metrics_results_{self.id}.txt"  
                 # with open("/work/tmp/metric_" + str(self.id) + ".txt", "r") as f:
                 with open(temp_path, "r") as f:
                     metric = f.read().strip()

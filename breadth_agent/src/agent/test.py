@@ -3,7 +3,7 @@ from core.logger import Logger
 
 api_directory = "/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/agent_details/tool_context"
 instruction_path = "/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/agent_details/agent_instructions/prompt_enh_examples.txt"
-logger = Logger(desc="eth_living_room_two", log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/ETH/eth_living_room")
+logger = Logger(desc="eth_living_room", log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/ETH/eth_living_room")
 autosfm = AutoSFM(model_name="gpt-5", 
                 api_directory=api_directory,#'/work/scene_agent/breadth_agent/src/agent/agent_details/tool_context', 
                 instruction_path=instruction_path,#'/work/scene_agent/breadth_agent/src/agent/agent_details/agent_instructions/prompt_enh_examples.txt', 
@@ -21,7 +21,7 @@ autosfm = AutoSFM(model_name="gpt-5",
 image_path = "/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted"#r"/work/dataset/DTU/scan10/images"
 calibration_path = "/home/anthonyq/datasets/ETH/ETH/office/dslr_calibration_undistorted/calibration_ETH_new.npz"#r"/work/dataset/DTU/calibration_DTU_new.npz"
 # Successful Test
-# image_path = "/home/anthonyq/datasets/DTU/DTU/scan20/images"
+# image_path = "/home/anthonyq/datasets/DTU/DTU/scan15"
 # calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
 reconstruction_type = "Sparse Reconstruction"
 gpu_mem = "48gb"
