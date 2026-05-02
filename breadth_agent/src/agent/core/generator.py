@@ -111,8 +111,15 @@ Given the image of the scene and reconstruction guidelines we wish to follow (pr
 	1.	Analyze each SfM plan in detail — what modules are called, parameters used, and if we invoke the correct sub-modules for the reconstruction type.
 	2.	Compare how accurately each sub-module that is invoked best fits the given scene we wish to reconstruct.
 	3.	Choose the best procedure and explain why — citing specific SfM planning logic, module selection, and why parameterization of tools make sense.
+    4.  If all plans only have feedback due to performance errors, select any of the plans available when no metris are provided, but always prioritize the
+        plans that provide metrics!
 
 Judge using these key aspects:
+	•	Keep in mind, the context provided are just baselines, when aiming to choose the best work flow consider the following:
+        •	Lower reprojection error across Pose Estimation and Global Optimization when Relevant
+        •	Number of 3D points in reconstruction (The Higher the better, but still consider costs and reprojection error)
+        •	Whether Global optimization Converges (Prioritize other metrics, such as Feature Matches/Tracks, 3D Points, etc higher, but still consider
+            Convergence when multiple plans are performing similarly - Essentially use it as a tie breaker)
 	•	Choice of sub-modules accurately coincide with the image of the scene and best use-cases.
 	•	Sub-module selection fits within the system constraints of the user prompt.
 	•	Reconstruction type is followed precisely, and our last sub-module invoked directly represents the prompt (Pose, Sparse, or Dense).
@@ -128,7 +135,7 @@ Your response should be a single integer indicating the best plan index, without
 
          # Build In-Context image examples here
         img_path = os.path.join(self.CWD, 'agent_details', 'image_context') # MAKE THIS MORE PATH ORIENTED
-        self.image_paths = sorted(glob.glob(img_path + "/*"))[:8] # Was 8 now 9
+        self.image_paths = sorted(glob.glob(img_path + "/*"))#[:8] # Was 8 now 9
         self.new_query_img_path = None
         self.cam_motion_prompt = None
 
@@ -252,7 +259,7 @@ The following are a few examples of reference procedures to generate with corres
 
 Each procedure example is titled "Procedure:Num", and each corresponding image is titled "image_context(Num).png",
 where each matching "Num" value between procedure and image title is the corresponding image set and generated procedure.
-In short, the first 8 images provided correspond to the first 8 procedure examples in respective order. The final image 
+In short, the first 8 images provided correspond to the first 9 procedure examples in respective order. The final image 
 is the given scene from the user to generate a procedure for. 
 
 Following information are statistics (With context to understand the signal of each score) about camera motion from 
@@ -262,6 +269,7 @@ optical flow and illuminance analysis of the provided images:
 The followiing information is provided to guide your chosen sub-modules for each step of the generated procedure.
 {query}
 """
+        breakpoint()
         return enhanced_prompt
     
 

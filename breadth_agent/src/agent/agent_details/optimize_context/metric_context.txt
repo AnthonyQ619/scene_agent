@@ -333,12 +333,22 @@ and for the provided scene:
         - Very low final cost but few points/cameras: The result may be clean but incomplete.
         - Initial Reprojection Error > Final Reprojection Error: Optimization improved, the greater the difference, the better the SfM Pipeline.
         - Initial Reprojection Error < Final Reprojection Error: Optimization failed, bad initialization, bad constraints, incorrect residuals, poor intrinsics, or unstable optimization.
+            - Important case here: Report to the Important case in How to improve!
     - How to improve: 
         - If optimization does not converge or the final cost remains high, improve the inputs before optimization: remove bad matches, 
           filter outlier tracks, verify camera intrinsics, improve pose initialization, and make sure triangulated 3D points are valid.
         - If many 3D points are lost, check track quality, triangulation angle, reprojection error thresholds, and point filtering settings. 
           Overly strict filters can produce a clean but sparse reconstruction.
         - If camera poses are missing, improve image-pair connectivity, feature matching, pose estimation, and initialization order.
+        - IMPORTANT CASE!!
+            - For cases of large final reprojection, do one of these key changes at a time
+              - Increase the minimum number of observations for 2D point tracks for 3D point estimation for sparse reconstruction consideration.
+              - Decrease the maximum number of iterations for bundle adjustment (Do not decrease below the default of 50 iterations). 
+                Sometimes it the bundle adjustment will overcorrect itself to lose geometry of the scene.
+              - Improve Feature Correspondence/Tracking to be slightly more accurate
+            - This failure occurs because of the 2D point tracks estimated have compounding errors that do not resolve with global bundle adjustment, in the case
+              this is evident and feature tracks/correspondences are not possible, refer to the VGGT Dense reconstruction pipeline as it is completely detector free!
+
 ========================================================================================================================================================
 Example: 
 Results from Optimization using global optimization:

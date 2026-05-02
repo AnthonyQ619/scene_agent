@@ -56,6 +56,7 @@ class Compiler:
         context_str = ""
         ## Build In-Context Example Paragraph:
         # print("CONTEXT SPLIT:", len(context_s_to_p))
+        breakpoint()
         for i in range(len(context_s_to_p) - 1):
             s_and_p = context_s_to_p[i].split("==#$#==")
             scene = s_and_p[0]
