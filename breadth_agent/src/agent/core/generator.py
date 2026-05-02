@@ -269,7 +269,7 @@ optical flow and illuminance analysis of the provided images:
 The followiing information is provided to guide your chosen sub-modules for each step of the generated procedure.
 {query}
 """
-        breakpoint()
+
         return enhanced_prompt
     
 

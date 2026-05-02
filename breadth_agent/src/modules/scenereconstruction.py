@@ -1080,7 +1080,7 @@ reconstructed_scene.{module_name}()
         max_depth=None,
         stride=1,
     ):
-        dense_path = os.path.join(self.cam_data.logging_dir, f"fused_dense_vggt.ply")
+        dense_path = os.path.join(self.cam_data.logging_dir, str(self.cam_data.script_id), f"fused_dense_vggt.ply")
         points = np.asarray(point_maps)
 
         if points.ndim != 4 or points.shape[-1] != 3:
@@ -1323,7 +1323,7 @@ reconstructed_scene.{module_name}(reproj_error=3.0,
                       cam_poses = poses,
                       depth_maps = depth_maps,
                       sparse = False)
-        dense_path = os.path.join(self.cam_data.logging_dir, f"fused_dense.ply")
+        dense_path = os.path.join(self.cam_data.logging_dir, str(self.cam_data.script_id), f"fused_dense.ply")
         recon.export_PLY(dense_path) #str(self.workspace_path / "dense" / "fused.ply")) #(os.path.join(self.workspace_path, "dense", "fused.ply"))
         return scene #super().build_reconstruction(sparse_scene)
     

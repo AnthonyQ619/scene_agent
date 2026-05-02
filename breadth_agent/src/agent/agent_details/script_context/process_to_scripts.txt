@@ -1129,7 +1129,7 @@ image_path = "/work/dataset/ETH/office/images/dslr_images_undistorted"
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(ID,
-                                log_dir=log,
+                                log_dir=log_dir,
                                 image_path=image_path,
                                 max_images=25,
                                 target_resolution=[1024, 1024]

@@ -37,6 +37,9 @@ Utilize this module in cases where images do not have extreme overlap, scale is 
 monocular camera setup, GPU memory is accessible, or calibration is not provided, and we need 
 to estimate camera pose and calibration parameters to reconstruct the scene.
 
+If calibration is provided and we utilize this module due to lack of good feature correspondences for
+pose estimation, make note that we do rewrite calibration with this module and update it. 
+
 Initialization Parameters:
 - None -> Handled internally through the SfMScene object
 
@@ -192,7 +195,7 @@ reconstructed_scene.{module_name}() # Images read in previous step (1)
         extra_metadata:
             Optional dict of extra scalar/string metadata.
         """
-        out_path = os.path.join(self.cam_data.logging_dir, "vggt_poses.npz")
+        out_path = os.path.join(self.cam_data.logging_dir, str(self.cam_data.script_id), "vggt_poses.npz")
 
         extrinsics_w2c = self.to_numpy(extrinsic)
 

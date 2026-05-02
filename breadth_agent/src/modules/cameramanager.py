@@ -55,8 +55,8 @@ class CameraDataManager():
             else:
                 image_files = sorted(glob.glob(image_path + "/*"))
             if len(image_files) > max_images:
-                image_files = uniform_image_subset(image_files, num_samples=max_images)
-                # image_files = image_files[:max_images]
+                # image_files = uniform_image_subset(image_files, num_samples=max_images)
+                image_files = image_files[:max_images]
 
         print(image_files)
         # self.directory_path = Path(__file__).resolve().parents[2]

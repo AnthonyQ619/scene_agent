@@ -31,7 +31,8 @@ Given the image of the scene, reconstruction guidelines and the generated plan w
 Judge using these key aspects:
 	•	Keep in mind, the context provided are just baselines, when aiming to choose the best work flow consider the following:
     	•	Lower reprojection error across Pose Estimation and Global Optimization when Relevant
-    	•	Number of 3D points in reconstruction (The Higher the better, but still consider costs and reprojection error)
+    	•	Number of 3D points in reconstruction (The more 3D points the better, especially when final reprojection errors are comparable and the 
+            scene with the higher 3D points have a slightly higher reprojection error - within 0.20 pixel error.)
     	•	Whether Global optimization Converges (Prioritize other metrics, such as Feature Matches/Tracks, 3D Points, etc higher, but still consider
             Convergence when multiple plans are performing similarly - Essentially use it as a tie breaker)
 	•	Choice of sub-modules accurately coincide with the image of the scene and best use-cases.
@@ -67,14 +68,14 @@ Your response should be a single integer indicating the best plan index, without
         metric_context = metric_context.split("=%$%=")
         process_context = process_context.split("==$#$==")
 
-        for i in range(len(process_context) - 1):
+        for i in range(len(process_context)):
             plan = process_context[i]
             metrics = metric_context[i]
             evaluation_context += f"Example {i + 1}:\n" + plan + "\n" + metrics + "\n"
 
         full_context_plan_metric_f.close()
         full_context_file_proc_f.close()
-        breakpoint()
+        # breakpoint()
         self.p_m_context = evaluation_context
 
     def evaluate_plans(self, plans, user_query):
@@ -113,47 +114,47 @@ Use Calibration Path in Code: {prompt['calibration']}
         plan = self.generator(new_query, prompt['images']) ## Initial plan
         self.logger.add_initial_prompt(prompt['images'], prompt['recon_type'], prompt['gpu_mem'], prompt['calibration'], self.generator.new_query_img_path)
         self.logger.add_enhanced_prompt(new_query)
-        breakpoint()
+        # breakpoint()
         print("Running initial plan...")
         program, output, prog_id = self.compiler(plan) ## initial feedback # Aplly script_id as output
         self.logger.add_initial_workflow(plan, program, output, prog_id)
-        breakpoint()
+        # breakpoint()
         
         print("Generating first set of multiple plans...")
         plans = self.generator.forward(new_query, prompt['images'], feedback=output, self_evaluate=False) ## Generate multiple plans
         best_plan = None
         best_output = None
-        for i in range(3):
+        for i in range(3): 
             if best_plan is not None:
-                current_batch = [(best_plan, best_program, best_output)]
+                current_batch = [(best_plan, best_program, best_output, best_prog_id)]
             else:
                 current_batch= []
             print(f"Evaluating plans for iteration {i + 1}...")
             for j in range(len(plans)):
-                program, output, prog_id  = self.compiler(plans[j]) ## Get feedback for each plan
+                program, output, prog_id = self.compiler(plans[j]) ## Get feedback for each plan
                 current_batch.append((plans[j], program, output, prog_id))
             self.logger.add_generated_codes_batch(current_batch, i + 1)
-            breakpoint()
+            # breakpoint()
             print(f"Selecting best plan for iteration {i + 1}...")
             best_plan, best_program, best_output, best_prog_id = self.evaluate_plans(current_batch, new_query) 
             self.logger.add_best_code(best_plan, best_program, best_output, best_prog_id , i+1)
-            breakpoint()
+            # breakpoint()
             self.generator.plan = best_plan ## Set the best plan for the next iteration
             if i == 2:
                 break
             print(f"Generating next set of plans for iteration {i + 1}...")
             plans = self.generator.forward(new_query, prompt['images'], feedback=best_output, self_evaluate=False)
-            breakpoint()
+            # breakpoint()
 
-        self.logger.add_final_code(best_plan, best_program, best_output, best_prog_id)
         print("Done with iterations. Returning best plan and output.")
-        breakpoint()
         print("Running Best Plan/Output in Full!")
         full_best_program = remove_keyword_from_first_call(
             best_program,
             call_name="SfMScene",
             keyword_name="max_images",
         )
+        self.logger.add_final_code(best_plan, full_best_program, best_output, best_prog_id)
+        # breakpoint()
         self.compiler.exec(full_best_program)
         self.logger.save()
         return best_plan, best_program, best_output
