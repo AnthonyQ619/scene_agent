@@ -532,8 +532,9 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         self.output_dir = output_dir
 
         # Define the workspace for Sparse Reconstruction
-        self.dir_path = Path(__file__).resolve().parents[2]
-        self.directory_path = str(self.dir_path / "results" / "workspace" / "sparse") #C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace\\sparse"
+        # self.dir_path = Path(__file__).resolve().parents[2]
+        # self.directory_path = str(self.dir_path / "results" / "workspace" / "sparse") #C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace\\sparse"
+        self.directory_path = self.cam_data.logging_dir + f"/{self.cam_data.script_id}/workspace/sparse"
         if os.path.exists(self.directory_path):
             # Delete the directory and all its contents
             shutil.rmtree(self.directory_path)

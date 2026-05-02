@@ -1748,6 +1748,8 @@ class SfMScene:
     ):
         self.id = id
         self.log_dir = log_dir
+        #Colmap Workspace
+        colmap_dir = log_dir + f"/{id}/workspace"
         if cam_data is None:
             # if image_path is None or calibration_path is None:
                 # raise ValueError(
@@ -1756,12 +1758,14 @@ class SfMScene:
             if max_images is None:
                 CDM = CameraDataManager(image_path=image_path,
                             calibration_path=calibration_path,
-                            target_resolution=target_resolution)
+                            target_resolution=target_resolution,
+                            colmap_workspace=colmap_dir)
             else:
                 CDM = CameraDataManager(image_path=image_path,
                             max_images=max_images,
                             calibration_path=calibration_path,
-                            target_resolution=target_resolution)
+                            target_resolution=target_resolution,
+                            colmap_workspace=colmap_dir)
 
             # Get Camera Data
             cam_data = CDM.get_camera_data()
@@ -1781,6 +1785,7 @@ class SfMScene:
         self.cam_data = cam_data
         self.cam_data.metric_file_path = metric_file_path 
         self.cam_data.logging_dir = self.log_dir
+        self.cam_data.script_id = id
         self.state = SceneState(cam_data=cam_data)
 
     def __getattr__(self, name: str):
