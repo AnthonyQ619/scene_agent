@@ -886,7 +886,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
                         "height": int(camera.height),
                         "camera_model": str(camera.model),
                         "camera_params": np.asarray(camera.params, dtype=np.float64),
-                        "K": camera_to_K_and_dist(camera)[0],
+                        "K": self.camera_to_K_and_dist(camera)[0],
                         "R_world_to_cam": np.full((3, 3), np.nan),
                         "t_world_to_cam": np.full(3, np.nan),
                         "camera_center_world": np.full(3, np.nan),
