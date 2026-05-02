@@ -154,14 +154,14 @@ reconstructed_scene = SfMScene(ID,
                 # with open("/work/tmp/metric_" + str(self.id) + ".txt", "r") as f:
                 with open(temp_path, "r") as f:
                     metric = f.read().strip()
-                return p, metric
+                return p, metric, self.id
             else:
                 num_failures += 1
                 failed_programs.append((p, output))
 
         from random import choice
         p, output = choice(failed_programs)
-        return p, output
+        return p, output, self.id
 
 
     def __call__(self, query, num_samples=2): # Was 5

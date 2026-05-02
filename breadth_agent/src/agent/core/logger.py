@@ -18,12 +18,15 @@ class Logger:
         self.codes1 = []
         self.plans1 = []
         self.outputs1 = []  
+        self.prog_ids1 = []
         self.codes2 = []
         self.plans2 = []
-        self.outputs2 = [] 
+        self.outputs2 = []
+        self.prog_ids2 = []
         self.codes3 = []
         self.plans3 = []
-        self.outputs3 = []                      
+        self.outputs3 = []
+        self.prog_ids3 = []                     
 
         self.best_workflow1 = []
         self.best_workflow2 = []
@@ -59,50 +62,54 @@ class Logger:
     def add_enhanced_prompt(self, enhanced_prompt):
         self.enhanced_prompt = enhanced_prompt
 
-    def add_initial_workflow(self, initial_plan, initial_code, initial_output):
-        self.initial_workflow.append((initial_plan, initial_code, initial_output))
+    def add_initial_workflow(self, initial_plan, initial_code, initial_output, initial_script_id):
+        self.initial_workflow.append((initial_plan, initial_code, initial_output, initial_script_id))
 
     def add_generated_codes_batch(self, current_batch, index):
         if index == 1: 
             for idx, batch in enumerate(current_batch):
-                pl, prog, output = batch[:3]
+                pl, prog, output, prog_id = batch[:4]
                 self.codes1.append(pl)
                 self.plans1.append(prog)
                 self.outputs1.append(output)
+                self.prog_ids1.append(prog_id)
         elif index == 2:
             for idx, batch in enumerate(current_batch):
-                pl, prog, output = batch[:3]
+                pl, prog, output, prog_id = batch[:4]
                 self.codes2.append(pl)
                 self.plans2.append(prog)
                 self.outputs2.append(output)
+                self.prog_ids2.append(prog_id)
         elif index == 3:
             for idx, batch in enumerate(current_batch):
-                pl, prog, output = batch[:3]
+                pl, prog, output, prog_id = batch[:4]
                 self.codes3.append(pl)
                 self.plans3.append(prog)
                 self.outputs3.append(output)
+                self.prog_ids3.append(prog_id)
 
-    def add_best_code(self, plan, program, output, index):
+    def add_best_code(self, plan, program, output, prog_id, index):
         if index == 1: 
             # self.best_plan1 = plan
             # self.best_code1 = program
             # self.best_output1 = output
-            self.best_workflow1.append((plan, program, output))
+            self.best_workflow1.append((plan, program, output, prog_id))
         elif index == 2: 
             # self.best_plan2 = plan
             # self.best_code2 = program
             # self.best_output2 = output
-            self.best_workflow2.append((plan, program, output))
+            self.best_workflow2.append((plan, program, output, prog_id))
         elif index == 3: 
             # self.best_plan3 = plan
             # self.best_code3 = program
             # self.best_output3 = output
-            self.best_workflow3.append((plan, program, output))
+            self.best_workflow3.append((plan, program, output, prog_id))
 
-    def add_final_code(self, plan, program, output):
+    def add_final_code(self, plan, program, output, prog_id):
         self.final_code = program
         self.final_plan = plan
         self.final_output = output
+        self.final_prog_id = prog_id
 
     # --- Save / serialize ---
 

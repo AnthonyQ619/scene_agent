@@ -188,11 +188,12 @@ scene to reconstruct:\n
             enhanced_prompt += f"""
 Last time, you have created the following plan for the user query:
 {self.plan}
-Upon execution of the plan, the system has provided you with the following feedback containing various metrics on the quality of the plan:
+Upon execution of the plan, the system has provided you with the following feedback containing various metrics (Or Feedback of failure due to incorrect 
+sub-module/parameterization selection) on the quality of the plan:
 {feedback}
 Consider the following ideas on how to improve the plan based on the received metrics: 
 {self.metric_prompt}
-Please create a new plan that incorporates the feedback and improvement ideas to better fit the user query and scene. 
+Please create a new plan that incorporates the feedback and improvement ideas to better fit the user query and scene. Remember, only call each module once
 Your Output:
 """ 
 

@@ -95,7 +95,7 @@ You are now given a set of plans and their resulting metrics from generating a S
 
         response = self.evaluator_llm(enhanced_prompt, image_paths=[self.generator.new_query_img_path])["best_plan_index"]
         best_index = int(response) - 1  # Convert to 0-based index
-        return plans[best_index][0], plans[best_index][1], plans[best_index][2] ## For now, just return the first plan. We can implement a more complex evaluation strategy later.
+        return plans[best_index][0], plans[best_index][1], plans[best_index][2], plans[best_index][3] #Plan, Program, Output, Program_id
 
     def run(self, prompt):
         print("Enhancing prompt...")
@@ -115,8 +115,8 @@ Use Calibration Path in Code: {prompt['calibration']}
         self.logger.add_enhanced_prompt(new_query)
         breakpoint()
         print("Running initial plan...")
-        program, output = self.compiler(plan) ## initial feedback
-        self.logger.add_initial_workflow(plan, program, output)
+        program, output, prog_id = self.compiler(plan) ## initial feedback # Aplly script_id as output
+        self.logger.add_initial_workflow(plan, program, output, prog_id)
         breakpoint()
         
         print("Generating first set of multiple plans...")
@@ -130,13 +130,13 @@ Use Calibration Path in Code: {prompt['calibration']}
                 current_batch= []
             print(f"Evaluating plans for iteration {i + 1}...")
             for j in range(len(plans)):
-                program, output = self.compiler(plans[j]) ## Get feedback for each plan
-                current_batch.append((plans[j], program, output))
+                program, output, prog_id  = self.compiler(plans[j]) ## Get feedback for each plan
+                current_batch.append((plans[j], program, output, prog_id))
             self.logger.add_generated_codes_batch(current_batch, i + 1)
             breakpoint()
             print(f"Selecting best plan for iteration {i + 1}...")
-            best_plan, best_program, best_output = self.evaluate_plans(current_batch, new_query) 
-            self.logger.add_best_code(best_plan, best_program, best_output, i+1)
+            best_plan, best_program, best_output, best_prog_id = self.evaluate_plans(current_batch, new_query) 
+            self.logger.add_best_code(best_plan, best_program, best_output, best_prog_id , i+1)
             breakpoint()
             self.generator.plan = best_plan ## Set the best plan for the next iteration
             if i == 2:
@@ -145,7 +145,7 @@ Use Calibration Path in Code: {prompt['calibration']}
             plans = self.generator.forward(new_query, prompt['images'], feedback=best_output, self_evaluate=False)
             breakpoint()
 
-        self.logger.add_final_code(best_plan, best_program, best_output)
+        self.logger.add_final_code(best_plan, best_program, best_output, best_prog_id)
         print("Done with iterations. Returning best plan and output.")
         breakpoint()
         print("Running Best Plan/Output in Full!")
