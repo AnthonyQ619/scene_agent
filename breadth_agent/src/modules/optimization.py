@@ -642,6 +642,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
                 if dist is None:
                     key = ("PINHOLE", fx, fy, cx, cy)
                 else:
+                    print("OPENCV INTRINSICS!!")
                     d = tuple(dist.ravel())
                     key = ("OPENCV", fx, fy, cx, cy) + d
 
