@@ -8,12 +8,12 @@ import ast
 import os
 
 class AutoSFM:
-    def __init__(self, model_name, api_directory, instruction_path, reasoning_effort, logger):
+    def __init__(self, model_name, api_directory, instruction_path, reasoning_effort, logger, gpu_num):
         self.logger = logger
         self.log_dir = logger.log_dir
 
-        self.compiler = Compiler(model=model_name, api_directory=api_directory, instruction_path=instruction_path, reasoning_effort=reasoning_effort, log_dir=self.log_dir)
-        self.generator = Generator(model=model_name, api_directory=api_directory, reasoning_effort=reasoning_effort)
+        self.compiler = Compiler(model=model_name, api_directory=api_directory, instruction_path=instruction_path, reasoning_effort=reasoning_effort, log_dir=self.log_dir, gpu_num=gpu_num)
+        self.generator = Generator(model=model_name, api_directory=api_directory, reasoning_effort=reasoning_effort, gpu_num=gpu_num)
         self.enhancer = PromptEnhancerLLM(model=model_name, instruction_path=instruction_path, reasoning_effort=reasoning_effort)
 
         # self.logger = logger
@@ -134,7 +134,7 @@ Use Calibration Path in Code: {prompt['calibration']}
                 program, output, prog_id = self.compiler(plans[j]) ## Get feedback for each plan
                 current_batch.append((plans[j], program, output, prog_id))
             self.logger.add_generated_codes_batch(current_batch, i + 1)
-            # breakpoint()
+            breakpoint()
             print(f"Selecting best plan for iteration {i + 1}...")
             best_plan, best_program, best_output, best_prog_id = self.evaluate_plans(current_batch, new_query) 
             self.logger.add_best_code(best_plan, best_program, best_output, best_prog_id , i+1)
@@ -157,7 +157,10 @@ Use Calibration Path in Code: {prompt['calibration']}
         # breakpoint()
         self.compiler.exec(full_best_program)
         self.logger.save()
-        return best_plan, best_program, best_output
+        # print("WORKSPACE DIR TO CLEAN:", )
+        clean_up_log_folder(self.log_dir + f"/{best_prog_id}")
+
+        return best_plan, best_program, best_output, best_prog_id
         # return program, output
 
 # Helper function to clean code before final run!
@@ -233,3 +236,34 @@ def remove_keyword_from_first_call(
             start = j
 
     return script[:start] + script[end:]
+
+def clean_up_log_folder(log_path:str) -> None:
+    """
+    Removes the following folders if they exist:
+
+        folder1/workspace/dense/images
+        folder1/images
+
+    Parameters
+    ----------
+    folder1_path : str | Path
+        Path to the root folder, e.g. "folder1".
+    """
+    import shutil
+
+    root = Path(log_path).expanduser().resolve()
+
+    folders_to_remove = [
+        root / "workspace" / "dense" / "images",
+        root / "workspace" / "images",
+    ]
+
+    for folder in folders_to_remove:
+        if folder.exists():
+            if folder.is_dir():
+                shutil.rmtree(folder)
+                print(f"Removed: {folder}")
+            else:
+                print(f"Skipped because it is not a directory: {folder}")
+        else:
+            print(f"Does not exist, skipping: {folder}")

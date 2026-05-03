@@ -71,9 +71,9 @@ from modules.utilities import image_builder
 #     return new_img
 
 def main():
-    image_path = "/home/anthonyq/datasets/ETH/ETH/office/images/dslr_images_undistorted"
+    image_path = "/home/anthonyq/datasets/DTU/scan6_illumination_change"
     img_to_save = r"/home/anthonyq/projects/scene_agent/breadth_agent/src/tests/context_images"
-    i = 9
+    i = 3
 
     # Use equivalent parameters to 
     new_img = image_builder(image_path=image_path, 

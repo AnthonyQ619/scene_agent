@@ -52,18 +52,19 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path = "/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted" #"/home/anthonyq/datasets/DTU/scan6_illumination_change" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_illumination_change"
+image_path = "/home/anthonyq/datasets/DTU/scan6_illumination_change" #"/home/anthonyq/datasets/DTU/scan6_illumination_change" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_illumination_change"
 
 from modules.features import FeatureDetectionSP
-from modules.featurematching import FeatureMatchSuperGlueTracking
+from modules.featurematching import FeatureMatchSuperGlueTracking, FeatureMatchLightGlueTracking
 from modules.camerapose import CamPoseEstimatorVGGTModel
-from modules.scenereconstruction import Sparse3DReconstructionVGGT, Dense3DReconstructionVGGT
+from modules.scenereconstruction import Sparse3DReconstructionVGGT, Dense3DReconstructionVGGT, Sparse3DReconstructionVGGTNoFeatures
 from modules.optimization import BundleAdjustmentOptimizerGlobal
 from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(id=3,
-                              log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/ETH/eth_living_room",
+                              gpu_num="1",
+                              log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/DTU/",
                                 image_path=image_path,
                                 max_images=25,
                                 target_resolution=[1024, 1024]
@@ -81,8 +82,7 @@ reconstructed_scene.CamPoseEstimatorVGGTModel()
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureMatchLightGlueTracking(
     detector='superpoint', 
-    RANSAC_threshold=2.0,
-    # setting="indoor"
+    RANSAC_threshold=2.0
 )
 
 # Step 6: Estimate Sparse Reconstruction

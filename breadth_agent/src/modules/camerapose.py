@@ -16,6 +16,8 @@ from modules.models.sfm_models.vggt.models.vggt import VGGT
 from modules.models.sfm_models.vggt.utils.load_fn import load_and_preprocess_images
 
 import glob
+
+torch.manual_seed(42)
 ##########################################################################################################
 ############################################### ML MODULES ###############################################
 
@@ -78,16 +80,16 @@ reconstructed_scene.{module_name}() # Images read in previous step (1)
                          example=example)
         
         # Initialize Model
-        # if os.name == 'nt':
-        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
-        # elif os.name == 'posix':
-        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
+        if os.name == 'nt':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        elif os.name == 'posix':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
 
-        WEIGHT_MODULE = "/work/model_weights/model.pt"
+        # WEIGHT_MODULE = "/work/model_weights/model.pt"
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        device = f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu"
 
-        if device == "cuda":
+        if device == f"cuda:{self.cam_data.gpu_num}":
             # bfloat16 is supported on Ampere GPUs (Compute Capability 8.0+) 
             self.dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
         else:
@@ -153,6 +155,7 @@ reconstructed_scene.{module_name}() # Images read in previous step (1)
         for i in range(intrinsic_np.shape[0]):
             intrins.append(intrinsic_np[i, :, :])
             dists.append(np.zeros((1,5), dtype=float))
+            # dists.append(None)
         
         # Metric Variables
         self.pred_intrinsics = intrins

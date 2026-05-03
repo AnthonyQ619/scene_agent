@@ -1,5 +1,6 @@
 import glob
 import os
+import re
 import cv2
 from pathlib import Path
 from sceneprogllm import LLM
@@ -8,14 +9,26 @@ from .utility.optical_flow import read_camera_flow
 from .utility.illumination_analysis import generate_illumination_change_prompt
 from concurrent.futures import ThreadPoolExecutor
 
+# Helper function to help ensure image list stays in ascending numerical order
+def numeric_image_sort_key(path):
+    name = os.path.basename(path)
+    match = re.search(r"\d+", name)
+
+    if match is None:
+        return float("inf")  # put non-numbered files at the end
+
+    return int(match.group())
+
 class Generator:
     def __init__(self,
                  model: str | None = None,
                  api_directory: str | None = None,
                  temperature: float = 0.8,
-                    reasoning_effort: str ="medium"
-                    ):
+                 reasoning_effort: str ="medium",
+                 gpu_num: str = "0"
+                ):
         self.CWD = str(Path(__file__).resolve().parents[1])
+        self.index = gpu_num
         examples = ""
         self.plan = None
 
@@ -113,6 +126,8 @@ Given the image of the scene and reconstruction guidelines we wish to follow (pr
 	3.	Choose the best procedure and explain why — citing specific SfM planning logic, module selection, and why parameterization of tools make sense.
     4.  If all plans only have feedback due to performance errors, select any of the plans available when no metris are provided, but always prioritize the
         plans that provide metrics!
+    5. Analyze how each module is performing based on their metrics and evaluate their performance based on the context of their values, and if improvements need 
+       to be made in either parameterization or if tool changes are required!
 
 Judge using these key aspects:
 	•	Keep in mind, the context provided are just baselines, when aiming to choose the best work flow consider the following:
@@ -120,6 +135,9 @@ Judge using these key aspects:
         •	Number of 3D points in reconstruction (The Higher the better, but still consider costs and reprojection error)
         •	Whether Global optimization Converges (Prioritize other metrics, such as Feature Matches/Tracks, 3D Points, etc higher, but still consider
             Convergence when multiple plans are performing similarly - Essentially use it as a tie breaker)
+        •	Avoid choosing a process with resulting reprojection errors of large magnitudes (Reported as: [Reprojection Error is too large to evaluate. 
+            Consider improve sparse reconstruction with improved SfM pipeline]) unless it's the only working pipeline, always prefer the lower 
+            reprojection error result in global optimization and pose estimation (If applicable)
 	•	Choice of sub-modules accurately coincide with the image of the scene and best use-cases.
 	•	Sub-module selection fits within the system constraints of the user prompt.
 	•	Reconstruction type is followed precisely, and our last sub-module invoked directly represents the prompt (Pose, Sparse, or Dense).
@@ -135,7 +153,11 @@ Your response should be a single integer indicating the best plan index, without
 
          # Build In-Context image examples here
         img_path = os.path.join(self.CWD, 'agent_details', 'image_context') # MAKE THIS MORE PATH ORIENTED
-        self.image_paths = sorted(glob.glob(img_path + "/*"))#[:8] # Was 8 now 9
+        # self.image_paths = sorted(glob.glob(img_path + "/*"))#[:8] # Was 8 now 9
+        self.image_paths = sorted(
+            glob.glob(os.path.join(img_path, "*")),
+            key=numeric_image_sort_key
+        )
         self.new_query_img_path = None
         self.cam_motion_prompt = None
 
@@ -165,7 +187,7 @@ The following are a few examples of reference procedures to generate with corres
 
 Each procedure example is titled "Procedure:Num", and each corresponding image is titled "image_context(Num).png",
 where each matching "Num" value between procedure and image title is the corresponding image set and generated procedure.
-In short, the first 8 images provided correspond to the first 8 procedure examples in respective order. The final image 
+In short, the first 10 images provided correspond to the first 10 procedure examples in respective order. The final image 
 is the given scene from the user to generate a plan for reconstruction. 
 
 The followiing information is provided from the user query to guide your chosen sub-modules for each step of the generated plan/procedure.
@@ -192,15 +214,43 @@ scene to reconstruct:\n
     def forward(self, query, query_video_path, feedback=None, self_evaluate=True): 
         enhanced_prompt = self.enhance_prompt(query, query_video_path)
         if feedback is not None and self.plan is not None:
+            # enhanced_prompt += f"""
+# Last time, you have created the following plan for the user query:
+# {self.plan}
+# Upon execution of the plan, the system has provided you with the following feedback containing various metrics (Or Feedback of failure due to incorrect 
+# sub-module/parameterization selection) on the quality of the plan:
+# {feedback}
+# Consider the following ideas on how to improve the plan based on the received metrics: 
+# {self.metric_prompt}
+# Please create a new plan that incorporates the feedback and improvement ideas to better fit the user query and scene. Remember, only call each module once
+# Key information to consider:
+# 	•	if receivng a good final reprojection error, but not enough 3D points consistently, consider:
+#     	•	reducing minimum observation in reconstruction by 1 (minimum of 3 observation per point)
+#     	•	reducing min_angle in reconstructionMono module (minimum is 1.0)
+#     	•	Also relieving stricter outlier rejection pipelines
+# 	•	If consistently failing to produce a reconstruction due to not having enough points, utilize the detector free modules:
+#     	•	For sparse reconstruction: Refer to Sparse3DReconstructionVGGTNoFeatures module
+#         •	For Dense Reconstruction: Refer to Dense3DReconstructionVGGT module
+# Your Output:
+# """ 
             enhanced_prompt += f"""
-Last time, you have created the following plan for the user query:
+First, consider the following ideas on how to improve an SfM generated plan based on the received metrics: 
+{self.metric_prompt}
+
+Now, Last time, you have created the following plan for the user query:
 {self.plan}
 Upon execution of the plan, the system has provided you with the following feedback containing various metrics (Or Feedback of failure due to incorrect 
 sub-module/parameterization selection) on the quality of the plan:
 {feedback}
-Consider the following ideas on how to improve the plan based on the received metrics: 
-{self.metric_prompt}
 Please create a new plan that incorporates the feedback and improvement ideas to better fit the user query and scene. Remember, only call each module once
+Key information to consider:
+	•	if receivng a good final reprojection error, but not enough 3D points consistently, consider:
+    	•	reducing minimum observation in reconstruction by 1 (minimum of 3 observation per point)
+    	•	reducing min_angle in reconstructionMono module (minimum is 1.0)
+    	•	Also relieving stricter outlier rejection pipelines
+	•	If consistently failing to produce a reconstruction due to not having enough points, utilize the detector free modules:
+    	•	For sparse reconstruction: Refer to Sparse3DReconstructionVGGTNoFeatures module
+        •	For Dense Reconstruction: Refer to Dense3DReconstructionVGGT module
 Your Output:
 """ 
 
@@ -223,7 +273,8 @@ Your Output:
             if len(dataset_path) > 40:
                 dataset_path = dataset_path[:40]
             resized_dir, resized_img_list, K = resize_dataset(image_path=dataset_path,
-                                                              max_size=350)
+                                                              max_size=350,
+                                                              script_id=self.index)
             result = read_camera_flow(resized_dir, K)
             context = generate_illumination_change_prompt(dataset_path)
             clean_dir(resized_dir)
@@ -248,10 +299,10 @@ Your Output:
             if not os.path.exists(new_img_path):
                 os.makedirs(new_img_path)
             
-            cv2.imwrite(new_img_path + f"/query_img.png", new_img)
+            cv2.imwrite(new_img_path + f"/query_img_{self.index}.png", new_img)
 
-            self.new_query_img_path = new_img_path + f"/query_img.png"
-            self.image_paths.append(new_img_path + f"/query_img.png")
+            self.new_query_img_path = new_img_path + f"/query_img_{self.index}.png"
+            self.image_paths.append(new_img_path + f"/query_img_{self.index}.png")
         
         enhanced_prompt = f"""
 The following are a few examples of reference procedures to generate with corresponding images:
@@ -259,7 +310,7 @@ The following are a few examples of reference procedures to generate with corres
 
 Each procedure example is titled "Procedure:Num", and each corresponding image is titled "image_context(Num).png",
 where each matching "Num" value between procedure and image title is the corresponding image set and generated procedure.
-In short, the first 8 images provided correspond to the first 9 procedure examples in respective order. The final image 
+In short, the first 10 images provided correspond to the first 10 procedure examples in respective order. The final image 
 is the given scene from the user to generate a procedure for. 
 
 Following information are statistics (With context to understand the signal of each score) about camera motion from 
@@ -269,7 +320,7 @@ optical flow and illuminance analysis of the provided images:
 The followiing information is provided to guide your chosen sub-modules for each step of the generated procedure.
 {query}
 """
-
+        # breakpoint()
         return enhanced_prompt
     
 

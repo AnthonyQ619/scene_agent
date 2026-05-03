@@ -341,16 +341,19 @@ and for the provided scene:
           Overly strict filters can produce a clean but sparse reconstruction.
         - If camera poses are missing, improve image-pair connectivity, feature matching, pose estimation, and initialization order.
         - IMPORTANT CASE!!
-            - For cases of large final reprojection, do one of these key changes at a time
+            - For cases of very large final reprojection (Will report as: [Reprojection Error is too large to evaluate. Consider improve sparse reconstruction with improved SfM pipeline]), 
+              do one of these key changes at a time!
               - Increase the minimum number of observations for 2D point tracks for 3D point estimation for sparse reconstruction consideration.
               - Decrease the maximum number of iterations for bundle adjustment (Do not decrease below the default of 50 iterations). 
-                Sometimes it the bundle adjustment will overcorrect itself to lose geometry of the scene.
-              - Improve Feature Correspondence/Tracking to be slightly more accurate
+                Sometimes running bundle adjustment will overcorrect itself to lose the geometry of the scene (Ensure camera params are fixed!).
+              - If low features are consistently detected with large baselines between image pairs, simply opt for the detector free approach using Sparse3DReconstructionVGGTNoFeatures
+                module!
             - This failure occurs because of the 2D point tracks estimated have compounding errors that do not resolve with global bundle adjustment, in the case
-              this is evident and feature tracks/correspondences are not possible, refer to the VGGT Dense reconstruction pipeline as it is completely detector free!
+              this is evident and feature tracks/correspondences are not possible, refer to the VGGT Dense reconstruction pipeline for Dense Reconstruction or 
+              Sparse3DReconstructionVGGTNoFeatures in sparse pipeline as it is completely detector free!
 
 ========================================================================================================================================================
-Example: 
+Example 1: 
 Results from Optimization using global optimization:
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
     max_num_iterations=200
@@ -370,5 +373,43 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
 
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
     max_num_iterations=240
+)
+Example 1: 
+Results from Optimization using global optimization + VGGT module:
+# Steps 1-5: Normal VGGT pipeline
+
+# Step 6: Estimate Sparse Reconstruction (VGGT No-Features)
+reconstructed_scene.Sparse3DReconstructionVGGT(min_observe=4)
+
+# Step 7: Run Global Optimization (fix intrinsics)
+reconstructed_scene.BundleAdjustmentOptimizerGlobal(
+    refine_focal_length=False,
+    refine_principal_point=False,
+    refine_extra_params=False,
+    max_num_iterations=260,
+    robust_loss=True
+)
+
+{
+    "Scene Metrics from Optimization": {
+        "Optimizer": "BundleAdjustmentOptimizerGlobal",
+        "Num Points3D": 5380,
+        "Convergence": "NO_CONVERGENCE",
+        "Initial Cost": 28159.53224789631,
+        "Final Cost": 5616.2082777176165,
+        "Initial Reprojection Error": 11.399230617596043,
+        "Final Reprojection Error": "Reprojection Error is too large to evaluate. Consider improve sparse reconstruction with improved SfM pipeline"
+    }
+}
+
+Adjustment/Improvement:
+# Steps 1-5: Follow No Feature based VGGT module pipeline! 
+
+# Step 6: Estimate Sparse Reconstruction (VGGT No-Features estimated prior)
+reconstructed_scene.Sparse3DReconstructionVGGTNoFeatures()
+
+# Step 7: Run Global Optimization (fix intrinsics)
+reconstructed_scene.BundleAdjustmentOptimizerGlobal(
+    max_num_iterations=80,
 )
 ========================================================================================================================================================

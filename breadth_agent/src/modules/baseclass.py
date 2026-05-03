@@ -350,6 +350,7 @@ class SparseSceneEstimation(PipelineModule, ABC):
     use_base_metrics = True
     _registered_metric_methods: tuple[str, ...] = ()
     output_key = "sparse_scene"
+    detector_free_modules = []
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -370,7 +371,7 @@ class SparseSceneEstimation(PipelineModule, ABC):
 
     def run_from_state(self, state: SceneState) -> Scene:
         tracked = state.tracked_features or state.feature_pairs
-        if tracked is None:
+        if tracked is None and (self.module_name not in self.detector_free_modules):
             raise RuntimeError(
                 "SparseSceneEstimation requires tracked_features or feature_pairs."
             )
@@ -1426,8 +1427,8 @@ class FeatureTracking(PipelineModule, ABC):
                 "- Increase the maximum number of detected keypoints if the detector supports it.\n"
                 "- Use a more robust feature matcher module for the image set.\n"
                 "- Use a more robust detector/descriptor combination for the image set.\n"
-                "- Check that image overlap is sufficient between matched frames.\n"
-                "- Final try, swap to a detector free approach, such as using VGGT directly for Pose/Reconstruction.\n\n"
+                "- Final try, if consistently failing to achieve enough points in feature tracking, utilizing the detector free modules\n"
+                "   - For sparse reconstruction (Sparse3DReconstructionVGGTNoFeatures) or (Dense3DReconstructionVGGT) module for dense reconstruction.\n\n"
                 f"Current outlier rejection threshold: {threshold}\n"
                 f"Original error: {type(e).__name__}: {e}"
             ) from e
@@ -1740,6 +1741,7 @@ class SfMScene:
         self,
         id,
         log_dir,
+        gpu_num,
         image_path: str | None = None,
         calibration_path: str | None = None,
         cam_data: CameraData | None = None,
@@ -1786,6 +1788,7 @@ class SfMScene:
         self.cam_data.metric_file_path = metric_file_path 
         self.cam_data.logging_dir = self.log_dir
         self.cam_data.script_id = id
+        self.cam_data.gpu_num = str(gpu_num)
         self.state = SceneState(cam_data=cam_data)
 
     def __getattr__(self, name: str):

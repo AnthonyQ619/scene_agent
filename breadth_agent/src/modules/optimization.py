@@ -545,7 +545,11 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
     def _optimize_scene(self, current_scene: Scene) -> Scene:
         # return super()._optimize_scene(current_scene) 
         # --- Step 1 - Build Reconstruction ---
-        recon, trackid_to_point3Did = self._build_reconstruction(current_scene)
+        if current_scene.recon is not None:
+            recon = current_scene.recon
+            trackid_to_point3Did = None
+        else:
+            recon, trackid_to_point3Did = self._build_reconstruction(current_scene)
         # --- Step 2 - Set BA Solver Options and Config settings --- 
         ba_opts, config = self._build_adjuster(recon)
 
@@ -558,7 +562,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         # Run Optimizer
         summary = self._solve(ba_opts, config, recon)
 
-        print("SUMMARY", summary)
+        # print("SUMMARY", summary)
         self.summary = summary
         # --- Step 4: Export optimized results back into the Scene ---
         self._write_back_to_scene(current_scene, recon, trackid_to_point3Did)
@@ -572,8 +576,9 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         # Get final Metric (reprojection errors)
         recon.update_point_3d_errors()
         # Mean reprojection error in pixels (final cost)
-        self.mean_error = recon.compute_mean_reprojection_error()
-
+        self.mean_error = float(recon.compute_mean_reprojection_error())
+        if self.mean_error > 300.0:
+            self.mean_error = "Reprojection Error is too large to evaluate. Consider improve sparse reconstruction with improved SfM pipeline."
         #Record Camera Poses
         self._store_extrinsics_information(recon)
 
@@ -642,6 +647,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
                 if dist is None:
                     key = ("PINHOLE", fx, fy, cx, cy)
                 else:
+                    # print("OPENCV INTRINSICS!!")
                     d = tuple(dist.ravel())
                     key = ("OPENCV", fx, fy, cx, cy) + d
 
@@ -970,12 +976,23 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
                 continue
             scene.cam_poses[f] = img.cam_from_world().matrix()
 
-        # Update 3D points
-        # If you need to keep ordering by track_id, write into that index.
-        xyzs = scene.points3D.points3D
-        for tid, p3did in trackid_to_point3Did.items():
-            p3d = recon.point3D(p3did)
-            xyzs[tid] = p3d.xyz  # (3,)
+        if trackid_to_point3Did is None:
+            # temp_recon = pycolmap.Reconstruction(self.directory_path)
+            print("HERE")
+            # Obtain 3D Points from Dense Reconstruction
+            points = np.array([p.xyz for p in recon.points3D.values()])
+            colors = np.array([p.color / 255.0 for p in recon.points3D.values()])
+            pts = Points3D()
+            pts.set_all_points(points = points,
+                                color = colors)
+            scene.points3D = pts
+        else:
+            # Update 3D points
+            # If you need to keep ordering by track_id, write into that index.
+            xyzs = scene.points3D.points3D
+            for tid, p3did in trackid_to_point3Did.items():
+                p3d = recon.point3D(p3did)
+                xyzs[tid] = p3d.xyz  # (3,)
 
     @module_metric
     def _metric_ba_results(self) -> dict:
@@ -983,7 +1000,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
                 "Initial Cost": float(self.summary.ceres_summary.initial_cost),
                 "Final Cost": float(self.summary.ceres_summary.final_cost),
                 "Initial Reprojection Error": float(self.initial_mean_error), 
-                "Final Reprojection Error": float(self.mean_error)}
+                "Final Reprojection Error": self.mean_error}
     
 
     # Helper File to extract camera pose information
