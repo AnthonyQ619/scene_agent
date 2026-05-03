@@ -336,9 +336,10 @@ reconstructed_scene.{module_name}(
 
         self.images = torch.stack(tensor_img_list).to(self.device) 
         self.frame_nums = len(cam_data.image_names)
+        self.detector_free_modules.append(module_name)
 
     def build_reconstruction(self, 
-                             tracked_features: PointsMatched, 
+                             tracked_features: PointsMatched | None, 
                              cam_poses: CameraPose) -> Scene:
         torch.cuda.empty_cache() #Empty GPU cache
 
@@ -367,7 +368,7 @@ reconstructed_scene.{module_name}(
         depth_map_np = depth_map.squeeze(0).detach().cpu().numpy() 
         extrinsics_np = np.array(cam_poses.camera_pose)
         intrinsics_np = np.array(self.K_mat)
-        image_size = np.array(images.shape[-2:])
+        image_size = np.array(self.images.shape[-2:])
 
         # Here we use the ext, int, depth_map, and point_map (points3D) to initialize the sparse reconstruction with tracked feature points
         # scene = self.match_tracks_to_point_maps(tracked_features=tracked_features,
@@ -377,24 +378,28 @@ reconstructed_scene.{module_name}(
         #                                         img_width = self.width,
         #                                         num_cameras = num_cameras,
         #                                         camera_poses=cam_poses)
-        with torch.cuda.amp.autocast(dtype=self.dtype):
-            # Predicting Tracks
-            # Using VGGSfM tracker instead of VGGT tracker for efficiency
-            # VGGT tracker requires multiple backbone runs to query different frames (this is a problem caused by the training process)
-            # Will be fixed in VGGT v2
+        print()
+        print("IMAGESIZE", image_size)
+        print("IMAGESHAPE", self.images.shape)
+        with torch.no_grad():
+            with torch.cuda.amp.autocast(dtype=self.dtype):
+                # Predicting Tracks
+                # Using VGGSfM tracker instead of VGGT tracker for efficiency
+                # VGGT tracker requires multiple backbone runs to query different frames (this is a problem caused by the training process)
+                # Will be fixed in VGGT v2
 
-            # You can also change the pred_tracks to tracks from any other methods
-            # e.g., from COLMAP, from CoTracker, or by chaining 2D matches from Lightglue/LoFTR.
-            pred_tracks, pred_vis_scores, pred_confs, points_3d, points_rgb = predict_tracks(
-                images,
-                conf=depth_conf_np,
-                points_3d=points_3d,
-                masks=None,
-                max_query_pts=4096,
-                query_frame_num=self.frame_nums,
-                keypoint_extractor="sp",
-                fine_tracking=True,
-            )
+                # You can also change the pred_tracks to tracks from any other methods
+                # e.g., from COLMAP, from CoTracker, or by chaining 2D matches from Lightglue/LoFTR.
+                pred_tracks, pred_vis_scores, pred_confs, points_3d, points_rgb = predict_tracks(
+                    self.images,
+                    conf=depth_conf_np,
+                    points_3d=point_map,
+                    masks=None,
+                    max_query_pts=4096,
+                    query_frame_num=self.frame_nums,
+                    keypoint_extractor="sp",
+                    fine_tracking=True,
+                )
 
             # torch.cuda.empty_cache()
         torch.cuda.empty_cache() #Empty GPU cache

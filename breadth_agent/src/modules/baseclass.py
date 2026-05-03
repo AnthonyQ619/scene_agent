@@ -350,6 +350,7 @@ class SparseSceneEstimation(PipelineModule, ABC):
     use_base_metrics = True
     _registered_metric_methods: tuple[str, ...] = ()
     output_key = "sparse_scene"
+    detector_free_modules = []
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -370,7 +371,7 @@ class SparseSceneEstimation(PipelineModule, ABC):
 
     def run_from_state(self, state: SceneState) -> Scene:
         tracked = state.tracked_features or state.feature_pairs
-        if tracked is None:
+        if tracked is None and (self.module_name not in self.detector_free_modules):
             raise RuntimeError(
                 "SparseSceneEstimation requires tracked_features or feature_pairs."
             )
