@@ -545,7 +545,11 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
     def _optimize_scene(self, current_scene: Scene) -> Scene:
         # return super()._optimize_scene(current_scene) 
         # --- Step 1 - Build Reconstruction ---
-        recon, trackid_to_point3Did = self._build_reconstruction(current_scene)
+        if current_scene.recon is not None:
+            recon = current_scene.recon
+            trackid_to_point3Did = None
+        else:
+            recon, trackid_to_point3Did = self._build_reconstruction(current_scene)
         # --- Step 2 - Set BA Solver Options and Config settings --- 
         ba_opts, config = self._build_adjuster(recon)
 
@@ -971,12 +975,23 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
                 continue
             scene.cam_poses[f] = img.cam_from_world().matrix()
 
-        # Update 3D points
-        # If you need to keep ordering by track_id, write into that index.
-        xyzs = scene.points3D.points3D
-        for tid, p3did in trackid_to_point3Did.items():
-            p3d = recon.point3D(p3did)
-            xyzs[tid] = p3d.xyz  # (3,)
+        if trackid_to_point3Did is None:
+            # temp_recon = pycolmap.Reconstruction(self.directory_path)
+            print("HERE")
+            # Obtain 3D Points from Dense Reconstruction
+            points = np.array([p.xyz for p in recon.points3D.values()])
+            colors = np.array([p.color / 255.0 for p in recon.points3D.values()])
+            pts = Points3D()
+            pts.set_all_points(points = points,
+                                color = colors)
+            scene.points3D = pts
+        else:
+            # Update 3D points
+            # If you need to keep ordering by track_id, write into that index.
+            xyzs = scene.points3D.points3D
+            for tid, p3did in trackid_to_point3Did.items():
+                p3d = recon.point3D(p3did)
+                xyzs[tid] = p3d.xyz  # (3,)
 
     @module_metric
     def _metric_ba_results(self) -> dict:

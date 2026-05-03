@@ -574,7 +574,7 @@ class Scene:
     bal_data: BundleAdjustmentData  # Data stored in the BAL format, and write file to reconstructed scene (REFACTOR TO REMOVE)
     depth_maps: list[np.ndarray]    # Depth Maps per frame, formated as HeightxWidth of image shape
     sparse: bool                    # Used to determine if current scene is sparse or dense (Sparse=True)
-    
+    recon: object | None            # Pycolmap.Reconstruction type if provided (from VGGT no Feature Detection is the current tool where this exists!)
 
     def __init__(self, points3D: Points3D | None = Points3D(), 
                  cam_poses: list[np.ndarray] = [], 
@@ -582,7 +582,8 @@ class Scene:
                  representation: str = "point cloud",
                  sparse: bool = True,
                  bal_data : BundleAdjustmentData | None = None,
-                 depth_maps: np.ndarray | None = None):
+                 depth_maps: np.ndarray | None = None,
+                 recon: object | None = None):
         self.SceneRepresentation = ["point cloud", "mesh", 'NeRF']
 
         
@@ -592,6 +593,7 @@ class Scene:
         self.representation = representation
         self.depth_maps = depth_maps
         self.sparse = sparse
+        self.recon = recon
 
         assert(self.representation in self.SceneRepresentation)
 
