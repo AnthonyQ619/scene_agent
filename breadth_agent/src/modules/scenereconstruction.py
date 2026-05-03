@@ -309,12 +309,12 @@ reconstructed_scene.{module_name}()
                          example=example)
         
         # Initialize Model
-        if os.name == 'nt':
-            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
-        elif os.name == 'posix':
-            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
+        # if os.name == 'nt':
+        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        # elif os.name == 'posix':
+        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
 
-        # WEIGHT_MODULE = "/work/model_weights/model.pt"
+        WEIGHT_MODULE = "/work/model_weights/model.pt"
             
         self.device = f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu"
 
@@ -516,12 +516,12 @@ reconstructed_scene.{module_name}(
                          example=example)
         
         # Initialize Model
-        if os.name == 'nt':
-            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
-        elif os.name == 'posix':
-            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
+        # if os.name == 'nt':
+        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        # elif os.name == 'posix':
+        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
 
-        # WEIGHT_MODULE = "/work/model_weights/model.pt"
+        WEIGHT_MODULE = "/work/model_weights/model.pt"
             
         self.device = f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu"
 

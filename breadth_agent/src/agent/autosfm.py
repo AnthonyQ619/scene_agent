@@ -158,7 +158,7 @@ Use Calibration Path in Code: {prompt['calibration']}
         self.compiler.exec(full_best_program)
         self.logger.save()
         # print("WORKSPACE DIR TO CLEAN:", )
-        clean_up_log_folder(self.log_dir + f"/{best_prog_id}")
+        # clean_up_log_folder(self.log_dir + f"/{best_prog_id}")
 
         return best_plan, best_program, best_output, best_prog_id
         # return program, output
