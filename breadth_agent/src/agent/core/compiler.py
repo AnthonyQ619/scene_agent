@@ -12,7 +12,8 @@ class Compiler:
                  api_directory: str | None = None,
                  temperature: float = 0.8,
                  reasoning_effort: str ="medium",
-                 log_dir: str = 'tmp'
+                 log_dir: str = 'tmp',
+                 gpu_num: str = "0"
                  ):
         self.CWD = str(Path(__file__).resolve().parents[1])
 
@@ -20,6 +21,7 @@ class Compiler:
         self.id = uuid.uuid4()
         self.log_dir = log_dir
         self.exec = Executor(self.id)
+        self.gpu_num = gpu_num
 
          # Further Written Instructions
         if instruction_path is None:
@@ -96,6 +98,7 @@ from modules.optimization import (BundleAdjustmentOptimizerLocal, BundleAdjustme
 from modules.baseclass import SfMScene
 ID = "{self.id}"
 log_dir = "{self.log_dir}"
+gpu_num = "{self.gpu_num}"
 """
 
         full_desc = api_desc + "\n" + system_desc
@@ -117,7 +120,8 @@ Program:
 I want you to verify if the code that you generated adheres to the syntax and guidelines of the API. If it does, return the same code as your final answer. If it does not, please fix the code and return the corrected code as your final answer.
 Key things to ensure:
 1. If using any of the VGGT tools, ensure you resize the images accordingly when reading the dataset by using target resolution and using a square image size (like [1024, 1024]).
-   When using (Sparse3DReconstructionVGGT), (Dense3DReconstructionVGGT), or (CamPoseEstimatorVGGTModel) do this at the first step:
+   IMPORTANT: Even if calibration is provided for VGGT tools, DO NOT read in the calibration file when using any of the VGGT tools. Omit it like EXACTLY like the example below. 
+   When using (Sparse3DReconstructionVGGT), (Sparse3DReconstructionVGGTNoFeatures), (Dense3DReconstructionVGGT), or (CamPoseEstimatorVGGTModel) do this at the first step:
 reconstructed_scene = SfMScene(ID,
                                 image_path=image_path,
                                 max_images=20,
@@ -134,7 +138,7 @@ reconstructed_scene = SfMScene(ID,
         'robust_loss': True
     ) as this is a special case for the inclusion of the parameter.
 3. For constructing dense reconstruction with VGGT explicitly, skip sparse reconstruction from the VGGT module, and follow the pipeline of CamPoseEstimatorVGGTModel(...) to Dense3DReconstructionVGGT(...) as this is a special case.
-4. If using Sparse reconstruction with VGGT to include the Global Bundle Adjustment Optimizer (Only Sparse can include BA), use the Dense3DReconstructionMono(...) module instead!
+    3.1. IMPORTANT: If using Sparse reconstruction with VGGT to include the Global Bundle Adjustment Optimizer (Only Sparse can include BA), use the Dense3DReconstructionMono(...) module instead!
 5. Most importantly, do not write your own code to bypass any errors. Resolve any errors by either fixing incorrect parameters, or fixing syntax errors. Do not generate any python code outside of the API usage.
 """
         refined_program = self.compiler(prompt)
@@ -147,6 +151,7 @@ reconstructed_scene = SfMScene(ID,
         for p in programs:
             # Remove Dense Reconstuction module prior to run time!
             temp_p = remove_module_call(p, module_name="Dense3DReconstructionMono")
+            # breakpoint()
             output, success = self.exec(temp_p) #self.exec(p)
             if success: 
                 #temp_path = "/home/anthonyq/projects/scene_agent/breadth_agent/results" + f"/metrics_results_{self.id}.txt"
@@ -164,7 +169,7 @@ reconstructed_scene = SfMScene(ID,
         return p, output, self.id
 
 
-    def __call__(self, query, num_samples=2): # Was 5
+    def __call__(self, query, num_samples=3): # Was 5
         with ThreadPoolExecutor(max_workers=min(20, num_samples)) as executor:
             futures = [
                 executor.submit(

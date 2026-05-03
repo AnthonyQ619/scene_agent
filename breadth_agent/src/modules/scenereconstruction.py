@@ -29,7 +29,7 @@ from modules.DataTypes.datatype import (Points2D,
                                         PointsMatched,
                                         BundleAdjustmentData)
 
-
+torch.manual_seed(42)
 
 # Import Pycolmap
 # os.add_dll_directory(r"C:\\Users\\Anthony\\Desktop\\VCPKG\\vcpkg\\installed\\x64-windows\\bin")

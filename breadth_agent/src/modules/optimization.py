@@ -562,7 +562,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         # Run Optimizer
         summary = self._solve(ba_opts, config, recon)
 
-        print("SUMMARY", summary)
+        # print("SUMMARY", summary)
         self.summary = summary
         # --- Step 4: Export optimized results back into the Scene ---
         self._write_back_to_scene(current_scene, recon, trackid_to_point3Did)
@@ -576,8 +576,9 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         # Get final Metric (reprojection errors)
         recon.update_point_3d_errors()
         # Mean reprojection error in pixels (final cost)
-        self.mean_error = recon.compute_mean_reprojection_error()
-
+        self.mean_error = float(recon.compute_mean_reprojection_error())
+        if self.mean_error > 300.0:
+            self.mean_error = "Reprojection Error is too large to evaluate. Consider improve sparse reconstruction with improved SfM pipeline."
         #Record Camera Poses
         self._store_extrinsics_information(recon)
 
@@ -646,7 +647,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
                 if dist is None:
                     key = ("PINHOLE", fx, fy, cx, cy)
                 else:
-                    print("OPENCV INTRINSICS!!")
+                    # print("OPENCV INTRINSICS!!")
                     d = tuple(dist.ravel())
                     key = ("OPENCV", fx, fy, cx, cy) + d
 
@@ -999,7 +1000,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
                 "Initial Cost": float(self.summary.ceres_summary.initial_cost),
                 "Final Cost": float(self.summary.ceres_summary.final_cost),
                 "Initial Reprojection Error": float(self.initial_mean_error), 
-                "Final Reprojection Error": float(self.mean_error)}
+                "Final Reprojection Error": self.mean_error}
     
 
     # Helper File to extract camera pose information

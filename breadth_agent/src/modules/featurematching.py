@@ -122,7 +122,7 @@ reconstructed_scene.{module_name}(
                          RANSAC_homography=RANSAC_homography,
                          RANSAC_threshold=RANSAC_threshold)
         
-        device = torch.device(f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu") 
+        self.device = torch.device(f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu") 
 
         config_settings = {
             'weights': setting,
@@ -131,7 +131,7 @@ reconstructed_scene.{module_name}(
             'descriptor_dim': descriptor_dim,
         }
 
-        self.matcher = SuperGlue(config=config_settings).eval().to(device)
+        self.matcher = SuperGlue(config=config_settings).eval().to(self.device)
 
         
     def __call__(self, features: list[Points2D]) -> PointsMatched:
@@ -146,15 +146,15 @@ reconstructed_scene.{module_name}(
     
     def matcher_parser(self, pt1: Points2D, pt2: Points2D) -> tuple[list, list]:        
         # matches = self.matcher.knnMatch(desc1, desc2, k=2)
-        feats0 = {"keypoints0": torch.from_numpy(pt1.points2D).unsqueeze(0).cuda(),
-                      "descriptors0": torch.from_numpy(pt1.descriptors).unsqueeze(0).cuda().permute(0, 2, 1),
-                      "scores0": torch.from_numpy(pt1.scores.T).cuda(),
-                      "image_size0": torch.from_numpy(pt1.image_size).unsqueeze(0).cuda()}
+        feats0 = {"keypoints0": torch.from_numpy(pt1.points2D).unsqueeze(0).to(self.device),
+                      "descriptors0": torch.from_numpy(pt1.descriptors).unsqueeze(0).to(self.device).permute(0, 2, 1),
+                      "scores0": torch.from_numpy(pt1.scores.T).to(self.device),
+                      "image_size0": torch.from_numpy(pt1.image_size).unsqueeze(0).to(self.device)}
             
-        feats1 = {"keypoints1": torch.from_numpy(pt2.points2D).unsqueeze(0).cuda(),
-                    "descriptors1": torch.from_numpy(pt2.descriptors).unsqueeze(0).cuda().permute(0, 2, 1),
-                    "scores1": torch.from_numpy(pt2.scores.T).cuda(),
-                    "image_size1": torch.from_numpy(pt2.image_size).unsqueeze(0).cuda()}
+        feats1 = {"keypoints1": torch.from_numpy(pt2.points2D).unsqueeze(0).to(self.device),
+                    "descriptors1": torch.from_numpy(pt2.descriptors).unsqueeze(0).to(self.device).permute(0, 2, 1),
+                    "scores1": torch.from_numpy(pt2.scores.T).to(self.device),
+                    "image_size1": torch.from_numpy(pt2.image_size).unsqueeze(0).to(self.device)}
 
         feature_pair = {**feats0, **feats1}
 
@@ -250,7 +250,8 @@ reconstructed_scene.{module_name}(
     RANSAC_conf=0.999
     )
 """
-
+        # self.device = torch.device(f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu")
+        
         super().__init__(detector=detector,
                          cam_data=cam_data,
                          module_name=module_name,
@@ -259,6 +260,8 @@ reconstructed_scene.{module_name}(
                          RANSAC_conf=RANSAC_conf,
                          RANSAC_homography=RANSAC_homography,
                          RANSAC_threshold=RANSAC_threshold)
+
+        self.device = torch.device(f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu")
         
         self.matcher = LightGlue(features = self.detector, 
                                  n_layers = n_layers,
@@ -266,7 +269,7 @@ reconstructed_scene.{module_name}(
                                  mp = mp, 
                                  depth_confidence = depth_confidence,
                                  width_confidence = width_confidence, 
-                                 filter_threshold = filter_threshold).eval().cuda()
+                                 filter_threshold = filter_threshold).eval().to(self.device)
 
         
     def __call__(self, features: list[Points2D]) -> PointsMatched:
@@ -295,25 +298,25 @@ reconstructed_scene.{module_name}(
         #             "image_size": torch.from_numpy(pt2.image_size).unsqueeze(0).cuda()}
 
         if self.detector == 'sift':
-                feats0 = {"keypoints": torch.from_numpy(pt1.points2D).unsqueeze(0).cuda(),
-                        "descriptors": torch.from_numpy(pt1.descriptors).unsqueeze(0).cuda(),
-                        "scales": torch.from_numpy(pt1.scale).cuda(),
-                        "oris": torch.from_numpy(pt1.orientation).cuda(),
-                        "image_size": torch.from_numpy(pt1.image_size).unsqueeze(0).cuda()}
+                feats0 = {"keypoints": torch.from_numpy(pt1.points2D).unsqueeze(0).to(self.device),
+                        "descriptors": torch.from_numpy(pt1.descriptors).unsqueeze(0).to(self.device),
+                        "scales": torch.from_numpy(pt1.scale).to(self.device),
+                        "oris": torch.from_numpy(pt1.orientation).to(self.device),
+                        "image_size": torch.from_numpy(pt1.image_size).unsqueeze(0).to(self.device)}
                 
-                feats1 = {"keypoints": torch.from_numpy(pt2.points2D).unsqueeze(0).cuda(),
-                        "descriptors": torch.from_numpy(pt2.descriptors).unsqueeze(0).cuda(),
-                        "scales": torch.from_numpy(pt2.scale).cuda(),
-                        "oris": torch.from_numpy(pt2.orientation).cuda(),
-                        "image_size": torch.from_numpy(pt2.image_size).unsqueeze(0).cuda()}
+                feats1 = {"keypoints": torch.from_numpy(pt2.points2D).unsqueeze(0).to(self.device),
+                        "descriptors": torch.from_numpy(pt2.descriptors).unsqueeze(0).to(self.device),
+                        "scales": torch.from_numpy(pt2.scale).to(self.device),
+                        "oris": torch.from_numpy(pt2.orientation).to(self.device),
+                        "image_size": torch.from_numpy(pt2.image_size).unsqueeze(0).to(self.device)}
         else:
-            feats0 = {"keypoints": torch.from_numpy(pt1.points2D).unsqueeze(0).cuda(),
-                    "descriptors": torch.from_numpy(pt1.descriptors).unsqueeze(0).cuda(),
-                    "image_size": torch.from_numpy(pt1.image_size).unsqueeze(0).cuda()}
+            feats0 = {"keypoints": torch.from_numpy(pt1.points2D).unsqueeze(0).to(self.device),
+                    "descriptors": torch.from_numpy(pt1.descriptors).unsqueeze(0).to(self.device),
+                    "image_size": torch.from_numpy(pt1.image_size).unsqueeze(0).to(self.device)}
             
-            feats1 = {"keypoints": torch.from_numpy(pt2.points2D).unsqueeze(0).cuda(),
-                    "descriptors": torch.from_numpy(pt2.descriptors).unsqueeze(0).cuda(),
-                    "image_size": torch.from_numpy(pt2.image_size).unsqueeze(0).cuda()}
+            feats1 = {"keypoints": torch.from_numpy(pt2.points2D).unsqueeze(0).to(self.device),
+                    "descriptors": torch.from_numpy(pt2.descriptors).unsqueeze(0).to(self.device),
+                    "image_size": torch.from_numpy(pt2.image_size).unsqueeze(0).to(self.device)}
 
         feature_pair = {"image0": feats0, "image1": feats1}
 
@@ -957,7 +960,7 @@ reconstructed_scene.{module_name}(
         
         self.detector = detector
 
-        device = torch.device(f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu") 
+        self.device = torch.device(f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu") 
 
         # if detector.lower() == "sift":
         #     self.descriptor_dim = 128
@@ -971,7 +974,7 @@ reconstructed_scene.{module_name}(
             'descriptor_dim': descriptor_dim,
         }
 
-        self.matcher = SuperGlue(config=config_settings).eval().to(device)
+        self.matcher = SuperGlue(config=config_settings).eval().to(self.device)
 
         # self.ep_check = EpipoleChecker(pxl_min=25)
 
@@ -996,15 +999,15 @@ reconstructed_scene.{module_name}(
             pt1 = features[scene]
             pt2 = features[scene + 1]
 
-            feats0 = {"keypoints0": torch.from_numpy(pt1.points2D).unsqueeze(0).cuda(),
-                      "descriptors0": torch.from_numpy(pt1.descriptors).unsqueeze(0).cuda().permute(0, 2, 1),
-                      "scores0": torch.from_numpy(pt1.scores.T).cuda(),
-                      "image_size0": torch.from_numpy(pt1.image_size).unsqueeze(0).cuda()}
+            feats0 = {"keypoints0": torch.from_numpy(pt1.points2D).unsqueeze(0).to(self.device),
+                      "descriptors0": torch.from_numpy(pt1.descriptors).unsqueeze(0).to(self.device).permute(0, 2, 1),
+                      "scores0": torch.from_numpy(pt1.scores.T).to(self.device),
+                      "image_size0": torch.from_numpy(pt1.image_size).unsqueeze(0).to(self.device)}
             
-            feats1 = {"keypoints1": torch.from_numpy(pt2.points2D).unsqueeze(0).cuda(),
-                      "descriptors1": torch.from_numpy(pt2.descriptors).unsqueeze(0).cuda().permute(0, 2, 1),
-                      "scores1": torch.from_numpy(pt2.scores.T).cuda(),
-                      "image_size1": torch.from_numpy(pt2.image_size).unsqueeze(0).cuda()}
+            feats1 = {"keypoints1": torch.from_numpy(pt2.points2D).unsqueeze(0).to(self.device),
+                      "descriptors1": torch.from_numpy(pt2.descriptors).unsqueeze(0).to(self.device).permute(0, 2, 1),
+                      "scores1": torch.from_numpy(pt2.scores.T).to(self.device),
+                      "image_size1": torch.from_numpy(pt2.image_size).unsqueeze(0).to(self.device)}
 
             # print(torch.from_numpy(pt2.points2D).unsqueeze(0).cuda().shape)
             idx1, idx2 = self.matcher_parser({**feats0, **feats1})
@@ -1159,6 +1162,7 @@ reconstructed_scene.{module_name}(
                          RANSAC_conf=RANSAC_conf,
                          RANSAC_homography=RANSAC_homography,
                          RANSAC_threshold=RANSAC_threshold)
+        self.device = torch.device(f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu")
         
         self.detector = detector
         
@@ -1168,7 +1172,7 @@ reconstructed_scene.{module_name}(
                                  mp = mp, 
                                  depth_confidence = depth_confidence,
                                  width_confidence = width_confidence, 
-                                 filter_threshold = filter_threshold).eval().cuda()
+                                 filter_threshold = filter_threshold).eval().to(self.device)
 
         # self.ep_check = EpipoleChecker(pxl_min=10)
         # self.normalize = Normalization(K=self.K, dist=self.dist)
@@ -1196,26 +1200,26 @@ reconstructed_scene.{module_name}(
             pt2 = features[scene + 1]
 
             if self.detector == 'sift':
-                feats0 = {"keypoints": torch.from_numpy(pt1.points2D).unsqueeze(0).cuda(),
-                        "descriptors": torch.from_numpy(pt1.descriptors).unsqueeze(0).cuda(),
-                        "scales": torch.from_numpy(pt1.scale).cuda(),
-                        "oris": torch.from_numpy(pt1.orientation).cuda(),
-                        "image_size": torch.from_numpy(pt1.image_size).unsqueeze(0).cuda()}
+                feats0 = {"keypoints": torch.from_numpy(pt1.points2D).unsqueeze(0).to(self.device),
+                        "descriptors": torch.from_numpy(pt1.descriptors).unsqueeze(0).to(self.device),
+                        "scales": torch.from_numpy(pt1.scale).to(self.device),
+                        "oris": torch.from_numpy(pt1.orientation).to(self.device),
+                        "image_size": torch.from_numpy(pt1.image_size).unsqueeze(0).to(self.device)}
                 
-                feats1 = {"keypoints": torch.from_numpy(pt2.points2D).unsqueeze(0).cuda(),
-                        "descriptors": torch.from_numpy(pt2.descriptors).unsqueeze(0).cuda(),
-                        "scales": torch.from_numpy(pt2.scale).cuda(),
-                        "oris": torch.from_numpy(pt2.orientation).cuda(),
-                        "image_size": torch.from_numpy(pt2.image_size).unsqueeze(0).cuda()}
+                feats1 = {"keypoints": torch.from_numpy(pt2.points2D).unsqueeze(0).to(self.device),
+                        "descriptors": torch.from_numpy(pt2.descriptors).unsqueeze(0).to(self.device),
+                        "scales": torch.from_numpy(pt2.scale).to(self.device),
+                        "oris": torch.from_numpy(pt2.orientation).to(self.device),
+                        "image_size": torch.from_numpy(pt2.image_size).unsqueeze(0).to(self.device)}
                 # kp1 = torch.from_numpy(pt1.points2D).unsqueeze(0).cuda()
             else:
-                feats0 = {"keypoints": torch.from_numpy(pt1.points2D).unsqueeze(0).cuda(),
-                        "descriptors": torch.from_numpy(pt1.descriptors).unsqueeze(0).cuda(),
-                        "image_size": torch.from_numpy(pt1.image_size).unsqueeze(0).cuda()}
+                feats0 = {"keypoints": torch.from_numpy(pt1.points2D).unsqueeze(0).to(self.device),
+                        "descriptors": torch.from_numpy(pt1.descriptors).unsqueeze(0).to(self.device),
+                        "image_size": torch.from_numpy(pt1.image_size).unsqueeze(0).to(self.device)}
                 
-                feats1 = {"keypoints": torch.from_numpy(pt2.points2D).unsqueeze(0).cuda(),
-                        "descriptors": torch.from_numpy(pt2.descriptors).unsqueeze(0).cuda(),
-                        "image_size": torch.from_numpy(pt2.image_size).unsqueeze(0).cuda()}
+                feats1 = {"keypoints": torch.from_numpy(pt2.points2D).unsqueeze(0).to(self.device),
+                        "descriptors": torch.from_numpy(pt2.descriptors).unsqueeze(0).to(self.device),
+                        "image_size": torch.from_numpy(pt2.image_size).unsqueeze(0).to(self.device)}
                 # kp1 = torch.from_numpy(pt1.points2D).unsqueeze(0).cuda()
 
             idx1, idx2 = self.matcher_parser({"image0": feats0, "image1": feats1})

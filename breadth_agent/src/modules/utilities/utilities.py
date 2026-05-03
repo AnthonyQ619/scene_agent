@@ -146,8 +146,8 @@ def read_image(image_path: str,
 
     return resized, scale
 
-def resize_dataset(image_path: list, max_size: int, calib_path: str | None = None) -> str:
-    temp_directory = Path(__file__).resolve().parents[3] / "results" / "resized_dataset"
+def resize_dataset(image_path: list, max_size: int, calib_path: str | None = None, script_id:str="") -> str:
+    temp_directory = Path(__file__).resolve().parents[3] / "results" / f"resized_dataset_{script_id}"
     if not os.path.exists(str(temp_directory)):
             os.makedirs(str(temp_directory))
 

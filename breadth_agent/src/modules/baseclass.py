@@ -1427,8 +1427,8 @@ class FeatureTracking(PipelineModule, ABC):
                 "- Increase the maximum number of detected keypoints if the detector supports it.\n"
                 "- Use a more robust feature matcher module for the image set.\n"
                 "- Use a more robust detector/descriptor combination for the image set.\n"
-                "- Check that image overlap is sufficient between matched frames.\n"
-                "- Final try, swap to a detector free approach, such as using VGGT directly for Pose/Reconstruction.\n\n"
+                "- Final try, if consistently failing to achieve enough points in feature tracking, utilizing the detector free modules\n"
+                "   - For sparse reconstruction (Sparse3DReconstructionVGGTNoFeatures) or (Dense3DReconstructionVGGT) module for dense reconstruction.\n\n"
                 f"Current outlier rejection threshold: {threshold}\n"
                 f"Original error: {type(e).__name__}: {e}"
             ) from e

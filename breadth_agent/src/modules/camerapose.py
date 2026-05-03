@@ -16,6 +16,8 @@ from modules.models.sfm_models.vggt.models.vggt import VGGT
 from modules.models.sfm_models.vggt.utils.load_fn import load_and_preprocess_images
 
 import glob
+
+torch.manual_seed(42)
 ##########################################################################################################
 ############################################### ML MODULES ###############################################
 
@@ -152,8 +154,8 @@ reconstructed_scene.{module_name}() # Images read in previous step (1)
         print(new_scale)
         for i in range(intrinsic_np.shape[0]):
             intrins.append(intrinsic_np[i, :, :])
-            # dists.append(np.zeros((1,5), dtype=float))
-            dists.append(None)
+            dists.append(np.zeros((1,5), dtype=float))
+            # dists.append(None)
         
         # Metric Variables
         self.pred_intrinsics = intrins
