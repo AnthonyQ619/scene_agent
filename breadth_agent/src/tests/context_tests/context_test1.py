@@ -105,10 +105,10 @@ from modules.optimization import BundleAdjustmentOptimizerGlobal
 from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(id=1,
-                                log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/ETH/eth_living_room",
+reconstructed_scene = SfMScene(id=2,
+                                log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/ETH/test",
                                 image_path = image_path, 
-                                max_images = 25,
+                                max_images = 5,
                                 calibration_path = calibration_path)
 
 # Step 2: Detect Features
@@ -142,7 +142,7 @@ reconstructed_scene.FeatureMatchBFTracking(
 
 # Step 6: Estimate Sparse Reconstruction
 reconstructed_scene.Sparse3DReconstructionMono(
-    min_observe=4,
+    min_observe=3,
     min_angle=2.0,
     multi_view=True
 )
@@ -153,9 +153,9 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
 )
 
 # STEP 8: Run Rense Reconstruction Algorithm
-# reconstructed_scene.Dense3DReconstructionMono(
-#     reproj_error=3.0,
-#     min_triangulation_angle=1.0,
-#     num_samples=15,
-#     num_iterations=3
-# )
+reconstructed_scene.Dense3DReconstructionMono(
+    reproj_error=3.0,
+    min_triangulation_angle=1.0,
+    num_samples=15,
+    num_iterations=3
+)

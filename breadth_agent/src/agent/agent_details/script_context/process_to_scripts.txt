@@ -306,7 +306,7 @@ GOAL RECONSTRUCTION: Sparse Reconstruction
 STEP 1: Initialize the scene through the object SfMScene and read in Camera data
 - Initialize the scene as SfMScene(...)
 - Set the image path to the provided directory of images to be read, resize, and pre-process images for reconstruction
-    - image_path = /work/dataset/ETH/living_room/images/dslr_images_undistorted
+    - image_path = /work/dataset/DTU/scan6_illumination_change
 - Set max_images=25 (Never above 40), we want to only use the first 25 images when evaluating the feasibility of the workflow.
 - Since no calibration path is provided, we ignore this parameter (This is a strong indication to utilize a tool that does calibration simultaneously)
 - Since no calibration calls for the VGGT pipeline, resize images into a square format for better VGGT optimization, and convert the size to (1024,1024)
@@ -336,8 +336,8 @@ STEP 5: Track Features across multiple images to create feature tracks for 3D po
 STEP 6: Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
 - Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
     - Set min_observe=4
-        - Reasoning: Since we are using SuperPoint with SuperGlue, we will have longer tracks with decent accuracy as the feature correspondences are more robust 
-          to lighting changes due to using SuperPoint instead of classical detectors.
+        - Reasoning: Since we are using SuperPoint with LightGlue, we will have longer tracks with decent accuracy as the feature correspondences are more robust 
+          to lighting changes due to using SuperPoint instead of classical detectors, and we want to be a bit more strict with observation using LightGlue.
     - Since VGGT estimates 3D points just using the camera pose, we don't need other features besides image data from cam_data
 
 STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
@@ -351,7 +351,7 @@ Example Code:
 
 
 # Construct Modules with Initialized Arguments
-image_path = "/work/dataset/ETH/living_room/images/dslr_images_undistorted"
+image_path = "/work/dataset/DTU/scan6_illumination_change"
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(ID,

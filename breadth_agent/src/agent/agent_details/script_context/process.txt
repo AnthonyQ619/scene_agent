@@ -181,7 +181,7 @@ GOAL RECONSTRUCTION: Sparse Reconstruction
 STEP 1: Initialize the scene through the object SfMScene and read in Camera data
 - Initialize the scene as SfMScene(...)
 - Set the image path to the provided directory of images to be read, resize, and pre-process images for reconstruction
-    - image_path = /work/dataset/ETH/living_room/images/dslr_images_undistorted
+    - image_path = /work/dataset/DTU/scan6_illumination_change
 - Set max_images=20 (Never above 40), we want to only use the first 25 images when evaluating the feasibility of the workflow.
 - Since no calibration path is provided, we ignore this parameter (This is a strong indication to utilize a tool that does calibration simultaneously)
 - Since no calibration calls for the VGGT pipeline, resize images into a square format for better VGGT optimization, and convert the size to (1024,1024)
