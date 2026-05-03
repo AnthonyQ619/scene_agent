@@ -85,9 +85,9 @@ reconstructed_scene.{module_name}() # Images read in previous step (1)
 
         # WEIGHT_MODULE = "/work/model_weights/model.pt"
 
-        device = "cuda:1" if torch.cuda.is_available() else "cpu"
+        device = f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu"
 
-        if device == "cuda:1":
+        if device == f"cuda:{self.cam_data.gpu_num}":
             # bfloat16 is supported on Ampere GPUs (Compute Capability 8.0+) 
             self.dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
         else:

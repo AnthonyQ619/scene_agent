@@ -122,7 +122,7 @@ reconstructed_scene.{module_name}(
                          RANSAC_homography=RANSAC_homography,
                          RANSAC_threshold=RANSAC_threshold)
         
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
+        device = torch.device(f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu") 
 
         config_settings = {
             'weights': setting,
@@ -654,7 +654,7 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
                     "inside": "indoor",
                     "outside": "outdoor"}
 
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device(f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else 'cpu')
         if torch.backends.mps.is_available():
             self.device = torch.device('mps')
 
@@ -957,7 +957,7 @@ reconstructed_scene.{module_name}(
         
         self.detector = detector
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
+        device = torch.device(f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu") 
 
         # if detector.lower() == "sift":
         #     self.descriptor_dim = 128

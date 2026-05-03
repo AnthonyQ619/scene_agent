@@ -55,6 +55,7 @@ class CameraData:
     metric_file_path: str = ""
     logging_dir: str = ""
     script_id: str = ""
+    gpu_num: str = ""
 
     def update_K(self, cam_idx: int, img_scale: Tuple[float, float]):
         # Assume Monocular Camera for now with OpenCV calibration convention (Wide belief)

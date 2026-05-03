@@ -51,7 +51,7 @@ class Sparse3DReconstructionMapAnything(SparseSceneEstimation):
         dtype = (
         torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
         )
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu"
 
         self.model = MapAnything.from_pretrained("facebook/map-anything").to(self.device)
         self.model.eval()        
@@ -234,35 +234,37 @@ class Sparse3DReconstructionVGGTNoFeatures(SparseSceneEstimation):
         description = f"""
 Sparsely reconstructs a 3D scene utilizing pre-processed information of camera poses and
 images of the scene. Camera Poses are estimated prior to thie module through the camera pose estimation 
-module, specifically from VGGT pose estimation. Features do need to be tracked to build a sparse reconstruction 
-from the estimated point maps of VGGT.
+module, specifically from VGGT pose estimation. This moduls is specifically the case where features detected 
+are too sparsely estimated or inaccurate for feature tracking, so this is no-feature-detection module to estimate the 
+point maps of VGGT.
+
 This module can reconstruct sparse 3D scenes specifically using a monocular camera. 
 This module can reconstruct sparse 3D scenes either through single view or multi-view scenes.
 This is determined by the how many images exist in the scene and how many poses were estimated from the previous
 module using the VGGT pose estimation tool specifically.
-Use this module when specified for ONLY SPARSE reconstruction and the scene doesn't allow for many features to be detected
-from classical feature detectors (SIFT or ORB). Utilize this module in conjuction with the VGGT pose estimation module in these cases
-where feature detection is low. This module is for reconstructing the scene using the deep learning approach. 
+
+Use this module when specified for ONLY SPARSE reconstruction and the scene doesn't allow for ANY features to be detected
+from any of the supported Feature Detections (SIFT, ORB, SuperPoitn). Utilize this module in conjuction with the VGGT pose 
+estimation module in these cases where feature detection too low or innacurate for good feature tracks to be detected! 
+This module is for reconstructing the scene using the deep learning approach. 
 Computation time should not matter when invoking this tool, but keep in mind of system constraints such as GPU memory.
 
+Use this module for cases where feature detection is too unrelieable for bundle adjustment, leaving for large reprojection
+errors in the scene, so we build the scene with no detectors as a prior, and estimate the feature tracks after points are 
+estimated with VGGT!
+
 Initialization/Function Parameters:
-- min_observe: The minimum number of observations (number of tracked feature points) needed to conduct a 3D 
-point estimation. Note: this must be greater than 2
-    - Default (int): 3 
+- No Initial Parameterization
+    - Reasoning: we detect the features in this module using a deep learning feature tracking with 3D points as a prior, which we 
+      estimate with VGGT in this module.
 
 Function Call Parameters - Handled Internally from SfMScene in the common API Workflow:
 - cam_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
-specifically from the CameraPoseEstimation modules. 
-- tracked_features (PointsMatched): Feature points tracked across multiple frames to allow Multi-View 3D point estimation. Feature Tracks are 
-estimated from the FeatureTracking modules.
+specifically from the CameraPoseEstimationVGGT module. 
+- tracked_features (PointsMatched): Feature points are NOT tracked prior to this module!
+    - Input: None
 
 Module Input - Handled Internally from SfMScene in the common API Workflow:
-    PointsMatched (Matched Features across image pairs)
-        pairwise_matches: list[np.ndarray]  [N x 4] -> [x1, y1, x2, y2]. Data Structure to store Pairwise feature matches.
-        multi_view: bool                    Determine if Pairwise/Multi-View Feature Matching (Should be False for Pairwise in this function)
-        image_size: np.ndarray              [1 x 2] [np.int64] (Simply Image Shape: (W, H))
-        image_scale: list[float]            [W_scale, H_scale] if image is resized
-    
     CameraPose:
         camera_pose: list[np.ndarray]   [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
         rotations: list[np.ndarray]     [3 x 3] (np.float) Rotation matrices for each corresponding frame (Derived from camera_pose)
@@ -275,8 +277,7 @@ Module Output - Handled Internally from SfMScene in the common API Workflow:
                 - points3D: np.ndarray      [N x 3] Point position in 3D space [x, y, z]
                 - color: np.ndarray         [N x 3] Point Color [r, g, b]               
         cam_poses: list[np.ndarray]         [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
-        observations: np.ndarray            [M x 4] matrix for each point observation where M=num_of_observations, and each row = [frame, 3d_point_ind, pix_x, pix_y]
-        depth_maps: list[np.ndarray]        List[[H x W]] List of Depth Maps per frame, formated as HeightxWidth of image shape
+        recon: Pycolmap.Reconstruction      We estimate the Pycolmap.Reconstruction structure in this module with the esitmated 3D points and Feature Tracks
         sparse: bool                        Used to determine if current scene is sparse or dense
 """
         example = f"""
@@ -292,17 +293,15 @@ Function Use:
 reconstructed_scene = SfMScene(image_path = image_path, 
                                calibration_path = calibration_path)
 
-# Step 2: Detect Features Prior to Step 5 (Data filled in SfMScene)
+# Step 2: Feature Detection is skipped at this stage
 
 # Step 3: Detect Cam Poses (Must use VGGT prior to this step!)
 reconstructed_scene.CamPoseEstimatorVGGTModel() 
 
-# Step 4: Detect Feature Tracks Prior to Step 5 (Data filled in SfMScene)
+# Step 4: Feature Tracking is Skipped at this stage
 
-# Step 5: Estimate Sparse Reconstruction using VGGT Module
-reconstructed_scene.{module_name}(
-    min_observe=3
-)
+# Step 5: Estimate Sparse Reconstruction using VGGT Module -> 3D Points and Feature Tracks are estimated in this module for Global Optimization!
+reconstructed_scene.{module_name}()
 """
         super().__init__(cam_data = cam_data,
                          module_name=module_name,
@@ -317,9 +316,9 @@ reconstructed_scene.{module_name}(
 
         # WEIGHT_MODULE = "/work/model_weights/model.pt"
             
-        self.device = "cuda:1" if torch.cuda.is_available() else "cpu"
+        self.device = f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu"
 
-        if self.device == "cuda:1":
+        if self.device == f"cuda:{self.cam_data.gpu_num}":
             # bfloat16 is supported on Ampere GPUs (Compute Capability 8.0+) 
             self.dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
         else:
@@ -524,9 +523,9 @@ reconstructed_scene.{module_name}(
 
         # WEIGHT_MODULE = "/work/model_weights/model.pt"
             
-        self.device = "cuda:1" if torch.cuda.is_available() else "cpu"
+        self.device = f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu"
 
-        if self.device == "cuda:1":
+        if self.device == f"cuda:{self.cam_data.gpu_num}":
             # bfloat16 is supported on Ampere GPUs (Compute Capability 8.0+) 
             self.dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
         else:
@@ -1159,9 +1158,9 @@ reconstructed_scene.{module_name}()
         #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
 
         WEIGHT_MODULE = "/work/model_weights/model.pt"
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu"
 
-        if self.device == "cuda":
+        if self.device == f"cuda:{self.cam_data.gpu_num}":
             # bfloat16 is supported on Ampere GPUs (Compute Capability 8.0+) 
             self.dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
         else:
@@ -1475,7 +1474,7 @@ reconstructed_scene.{module_name}(reproj_error=3.0,
         
         self.opts = pycolmap.PatchMatchOptions()
         if use_gpu:
-            self.opts.gpu_index = "0"
+            self.opts.gpu_index = str(self.cam_data.gpu_num)
         self.opts.geom_consistency_max_cost = reproj_error
         self.opts.min_triangulation_angle = min_triangulation_angle
         self.opts.num_samples = num_samples

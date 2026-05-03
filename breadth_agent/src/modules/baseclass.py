@@ -1741,6 +1741,7 @@ class SfMScene:
         self,
         id,
         log_dir,
+        gpu_num,
         image_path: str | None = None,
         calibration_path: str | None = None,
         cam_data: CameraData | None = None,
@@ -1787,6 +1788,7 @@ class SfMScene:
         self.cam_data.metric_file_path = metric_file_path 
         self.cam_data.logging_dir = self.log_dir
         self.cam_data.script_id = id
+        self.cam_data.gpu_num = str(gpu_num)
         self.state = SceneState(cam_data=cam_data)
 
     def __getattr__(self, name: str):

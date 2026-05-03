@@ -542,7 +542,7 @@ reconstructed_scene.{module_name}(
                          description=description,
                          example=example)
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # 'mps', 'cpu'
+        self.device = torch.device(f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu")  # 'mps', 'cpu'
 
         self.detector = SuperPoint(max_num_keypoints=max_keypoints).eval().to(self.device) 
 
