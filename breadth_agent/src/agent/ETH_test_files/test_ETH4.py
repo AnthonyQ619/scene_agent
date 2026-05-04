@@ -4,17 +4,22 @@ from core.logger import Logger
 
 api_directory = "/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/agent_details/tool_context"
 instruction_path = "/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/agent_details/agent_instructions/prompt_enh_examples.txt"
-gpu_num = "2"
-scans = [1, 9, 10]
+gpu_num = "3"
 
-for i in range(len(scans)):
-    image_path = f"/home/anthonyq/datasets/DTU/scan{scans[i]}"
-    calibration_path = f"/home/anthonyq/datasets/DTU/calibration_DTU_new.npz"
+# Prompt Info
+gpu_mem = "48gb"
+reconstruction_type = "Sparse Reconstruction"
 
-    logger_file = f"scan{scans[i]}_log"
-    log_dir = f"/home/anthonyq/projects/scene_agent/breadth_agent/results/DTU/scan{scans[i]}"
+ETH_images = ["relief", "relief_2", "terrace", "terrains"]
+
+
+for i in range(len(ETH_images)):
+    image_path = f"/home/anthonyq/datasets/ETH/ETH/{ETH_images[i]}/images/dslr_images_undistorted"
+    calibration_path = f"/home/anthonyq/datasets/ETH/ETH/{ETH_images[i]}/dslr_calibration_undistorted/calibration_ETH_new.npz"
+
+    logger_file = f"eth_{ETH_images[i]}_log"
+    log_dir = f"/home/anthonyq/projects/scene_agent/breadth_agent/results/ETH/eth_{ETH_images[i]}"
     logger = Logger(desc=logger_file, log_dir=log_dir)
-
     autosfm = AutoSFM(model_name="gpt-5", 
                     api_directory=api_directory,#'/work/scene_agent/breadth_agent/src/agent/agent_details/tool_context', 
                     instruction_path=instruction_path,#'/work/scene_agent/breadth_agent/src/agent/agent_details/agent_instructions/prompt_enh_examples.txt', 
@@ -23,16 +28,14 @@ for i in range(len(scans)):
                     gpu_num=gpu_num)
 
     # Prompt
-    reconstruction_type = "Dense Reconstruction"
-    gpu_mem = "48gb"
     temp_prompt = {'images':image_path,
     'calibration':calibration_path,
     'recon_type':reconstruction_type,
     'gpu_mem':gpu_mem}
 
     results = autosfm.run(temp_prompt)
-
-    # print(results[0])
-    # print('\n', results[1])
+    
+    print(f"CODE from Scene eth_{ETH_images[i]}:")
+    print('\n', results[1])
     print("\n")
-    print(f'Results from scane{scans[i]} in Metrics:\n', results[2])
+    print(f'Results from scene {ETH_images[i]} in Metrics:\n', results[2])
