@@ -1477,7 +1477,7 @@ class FeatureTracking(PipelineModule, ABC):
 
         matched_points = self.feature_tracker.match_full(features)
 
-        self.calculate_metrics(data_mat=matched_points.data_matrix, total_points=matched_points.point_count)
+        # self.calculate_metrics(data_mat=matched_points.data_matrix, total_points=matched_points.point_count)
 
         return matched_points
     

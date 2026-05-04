@@ -37,21 +37,6 @@ Script 1:
 }
 ============================================================
 ============================================================
-==================Feature Tracking Metrics==================
-{
-    "Feature Track Metrics for Survivability and Stability": {
-        "Avg. track length": 2.410529250499512,
-        "Max. track length": 12.0,
-        "Median track length": 2.0,
-        "Survival Tracks of 3": 0.2672273593234515,
-        "Survival Tracks of 5": 0.03405975558756563,
-        "Survival Tracks of 10": 0.00037172993819989777,
-        "Fragmentation": 0.41484665651444763,
-        "Obs. per Track": 2.410529250499512
-    }
-}
-============================================================
-============================================================
 ====================Optimization Metrics====================
 {
     "Scene Metrics from Optimization": {
@@ -106,21 +91,6 @@ Script 2:
 }
 ============================================================
 ============================================================
-==================Feature Tracking Metrics==================
-{
-    "Feature Track Metrics for Survivability and Stability": {
-        "Avg. track length": 2.1659940812483187,
-        "Max. track length": 7.0,
-        "Median track length": 2.0,
-        "Survival Tracks of 3": 0.13478611783696529,
-        "Survival Tracks of 5": 0.004035512510088781,
-        "Survival Tracks of 10": 0.0,
-        "Fragmentation": 0.4616817786610359,
-        "Obs. per Track": 2.1659940812483187
-    }
-}
-============================================================
-============================================================
 ====================Optimization Metrics====================
 {
     "Scene Metrics from Optimization": {
@@ -167,21 +137,6 @@ Script 3:
         "Min Translation Norm": 7.294400711543858e-05,
         "Max Translation Norm": 1.0437897443771362,
         "Median Translation Norm": 0.5988717079162598
-    }
-}
-============================================================
-============================================================
-==================Feature Tracking Metrics==================
-{
-    "Feature Track Metrics for Survivability and Stability": {
-        "Avg. track length": 3.2481541146462614,
-        "Max. track length": 25.0,
-        "Median track length": 2.0,
-        "Survival Tracks of 3": 0.42884951000134247,
-        "Survival Tracks of 5": 0.17237213048731373,
-        "Survival Tracks of 10": 0.030272519801315612,
-        "Fragmentation": 0.30786716538199255,
-        "Obs. per Track": 3.2481541146462614
     }
 }
 ============================================================
@@ -240,21 +195,6 @@ Script 4:
 }
 ============================================================
 ============================================================
-==================Feature Tracking Metrics==================
-{
-    "Feature Track Metrics for Survivability and Stability": {
-        "Avg. track length": 4.761758975786251,
-        "Max. track length": 20.0,
-        "Median track length": 3.0,
-        "Survival Tracks of 3": 0.6136932925132201,
-        "Survival Tracks of 5": 0.31450041747843027,
-        "Survival Tracks of 10": 0.10743111605900361,
-        "Fragmentation": 0.21000642936466188,
-        "Obs. per Track": 4.761758975786251
-    }
-}
-============================================================
-============================================================
 ====================Optimization Metrics====================
 {
     "Scene Metrics from Optimization": {
@@ -306,21 +246,6 @@ Script 5:
     "Number of Camera Poses": 20,
     "Average Reprojection Error per Frame": 3.1887289446887976,
     "Average Median Reprojection Error per Frame": 1.5777437260338105
-}
-============================================================
-============================================================
-==================Feature Tracking Metrics==================
-{
-    "Feature Track Metrics for Survivability and Stability": {
-        "Avg. track length": 3.1946403385049367,
-        "Max. track length": 20.0,
-        "Median track length": 2.0,
-        "Survival Tracks of 3": 0.42736248236953456,
-        "Survival Tracks of 5": 0.14880112834978843,
-        "Survival Tracks of 10": 0.022566995768688293,
-        "Fragmentation": 0.3130242825607064,
-        "Obs. per Track": 3.1946403385049367
-    }
 }
 ============================================================
 ============================================================
@@ -378,21 +303,6 @@ Script 6:
 }
 ============================================================
 ============================================================
-==================Feature Tracking Metrics==================
-{
-    "Feature Track Metrics for Survivability and Stability": {
-        "Avg. track length": 3.3175066560792192,
-        "Max. track length": 19.0,
-        "Median track length": 3.0,
-        "Survival Tracks of 3": 0.5105329534308002,
-        "Survival Tracks of 5": 0.18440842636274463,
-        "Survival Tracks of 10": 0.019851464337428185,
-        "Fragmentation": 0.30143119627734094,
-        "Obs. per Track": 3.3175066560792192
-    }
-}
-============================================================
-============================================================
 ====================Optimization Metrics====================
 {
     "Scene Metrics from Optimization": {
@@ -447,21 +357,6 @@ Script 7:
 }
 ============================================================
 ============================================================
-==================Feature Tracking Metrics==================
-{
-    "Feature Track Metrics for Survivability and Stability": {
-        "Avg. track length": 3.6857422200033283,
-        "Max. track length": 20.0,
-        "Median track length": 3.0,
-        "Survival Tracks of 3": 0.5671700782160093,
-        "Survival Tracks of 5": 0.22441337993010485,
-        "Survival Tracks of 10": 0.040168913296721585,
-        "Fragmentation": 0.27131577313594574,
-        "Obs. per Track": 3.6857422200033283
-    }
-}
-============================================================
-============================================================
 ====================Optimization Metrics====================
 {
     "Scene Metrics from Optimization": {
@@ -513,21 +408,6 @@ Script 8:
     "Number of Camera Poses": 11,
     "Average Reprojection Error per Frame": 0.5498505149180388,
     "Average Median Reprojection Error per Frame": 0.3359639734863301
-}
-============================================================
-============================================================
-==================Feature Tracking Metrics==================
-{
-    "Feature Track Metrics for Survivability and Stability": {
-        "Avg. track length": 2.7559578873177393,
-        "Max. track length": 10.0,
-        "Median track length": 2.0,
-        "Survival Tracks of 3": 0.42042200784106426,
-        "Survival Tracks of 5": 0.08766133650499978,
-        "Survival Tracks of 10": 0.0001321527686005022,
-        "Fragmentation": 0.3628502469510733,
-        "Obs. per Track": 2.7559578873177393
-    }
 }
 ============================================================
 ============================================================
