@@ -10,8 +10,8 @@ reconstruction_type = "Camera Pose Reconstruction"
 
 img_postfix = "vggt_random_10" # Swap to Sequential String when ready
 # img_postfix = "middle_sequential_10"
-co3d_images = ["book/119_13962_28926", "book/247_26469_51778, 
-               "bowl/69_5465_12831", "bowl/70_5792_13401, 
+co3d_images = ["book/119_13962_28926", "book/247_26469_51778", 
+               "bowl/69_5465_12831", "bowl/70_5792_13401", 
                "broccoli/372_41112_81867", "broccoli/412_56288_108844"]
 
 for i in range(len(co3d_images)):
@@ -42,7 +42,7 @@ for i in range(len(co3d_images)):
 
     results = autosfm.run(temp_prompt)
 
-    print(f"CODE from Scene eth_{TT_images[i]}:")
+    print(f"CODE from Scene co3dv2_{co3d_images[i]}:")
     print('\n', results[1])
     print("\n")
-    print(f'Results from scane{scans[i]} in Metrics:\n', results[2])
+    print(f'Results from Scene co3dv2_{co3d_images[i]} in Metrics:\n', results[2])
