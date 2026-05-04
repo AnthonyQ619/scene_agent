@@ -51,7 +51,9 @@ class Generator:
         
         ## Read Context File
         context_proc_file = open(full_context_file_proc_dir, 'r')
-        self.context_str = context_proc_file.read()
+        self.context_str = ""
+        for context in context_proc_file.read().split("==$#$==")[:5]:
+            self.context_str += context
         context_proc_file.close()
 
         # TODO 
@@ -157,7 +159,8 @@ Your response should be a single integer indicating the best plan index, without
         self.image_paths = sorted(
             glob.glob(os.path.join(img_path, "*")),
             key=numeric_image_sort_key
-        )
+        )[:5]
+        # breakpoint()
         self.new_query_img_path = None
         self.cam_motion_prompt = None
 

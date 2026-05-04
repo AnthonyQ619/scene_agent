@@ -58,7 +58,7 @@ class Compiler:
         context_str = ""
         ## Build In-Context Example Paragraph:
         # print("CONTEXT SPLIT:", len(context_s_to_p))
-        for i in range(len(context_s_to_p)):
+        for i in range(5):
             s_and_p = context_s_to_p[i].split("==#$#==")
             scene = s_and_p[0]
             procedure = s_and_p[1]
@@ -100,7 +100,7 @@ ID = "{self.id}"
 log_dir = "{self.log_dir}"
 gpu_num = "{self.gpu_num}"
 """
-
+        # breakpoint()
         full_desc = api_desc + "\n" + system_desc
 
         self.compiler = LLM(system_desc = full_desc,
