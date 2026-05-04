@@ -63,10 +63,10 @@ from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(id=3,
-                              gpu_num="1",
+                              gpu_num="5",
                               log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/DTU/",
                                 image_path=image_path,
-                                max_images=25,
+                                max_images=50,
                                 target_resolution=[1024, 1024]
 )
 
