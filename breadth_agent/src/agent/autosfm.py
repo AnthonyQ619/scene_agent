@@ -134,7 +134,7 @@ Use Calibration Path in Code: {prompt['calibration']}
                 program, output, prog_id = self.compiler(plans[j]) ## Get feedback for each plan
                 current_batch.append((plans[j], program, output, prog_id))
             self.logger.add_generated_codes_batch(current_batch, i + 1)
-            breakpoint()
+            # breakpoint()
             print(f"Selecting best plan for iteration {i + 1}...")
             best_plan, best_program, best_output, best_prog_id = self.evaluate_plans(current_batch, new_query) 
             self.logger.add_best_code(best_plan, best_program, best_output, best_prog_id , i+1)
