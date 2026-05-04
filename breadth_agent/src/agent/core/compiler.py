@@ -58,12 +58,12 @@ class Compiler:
         context_str = ""
         ## Build In-Context Example Paragraph:
         # print("CONTEXT SPLIT:", len(context_s_to_p))
-        for i in range(len(context_s_to_p)):
-            s_and_p = context_s_to_p[i].split("==#$#==")
-            scene = s_and_p[0]
-            procedure = s_and_p[1]
+        # for i in range(len(context_s_to_p)):
+        #     s_and_p = context_s_to_p[i].split("==#$#==")
+        #     scene = s_and_p[0]
+        #     procedure = s_and_p[1]
 
-            context_str += f"Example {i + 1}:\n" + scene + "\n" + procedure + "\n"
+        #     context_str += f"Example {i + 1}:\n" + scene + "\n" + procedure + "\n"
 
         # Fixed System Description for the API
 
@@ -248,7 +248,7 @@ class Executor:
         self.id = id
         import os
         # Remove after testing in sudarshan
-        self.temp_path = "/workspace/generated_agent_code/tmp"
+        self.temp_path = "/home/anthonyq/projects/scene_agent/breadth_agent/results/workspace"#"/workspace/generated_agent_code/tmp"
         # os.makedirs("/work/tmp", exist_ok=True)
         # self.log_file = "/work/tmp/log_file_" + str(id) + ".txt"
         os.makedirs(self.temp_path, exist_ok=True)

@@ -154,10 +154,11 @@ Your response should be a single integer indicating the best plan index, without
          # Build In-Context image examples here
         img_path = os.path.join(self.CWD, 'agent_details', 'image_context') # MAKE THIS MORE PATH ORIENTED
         # self.image_paths = sorted(glob.glob(img_path + "/*"))#[:8] # Was 8 now 9
-        self.image_paths = sorted(
-            glob.glob(os.path.join(img_path, "*")),
-            key=numeric_image_sort_key
-        )
+        # self.image_paths = sorted(
+        #     glob.glob(os.path.join(img_path, "*")),
+        #     key=numeric_image_sort_key
+        # )
+        self.image_paths = []
         self.new_query_img_path = None
         self.cam_motion_prompt = None
 
@@ -182,14 +183,6 @@ Your response should be a single integer indicating the best plan index, without
         # Use Calibration Path in Code: {prompt['calibration']}
         # """
         new_prompt = f"""
-The following are a few examples of reference procedures to generate with corresponding images:
-{self.context_str}
-
-Each procedure example is titled "Procedure:Num", and each corresponding image is titled "image_context(Num).png",
-where each matching "Num" value between procedure and image title is the corresponding image set and generated procedure.
-In short, the first 10 images provided correspond to the first 10 procedure examples in respective order. The final image 
-is the given scene from the user to generate a plan for reconstruction. 
-
 The followiing information is provided from the user query to guide your chosen sub-modules for each step of the generated plan/procedure.
 {query}
 
@@ -304,15 +297,15 @@ Your Output:
             self.new_query_img_path = new_img_path + f"/query_img_{self.index}.png"
             self.image_paths.append(new_img_path + f"/query_img_{self.index}.png")
         
+        # enhanced_prompt = f"""
+# The following are a few examples of reference procedures to generate with corresponding images:
+# {self.context_str}
+
+# Each procedure example is titled "Procedure:Num", and each corresponding image is titled "image_context(Num).png",
+# where each matching "Num" value between procedure and image title is the corresponding image set and generated procedure.
+# In short, the first 10 images provided correspond to the first 10 procedure examples in respective order. The final image 
+# is the given scene from the user to generate a procedure for. 
         enhanced_prompt = f"""
-The following are a few examples of reference procedures to generate with corresponding images:
-{self.context_str}
-
-Each procedure example is titled "Procedure:Num", and each corresponding image is titled "image_context(Num).png",
-where each matching "Num" value between procedure and image title is the corresponding image set and generated procedure.
-In short, the first 10 images provided correspond to the first 10 procedure examples in respective order. The final image 
-is the given scene from the user to generate a procedure for. 
-
 Following information are statistics (With context to understand the signal of each score) about camera motion from 
 optical flow and illuminance analysis of the provided images:
 {self.cam_motion_prompt}
