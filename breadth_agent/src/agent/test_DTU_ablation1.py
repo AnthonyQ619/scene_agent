@@ -5,7 +5,7 @@ from core.logger import Logger
 api_directory = "/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/agent_details/tool_context"
 instruction_path = "/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/agent_details/agent_instructions/prompt_enh_examples.txt"
 gpu_num = "2"
-scans = [1, 9, 10]
+scans = [1, 13, 29]
 
 for i in range(len(scans)):
     image_path = f"/home/anthonyq/datasets/DTU/scan{scans[i]}"
