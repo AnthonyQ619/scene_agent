@@ -388,6 +388,7 @@ def demo_fn(gpu_num: str, image_dir:str, log_dir:str, log_file:str):
 
     # Store estimated extrinsics!
     store_extrinsics_information(reconstruction, out_path)
+    torch.cuda.empty_cache()
 
     return mean_error
 
@@ -438,51 +439,29 @@ def rename_colmap_recons_and_rescale_camera(
 
 # Log Folder
 log_folder = "/home/anthonyq/projects/scene_agent/breadth_agent/results/vggt_sparse_results"
-gpu_num = "3"
-# DTU RUN
-scene_list = ["scan1", "scan4", "scan9", "scan10", 
-              "scan11", "scan12", "scan13", "scan15", 
-              "scan23", "scan24", "scan29"]
-
-# Change to dataset home location
-d_set = "DTU"
-home_folder = f"/home/anthonyq/datasets/DTU"
+gpu_num = "4"
 
 # ETH RUN (Change homefolder to ETH location - Path commented below)
-ETH_images = ["courtyard", "delivery_area", "electro", 
+scene_list = ["courtyard", "delivery_area", "electro", 
               "facade", "kicker", "meadow",
               "office", "pipes", "playground",
               "relief", "relief_2", "terrace", "terrains"]
 ## Home Folder/Image_path to use!
-
 # Uncomment all vars!
-# d_set = "ETH"
-# homde_folder = "/home/anthonyq/datasets/ETH/ETH"
+d_set = "ETH"
+home_folder = "/home/anthonyq/datasets/ETH/ETH"
 # image_path = home_folder + f"{ETH_images[i]}/images/dslr_images_undistorted" -> Used below, just comment out
 
-# TT RUN 
-TT_images = ["barn_1_40", "barn_186_225", "barn_371_410",
-             "caterpillar_1_40", "caterpillar_173_212", "caterpillar_344_383",
-             "church_1_40", "church_235_274", "church_468_507",
-             "courthouse_1_40", "courthouse_534_573", "courthouse_1067_1106",
-             "ignatius_1_40", "ignatius_113_152", "ignatius_224_263",
-             "meetingroom_1_40", "meetingroom_167_206", "meetingroom_332_371",
-             "truck_1_40", "truck_107_146", "truck_212_251"]
-
-# Uncomment Both vars!
-# d_set = "tanks_and_temples"
-# home_folder = f"/home/anthonyq/datasets/tanks_and_temples"
-
-
+# Need Scan 9
+# reproj_dtu = [0.7117725462554642, 0.8009983799764142, 0.6011275248012603, 0.9089725036146153, 0.6054350150969812]
 with torch.no_grad():
     errors = []
     for i in range(len(scene_list)):
-        image_path = home_folder + f"/{scene_list[i]}"
+        image_path = home_folder + f"{scene_list[i]}/images/dslr_images_undistorted"
         log_file = f"log_cam_poses_{scene_list[i]}"
-        # For ETH Run!
-        # image_path = home_folder + f"{ETH_images[i]}/images/dslr_images_undistorted"
 
         error = demo_fn(gpu_num, image_path, f"{log_folder}/{d_set}", log_file)
+        print(f"/{scene_list[i]} Error: {error}")
         errors.append(error)
 
     print("Reprojection Mean:", np.mean(errors))

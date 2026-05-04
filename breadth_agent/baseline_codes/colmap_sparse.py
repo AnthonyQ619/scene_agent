@@ -240,15 +240,15 @@ def run_default_pycolmap_sparse_reconstruction(
 # Log Folder
 log_folder = "/home/anthonyq/projects/scene_agent/breadth_agent/results/colmap_sparse_results"
 
-# DTU RUN
-scene_list = ["scan1", "scan4", "scan9", "scan10", 
-              "scan11", "scan12", "scan13", "scan15", 
-              "scan23", "scan24", "scan29"]
+# # DTU RUN
+# scene_list = ["scan32", "scan33",
+#               "scan34", "scan48", "scan49", "scan62", "scan75",
+#               "scan77", "scan110", "scan114", "scan118"]
 
-# Change to dataset home location
-d_set = "DTU"
-home_folder = f"/home/anthonyq/datasets/DTU"
-cal_path = "/home/anthonyq/datasets/DTU/calibration_DTU_new.npz"
+# # Change to dataset home location
+# d_set = "DTU"
+# home_folder = f"/home/anthonyq/datasets/DTU"
+# cal_path = "/home/anthonyq/datasets/DTU/calibration_DTU_new.npz"
 
 ## ETH RUN (Change homefolder to ETH location - Path commented below)
 # scene_list = ["courtyard", "delivery_area", "electro", 
@@ -261,7 +261,7 @@ cal_path = "/home/anthonyq/datasets/DTU/calibration_DTU_new.npz"
 # homde_folder = "/home/anthonyq/datasets/ETH/ETH"
 ## image_path/cal_path in the loop to uncomment!
 
-## UNCOMMENT FOR TT RUN 
+# UNCOMMENT FOR TT RUN 
 # scene_list = ["barn_1_40", "barn_186_225", "barn_371_410",
 #              "caterpillar_1_40", "caterpillar_173_212", "caterpillar_344_383",
 #              "church_1_40", "church_235_274", "church_468_507",
@@ -269,11 +269,13 @@ cal_path = "/home/anthonyq/datasets/DTU/calibration_DTU_new.npz"
 #              "ignatius_1_40", "ignatius_113_152", "ignatius_224_263",
 #              "meetingroom_1_40", "meetingroom_167_206", "meetingroom_332_371",
 #              "truck_1_40", "truck_107_146", "truck_212_251"]
+scene_list = ["meetingroom_167_206", "meetingroom_332_371",
+             "truck_1_40", "truck_107_146", "truck_212_251"]
 
-## Uncomment Both vars!
-# cal_path = "/home/anthonyq/datasets/tanks_and_temples/calibration_new_1920.npz"
-# d_set = "tanks_and_temples"
-# home_folder = f"/home/anthonyq/datasets/tanks_and_temples"
+# Uncomment Both vars!
+cal_path = "/home/anthonyq/datasets/tanks_and_temples/calibration_new_1920.npz"
+d_set = "tanks_and_temples"
+home_folder = f"/home/anthonyq/datasets/tanks_and_temples"
 
 for i in range(len(scene_list)):
     # For ETH Run!

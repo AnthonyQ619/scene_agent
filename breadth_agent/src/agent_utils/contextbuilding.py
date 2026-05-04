@@ -172,7 +172,7 @@ def build_full_length_context_files(context_file_path: str, num = 1):
 #     file_to_read.close()
 
 def tool_building():
-    image_path = "/home/anthonyq/datasets/DTU/DTU/scan10/images"
+    image_path = "/home/anthonyq/datasets/DTU/DTU/scan14"
     calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
     # calibration_data = CalibrationReader(calibration_path).get_calibration()
     # STEP 1: Read in Camera Data
