@@ -51,7 +51,7 @@ class Generator:
         
         ## Read Context File
         context_proc_file = open(full_context_file_proc_dir, 'r')
-        self.context_str = context_proc_file.read()
+        self.context_str = context_proc_file.read().split("==$#$==")[0]
         context_proc_file.close()
 
         # TODO 
@@ -154,10 +154,11 @@ Your response should be a single integer indicating the best plan index, without
          # Build In-Context image examples here
         img_path = os.path.join(self.CWD, 'agent_details', 'image_context') # MAKE THIS MORE PATH ORIENTED
         # self.image_paths = sorted(glob.glob(img_path + "/*"))#[:8] # Was 8 now 9
-        self.image_paths = sorted(
+        self.image_paths = [sorted(
             glob.glob(os.path.join(img_path, "*")),
             key=numeric_image_sort_key
-        )
+        )[0]]
+        # breakpoint()
         self.new_query_img_path = None
         self.cam_motion_prompt = None
 
