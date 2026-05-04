@@ -923,8 +923,8 @@ class FeatureClass(PipelineModule, ABC):
         # Detect Features from Designated Detector
         self.features = self._detect_features()
 
-        # Output Metric
-        self.calculate_metrics()
+        # Output Metric TURNED OFF
+        # self.calculate_metrics()
 
         return self.features
     
