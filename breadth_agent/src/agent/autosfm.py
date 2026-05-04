@@ -82,8 +82,7 @@ Your response should be a single integer indicating the best plan index, without
         enhanced_prompt = f"""
 Given the user query:
 {user_query}
-And the attached image of the Scene to reconstruct, we want to generate a plan that is optimal for the 
-given scene. 
+
 Here are a few examples of plans and their resulting metrics:
 {self.p_m_context}
 
@@ -94,7 +93,7 @@ You are now given a set of plans and their resulting metrics from generating a S
             enhanced_prompt += f"\nPlan {idx+1}:\n{pl}\nResult {idx+1}:\n{output}\n"
         enhanced_prompt += "\nSelect the plan that generates the best set of metrics, if no metrics are provided (All plans failed to execute), choose any plan as a result"
 
-        response = self.evaluator_llm(enhanced_prompt, image_paths=[self.generator.new_query_img_path])["best_plan_index"]
+        response = self.evaluator_llm(enhanced_prompt) #, image_paths=[self.generator.new_query_img_path])["best_plan_index"]
         best_index = int(response) - 1  # Convert to 0-based index
         return plans[best_index][0], plans[best_index][1], plans[best_index][2], plans[best_index][3] #Plan, Program, Output, Program_id
 
@@ -134,7 +133,7 @@ Use Calibration Path in Code: {prompt['calibration']}
                 program, output, prog_id = self.compiler(plans[j]) ## Get feedback for each plan
                 current_batch.append((plans[j], program, output, prog_id))
             self.logger.add_generated_codes_batch(current_batch, i + 1)
-            breakpoint()
+            # breakpoint()
             print(f"Selecting best plan for iteration {i + 1}...")
             best_plan, best_program, best_output, best_prog_id = self.evaluate_plans(current_batch, new_query) 
             self.logger.add_best_code(best_plan, best_program, best_output, best_prog_id , i+1)
