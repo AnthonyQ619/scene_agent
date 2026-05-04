@@ -51,20 +51,6 @@ Script 1:
     }
 }
 ============================================================
-============================================================
-====================Optimization Metrics====================
-{
-    "Scene Metrics from Optimization": {
-        "Optimizer": "BundleAdjustmentOptimizerGlobal",
-        "Num Points3D": 1764,
-        "Convergence": "CONVERGENCE",
-        "Initial Cost": 5297.199842381916,
-        "Final Cost": 975.9353824890026,
-        "Initial Reprojection Error": 1.8865424829530237,
-        "Final Reprojection Error": 0.46286240098271736
-    }
-}
-============================================================
 
 =%$%=
 Script 2:
@@ -120,20 +106,6 @@ Script 2:
     }
 }
 ============================================================
-============================================================
-====================Optimization Metrics====================
-{
-    "Scene Metrics from Optimization": {
-        "Optimizer": "BundleAdjustmentOptimizerGlobal",
-        "Num Points3D": 432,
-        "Convergence": "NO_CONVERGENCE",
-        "Initial Cost": 1179.3418609666955,
-        "Final Cost": 326.0647798769325,
-        "Initial Reprojection Error": 2.3776558437426125,
-        "Final Reprojection Error": 0.7433744002418698
-    }
-}
-============================================================
 
 =%$%=
 Script 3:
@@ -182,20 +154,6 @@ Script 3:
         "Survival Tracks of 10": 0.030272519801315612,
         "Fragmentation": 0.30786716538199255,
         "Obs. per Track": 3.2481541146462614
-    }
-}
-============================================================
-============================================================
-====================Optimization Metrics====================
-{
-    "Scene Metrics from Optimization": {
-        "Optimizer": "BundleAdjustmentOptimizerGlobal",
-        "Num Points3D": 11045,
-        "Convergence": "NO_CONVERGENCE",
-        "Initial Cost": 19719.917896472187,
-        "Final Cost": 4477.347532525048,
-        "Initial Reprojection Error": 2.844658893408152,
-        "Final Reprojection Error": 0.5907561960491621
     }
 }
 ============================================================
@@ -254,20 +212,6 @@ Script 4:
     }
 }
 ============================================================
-============================================================
-====================Optimization Metrics====================
-{
-    "Scene Metrics from Optimization": {
-        "Optimizer": "BundleAdjustmentOptimizerGlobal",
-        "Num Points3D": 851,
-        "Convergence": "CONVERGENCE",
-        "Initial Cost": 2355.9467314675862,
-        "Final Cost": 2147.5980195959064,
-        "Initial Reprojection Error": 1.2510800711432315,
-        "Final Reprojection Error": 1.1902742543976472
-    }
-}
-============================================================
 
 =%$%=
 Script 5:
@@ -320,20 +264,6 @@ Script 5:
         "Survival Tracks of 10": 0.022566995768688293,
         "Fragmentation": 0.3130242825607064,
         "Obs. per Track": 3.1946403385049367
-    }
-}
-============================================================
-============================================================
-====================Optimization Metrics====================
-{
-    "Scene Metrics from Optimization": {
-        "Optimizer": "BundleAdjustmentOptimizerGlobal",
-        "Num Points3D": 535,
-        "Convergence": "CONVERGENCE",
-        "Initial Cost": 2284.092338385109,
-        "Final Cost": 813.7338207699738,
-        "Initial Reprojection Error": 2.6608005225812614,
-        "Final Reprojection Error": 0.9554768120938293
     }
 }
 ============================================================
@@ -392,20 +322,6 @@ Script 6:
     }
 }
 ============================================================
-============================================================
-====================Optimization Metrics====================
-{
-    "Scene Metrics from Optimization": {
-        "Optimizer": "BundleAdjustmentOptimizerGlobal",
-        "Num Points3D": 8182,
-        "Convergence": "NO_CONVERGENCE",
-        "Initial Cost": 12813.303415255292,
-        "Final Cost": 8654.04921393094,
-        "Initial Reprojection Error": 1.1312911948648925,
-        "Final Reprojection Error": 0.86849454014626
-    }
-}
-============================================================
 
 =%$%=
 Script 7:
@@ -458,20 +374,6 @@ Script 7:
         "Survival Tracks of 10": 0.040168913296721585,
         "Fragmentation": 0.27131577313594574,
         "Obs. per Track": 3.6857422200033283
-    }
-}
-============================================================
-============================================================
-====================Optimization Metrics====================
-{
-    "Scene Metrics from Optimization": {
-        "Optimizer": "BundleAdjustmentOptimizerGlobal",
-        "Num Points3D": 9870,
-        "Convergence": "NO_CONVERGENCE",
-        "Initial Cost": 15154.047795094364,
-        "Final Cost": 12433.791196254686,
-        "Initial Reprojection Error": 1.027387219903213,
-        "Final Reprojection Error": 0.9140642764530333
     }
 }
 ============================================================
@@ -530,20 +432,6 @@ Script 8:
     }
 }
 ============================================================
-============================================================
-====================Optimization Metrics====================
-{
-    "Scene Metrics from Optimization": {
-        "Optimizer": "BundleAdjustmentOptimizerGlobal",
-        "Num Points3D": 9419,
-        "Convergence": "CONVERGENCE",
-        "Initial Cost": 1549.4355612299198,
-        "Final Cost": 1465.0106063306287,
-        "Initial Reprojection Error": 0.22051739893687697,
-        "Final Reprojection Error": 0.21446424238161768
-    }
-}
-============================================================
 
 =%$%=
 Script 9:
@@ -583,20 +471,6 @@ Script 10:
         "Min Translation Norm": 0.00029953147168271244,
         "Max Translation Norm": 0.9352313280105591,
         "Median Translation Norm": 0.5861191749572754
-    }
-}
-============================================================
-============================================================
-====================Optimization Metrics====================
-{
-    "Scene Metrics from Optimization": {
-        "Optimizer": "BundleAdjustmentOptimizerGlobal",
-        "Num Points3D": 16723,
-        "Convergence": "NO_CONVERGENCE",
-        "Initial Cost": 98522.80812423746,
-        "Final Cost": 11105.249074707908,
-        "Initial Reprojection Error": 5.341493867026185,
-        "Final Reprojection Error": 0.5689085969749648
     }
 }
 ============================================================

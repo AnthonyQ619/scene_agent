@@ -1636,7 +1636,7 @@ class OptimizationClass(PipelineModule, ABC):
     def __call__(self, current_scene: Scene, **kwargs) -> Scene:
         """Fixed Function Call specifically for global bundle adjustment pipelines"""
         optimized_scene = self._optimize_scene(current_scene, **kwargs)
-        self.calculate_metrics(optimized_scene)
+        # self.calculate_metrics(optimized_scene)
         return optimized_scene
     
 
