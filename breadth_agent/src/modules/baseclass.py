@@ -772,7 +772,7 @@ class CameraPoseEstimatorClass(PipelineModule, ABC):
         # poses = self._estimate_camera_poses(camera_poses=poses,
         #                                     feature_pairs=feature_pairs)
         self._estimate_camera_poses(feature_pairs=feature_pairs)
-        self.calculate_metrics()
+        # self.calculate_metrics()
         
         return self.camera_poses
     

@@ -29,14 +29,6 @@ Script 1:
 }
 ============================================================
 ============================================================
-=====================CameraPose Metrics=====================
-{
-    "Number of Camera Poses": 20,
-    "Average Reprojection Error per Frame": 6.307562914159563,
-    "Average Median Reprojection Error per Frame": 0.7819847464561462
-}
-============================================================
-============================================================
 ==================Feature Tracking Metrics==================
 {
     "Feature Track Metrics for Survivability and Stability": {
@@ -98,14 +90,6 @@ Script 2:
 }
 ============================================================
 ============================================================
-=====================CameraPose Metrics=====================
-{
-    "Number of Camera Poses": 20,
-    "Average Reprojection Error per Frame": 55.73736735859161,
-    "Average Median Reprojection Error per Frame": 3.1051213286810624
-}
-============================================================
-============================================================
 ==================Feature Tracking Metrics==================
 {
     "Feature Track Metrics for Survivability and Stability": {
@@ -150,23 +134,6 @@ Script 3:
         "Average": 6.883010415811413,
         "Minimum": 6.510147437302412,
         "Maximum": 7.223572144736729
-    }
-}
-============================================================
-============================================================
-=====================CameraPose Metrics=====================
-{
-    "Validity Analysis of Rotation Matrices in Pose Estimation": {
-        "Average Rotation Orthonormality Error": 1.5412700866934554e-07,
-        "Max Rotation Orthonormality Error": 3.8743775838185394e-07,
-        "Average det(R)": 0.9999999952316284,
-        "Mean Abs det(R)-1": 6.198883056640625e-08
-    },
-    "Translation Analysis for Stable Trajectory Estimation": {
-        "Translation Norm Std": 0.25675561416092113,
-        "Min Translation Norm": 7.294400711543858e-05,
-        "Max Translation Norm": 1.0437897443771362,
-        "Median Translation Norm": 0.5988717079162598
     }
 }
 ============================================================
@@ -232,14 +199,6 @@ Script 4:
 }
 ============================================================
 ============================================================
-=====================CameraPose Metrics=====================
-{
-    "Number of Camera Poses": 20,
-    "Average Reprojection Error per Frame": 6.163924859976948,
-    "Average Median Reprojection Error per Frame": 2.0559281688803583
-}
-============================================================
-============================================================
 ==================Feature Tracking Metrics==================
 {
     "Feature Track Metrics for Survivability and Stability": {
@@ -298,14 +257,6 @@ Script 5:
         "Gric Score - Fundamental": 729.2384960466184,
         "Gric Score - Homography": 922.6870353553486
     }
-}
-============================================================
-============================================================
-=====================CameraPose Metrics=====================
-{
-    "Number of Camera Poses": 20,
-    "Average Reprojection Error per Frame": 3.1887289446887976,
-    "Average Median Reprojection Error per Frame": 1.5777437260338105
 }
 ============================================================
 ============================================================
@@ -370,14 +321,6 @@ Script 6:
 }
 ============================================================
 ============================================================
-=====================CameraPose Metrics=====================
-{
-    "Number of Camera Poses": 20,
-    "Average Reprojection Error per Frame": 192.97632371550324,
-    "Average Median Reprojection Error per Frame": 3.9657589030279765
-}
-============================================================
-============================================================
 ==================Feature Tracking Metrics==================
 {
     "Feature Track Metrics for Survivability and Stability": {
@@ -436,14 +379,6 @@ Script 7:
         "Gric Score - Fundamental": 28892.011954745987,
         "Gric Score - Homography": 25119.989544918615
     }
-}
-============================================================
-============================================================
-=====================CameraPose Metrics=====================
-{
-    "Number of Camera Poses": 20,
-    "Average Reprojection Error per Frame": 5.285089294100231,
-    "Average Median Reprojection Error per Frame": 2.4426805491911736
 }
 ============================================================
 ============================================================
@@ -508,14 +443,6 @@ Script 8:
 }
 ============================================================
 ============================================================
-=====================CameraPose Metrics=====================
-{
-    "Number of Camera Poses": 11,
-    "Average Reprojection Error per Frame": 0.5498505149180388,
-    "Average Median Reprojection Error per Frame": 0.3359639734863301
-}
-============================================================
-============================================================
 ==================Feature Tracking Metrics==================
 {
     "Feature Track Metrics for Survivability and Stability": {
@@ -548,44 +475,9 @@ Script 8:
 =%$%=
 Script 9:
 
-============================================================
-=====================CameraPose Metrics=====================
-{
-    "Validity Analysis of Rotation Matrices in Pose Estimation": {
-        "Average Rotation Orthonormality Error": 1.1261065399276838e-07,
-        "Max Rotation Orthonormality Error": 3.04293229299012e-07,
-        "Average det(R)": 0.9999999880790711,
-        "Mean Abs det(R)-1": 5.006790161132812e-08
-    },
-    "Translation Analysis for Stable Trajectory Estimation": {
-        "Translation Norm Std": 0.16208847883412075,
-        "Min Translation Norm": 0.000499935878906399,
-        "Max Translation Norm": 0.7185757160186768,
-        "Median Translation Norm": 0.18446661531925201
-    }
-}
-============================================================
-
 =%$%=
 Script 10:
 
-============================================================
-=====================CameraPose Metrics=====================
-{
-    "Validity Analysis of Rotation Matrices in Pose Estimation": {
-        "Average Rotation Orthonormality Error": 2.1104717570703473e-07,
-        "Max Rotation Orthonormality Error": 6.410797981456496e-07,
-        "Average det(R)": 0.9999999856948852,
-        "Mean Abs det(R)-1": 1.1920928955078125e-07
-    },
-    "Translation Analysis for Stable Trajectory Estimation": {
-        "Translation Norm Std": 0.2720913912128956,
-        "Min Translation Norm": 0.00029953147168271244,
-        "Max Translation Norm": 0.9352313280105591,
-        "Median Translation Norm": 0.5861191749572754
-    }
-}
-============================================================
 ============================================================
 ====================Optimization Metrics====================
 {
