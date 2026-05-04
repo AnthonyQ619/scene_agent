@@ -290,7 +290,7 @@ Your Output:
         if self.new_query_img_path is None: 
             new_img = image_builder(image_path=query_video_path, 
                                     max_size=350, 
-                                    k=5) 
+                                    k=1) 
             
             # Save image and input new path to image list containing context imaages
             PATH = os.path.dirname(os.path.realpath(__file__))
