@@ -4,17 +4,28 @@ from core.logger import Logger
 
 api_directory = "/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/agent_details/tool_context"
 instruction_path = "/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/agent_details/agent_instructions/prompt_enh_examples.txt"
-gpu_num = "2"
-scans = [1, 9, 10]
 
-for i in range(len(scans)):
-    image_path = f"/home/anthonyq/datasets/DTU/scan{scans[i]}"
-    calibration_path = f"/home/anthonyq/datasets/DTU/calibration_DTU_new.npz"
+gpu_num = "6"
+reconstruction_type = "Camera Pose Reconstruction"
 
-    logger_file = f"scan{scans[i]}_log"
-    log_dir = f"/home/anthonyq/projects/scene_agent/breadth_agent/results/DTU/scan{scans[i]}"
+img_postfix = "vggt_random_10" # Swap to Sequential String when ready
+# img_postfix = "middle_sequential_10"
+co3d_images = ["cake/374_42274_84517", "cake/403_53094_103680", 
+               "donut/391_47032_93657", "donut/403_52964_103416", 
+               "hydrant/167_18184_34441", "hydrant/411_56064_108483"]
+
+for i in range(len(co3d_images)):
+    img_seq = co3d_images[i]
+    c, seq = img_seq.split('/')
+    image_path = f"/home/anthonyq/datasets/co3d_v2/{img_seq}/{img_postfix}"
+    calibration_path = f"/home/anthonyq/datasets/co3d_v2/{c}/calibration_new_{seq}.npz"
+
+    # Setup Logger
+    logger_file = f"co3d_{c}_{seq}_log"
+    log_dir = f"/home/anthonyq/projects/scene_agent/breadth_agent/results/co3d/{c}_{seq}_{img_postfix}"
     logger = Logger(desc=logger_file, log_dir=log_dir)
 
+    # Setup agent
     autosfm = AutoSFM(model_name="gpt-5", 
                     api_directory=api_directory,#'/work/scene_agent/breadth_agent/src/agent/agent_details/tool_context', 
                     instruction_path=instruction_path,#'/work/scene_agent/breadth_agent/src/agent/agent_details/agent_instructions/prompt_enh_examples.txt', 
@@ -23,7 +34,6 @@ for i in range(len(scans)):
                     gpu_num=gpu_num)
 
     # Prompt
-    reconstruction_type = "Dense Reconstruction"
     gpu_mem = "48gb"
     temp_prompt = {'images':image_path,
     'calibration':calibration_path,
@@ -32,7 +42,7 @@ for i in range(len(scans)):
 
     results = autosfm.run(temp_prompt)
 
-    # print(results[0])
-    # print('\n', results[1])
+    print(f"CODE from Scene eth_{TT_images[i]}:")
+    print('\n', results[1])
     print("\n")
     print(f'Results from scane{scans[i]} in Metrics:\n', results[2])
