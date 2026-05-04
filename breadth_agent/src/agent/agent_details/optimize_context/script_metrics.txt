@@ -16,19 +16,6 @@ Script 1:
 }
 ============================================================
 ============================================================
-==================Feature Matching Metrics==================
-{
-    "Corresponding Feature Metrics per Image Pair": {
-        "Average Corresponding Features": 1133.9473684210527,
-        "Average Inlier Yield per Frame": 0.07181618181010155,
-        "Median Inlier Yield per Frame": 0.06146666666666667,
-        "Average Repeatability per Image Pair": 0.45674620343305933,
-        "Gric Score - Fundamental": 5297.722506011007,
-        "Gric Score - Homography": 6850.258222588217
-    }
-}
-============================================================
-============================================================
 =====================CameraPose Metrics=====================
 {
     "Number of Camera Poses": 20,
@@ -81,19 +68,6 @@ Script 2:
         "Average": 2.606127789326087,
         "Minimum": 2.5380568652725883,
         "Maximum": 2.7863061657363652
-    }
-}
-============================================================
-============================================================
-==================Feature Matching Metrics==================
-{
-    "Corresponding Feature Metrics per Image Pair": {
-        "Average Corresponding Features": 429.94736842105266,
-        "Average Inlier Yield per Frame": 0.08608205743088453,
-        "Median Inlier Yield per Frame": 0.08005379776512939,
-        "Average Repeatability per Image Pair": 0.2906943300986346,
-        "Gric Score - Fundamental": 2278.6277505561097,
-        "Gric Score - Homography": 2814.191727231254
     }
 }
 ============================================================
@@ -219,19 +193,6 @@ Script 4:
 }
 ============================================================
 ============================================================
-==================Feature Matching Metrics==================
-{
-    "Corresponding Feature Metrics per Image Pair": {
-        "Average Corresponding Features": 744.2105263157895,
-        "Average Inlier Yield per Frame": 0.6627732162664673,
-        "Median Inlier Yield per Frame": 0.6875428108237538,
-        "Average Repeatability per Image Pair": 0.5718367535410472,
-        "Gric Score - Fundamental": 3795.7667513404126,
-        "Gric Score - Homography": 4011.2591316442645
-    }
-}
-============================================================
-============================================================
 =====================CameraPose Metrics=====================
 {
     "Number of Camera Poses": 20,
@@ -284,19 +245,6 @@ Script 5:
         "Average": 14.243384798259191,
         "Minimum": 12.913653617794719,
         "Maximum": 15.49733532486787
-    }
-}
-============================================================
-============================================================
-==================Feature Matching Metrics==================
-{
-    "Corresponding Feature Metrics per Image Pair": {
-        "Average Corresponding Features": 137.10526315789474,
-        "Average Inlier Yield per Frame": 0.19245033243448723,
-        "Median Inlier Yield per Frame": 0.18335863057593388,
-        "Average Repeatability per Image Pair": 0.08225585754811805,
-        "Gric Score - Fundamental": 729.2384960466184,
-        "Gric Score - Homography": 922.6870353553486
     }
 }
 ============================================================
@@ -357,19 +305,6 @@ Script 6:
 }
 ============================================================
 ============================================================
-==================Feature Matching Metrics==================
-{
-    "Corresponding Feature Metrics per Image Pair": {
-        "Average Corresponding Features": 4702.0526315789475,
-        "Average Inlier Yield per Frame": 0.29779666666666665,
-        "Median Inlier Yield per Frame": 0.3204,
-        "Average Repeatability per Image Pair": 0.5354837145664414,
-        "Gric Score - Fundamental": 21353.75533797626,
-        "Gric Score - Homography": 26823.041854731047
-    }
-}
-============================================================
-============================================================
 =====================CameraPose Metrics=====================
 {
     "Number of Camera Poses": 20,
@@ -426,19 +361,6 @@ Script 7:
 }
 ============================================================
 ============================================================
-==================Feature Matching Metrics==================
-{
-    "Corresponding Feature Metrics per Image Pair": {
-        "Average Corresponding Features": 6405.894736842105,
-        "Average Inlier Yield per Frame": 0.40570666666666666,
-        "Median Inlier Yield per Frame": 0.4199333333333333,
-        "Average Repeatability per Image Pair": 0.7852393637724449,
-        "Gric Score - Fundamental": 28892.011954745987,
-        "Gric Score - Homography": 25119.989544918615
-    }
-}
-============================================================
-============================================================
 =====================CameraPose Metrics=====================
 {
     "Number of Camera Poses": 20,
@@ -491,19 +413,6 @@ Script 8:
         "Average": 3.141834768813986,
         "Minimum": 2.89992589595379,
         "Maximum": 3.3661982622959714
-    }
-}
-============================================================
-============================================================
-==================Feature Matching Metrics==================
-{
-    "Corresponding Feature Metrics per Image Pair": {
-        "Average Corresponding Features": 3048.8,
-        "Average Inlier Yield per Frame": 0.2091722512342467,
-        "Median Inlier Yield per Frame": 0.22201448936667445,
-        "Average Repeatability per Image Pair": 0.37298712122681443,
-        "Gric Score - Fundamental": 13656.113570981208,
-        "Gric Score - Homography": 19708.07869070719
     }
 }
 ============================================================

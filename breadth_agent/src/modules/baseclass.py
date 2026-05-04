@@ -1077,7 +1077,7 @@ class FeatureMatching(PipelineModule, ABC):
         
         matched_points = self.find_correspondences(features) 
 
-        self.calculate_metrics(matched_points) 
+        # self.calculate_metrics(matched_points) 
 
         return matched_points
     
