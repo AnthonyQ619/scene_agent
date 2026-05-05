@@ -268,24 +268,24 @@ Your Output:
         return plan
     
     def enhance_prompt(self, query, query_video_path):
-        if self.cam_motion_prompt is None:
-            dataset_path = sorted(glob.glob(query_video_path + "/*"))
-            if len(dataset_path) > 40:
-                dataset_path = dataset_path[:40]
-            resized_dir, resized_img_list, K = resize_dataset(image_path=dataset_path,
-                                                              max_size=350,
-                                                              script_id=self.index)
-            result = read_camera_flow(resized_dir, K)
-            context = generate_illumination_change_prompt(dataset_path)
-            clean_dir(resized_dir)
-            self.cam_motion_prompt = f"""
-            Camera Motion statistics from Optical Flow
+        # if self.cam_motion_prompt is None:
+        #     dataset_path = sorted(glob.glob(query_video_path + "/*"))
+        #     if len(dataset_path) > 40:
+        #         dataset_path = dataset_path[:40]
+        #     resized_dir, resized_img_list, K = resize_dataset(image_path=dataset_path,
+        #                                                       max_size=350,
+        #                                                       script_id=self.index)
+        #     result = read_camera_flow(resized_dir, K)
+        #     context = generate_illumination_change_prompt(dataset_path)
+        #     clean_dir(resized_dir)
+        #     self.cam_motion_prompt = f"""
+        #     Camera Motion statistics from Optical Flow
             
-            {result}
-            Illuminance Analysis Statistics:
+        #     {result}
+        #     Illuminance Analysis Statistics:
 
-            {context}
-            """
+        #     {context}
+        #     """
         # This is so we don't repeatedly add the same image to the self.image_paths
         if self.new_query_img_path is None: 
             new_img = image_builder(image_path=query_video_path, 
@@ -312,10 +312,6 @@ Each procedure example is titled "Procedure:Num", and each corresponding image i
 where each matching "Num" value between procedure and image title is the corresponding image set and generated procedure.
 In short, the first 10 images provided correspond to the first 10 procedure examples in respective order. The final image 
 is the given scene from the user to generate a procedure for. 
-
-Following information are statistics (With context to understand the signal of each score) about camera motion from 
-optical flow and illuminance analysis of the provided images:
-{self.cam_motion_prompt}
 
 The followiing information is provided to guide your chosen sub-modules for each step of the generated procedure.
 {query}
