@@ -281,11 +281,11 @@ Your Output:
             self.cam_motion_prompt = f"""
             Camera Motion statistics from Optical Flow
             
-            {result}
-            Illuminance Analysis Statistics:
+            {result}"""
+            # Illuminance Analysis Statistics:
 
-            {context}
-            """
+            # {context}
+            # """
         # This is so we don't repeatedly add the same image to the self.image_paths
         if self.new_query_img_path is None: 
             new_img = image_builder(image_path=query_video_path, 
