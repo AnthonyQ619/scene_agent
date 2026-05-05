@@ -275,13 +275,10 @@ Your Output:
             resized_dir, resized_img_list, K = resize_dataset(image_path=dataset_path,
                                                               max_size=350,
                                                               script_id=self.index)
-            result = read_camera_flow(resized_dir, K)
+            # result = read_camera_flow(resized_dir, K)
             context = generate_illumination_change_prompt(dataset_path)
             clean_dir(resized_dir)
             self.cam_motion_prompt = f"""
-            Camera Motion statistics from Optical Flow
-            
-            {result}
             Illuminance Analysis Statistics:
 
             {context}
