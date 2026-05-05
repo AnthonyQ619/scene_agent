@@ -85,19 +85,19 @@ def main():
 
     for i in range(10):
         image_path = image_list[i] #"/home/anthonyq/datasets/DTU/scan6_illumination_change"
-        img_to_save = r"/home/anthonyq/projects/scene_agent/breadth_agent/src/tests/context_images"
+        img_to_save = r"/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/agent_details/image_context"
 
         # Use equivalent parameters to 
         new_img = image_builder(image_path=image_path, 
                                 max_size=350, 
-                                k=5)
+                                k=4)
         
         # # Show Image to User
         # imgplot = plt.imshow(new_img)
         # plt.show()
         
         # Save Image for Context
-        cv2.imwrite(img_to_save + f"/image_context{i}.png", new_img) #cv2.cvtColor(new_img, cv2.COLOR_RGB2BGR))
+        cv2.imwrite(img_to_save + f"/image_context{i+1}.png", new_img) #cv2.cvtColor(new_img, cv2.COLOR_RGB2BGR))
     
 
 if __name__ == "__main__":
