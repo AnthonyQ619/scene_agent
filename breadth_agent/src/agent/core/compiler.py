@@ -248,7 +248,7 @@ class Executor:
         self.id = id
         import os
         # Remove after testing in sudarshan
-        self.temp_path = "/home/anthonyq/projects/scene_agent/breadth_agent/results/workspace"#"/workspace/generated_agent_code/tmp"
+        self.temp_path = "/workspace/generated_agent_code/tmp"
         # os.makedirs("/work/tmp", exist_ok=True)
         # self.log_file = "/work/tmp/log_file_" + str(id) + ".txt"
         os.makedirs(self.temp_path, exist_ok=True)
