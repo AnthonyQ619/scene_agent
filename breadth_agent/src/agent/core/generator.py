@@ -310,8 +310,8 @@ where each matching "Num" value between procedure and image title is the corresp
 In short, the first 10 images provided correspond to the first 10 procedure examples in respective order. The final image 
 is the given scene from the user to generate a procedure for. 
 
-Following information are statistics (With context to understand the signal of each score) about camera motion from 
-optical flow and illuminance analysis of the provided images:
+Following information are statistics (With context to understand the signal of each score) about illuminance analysis of 
+the provided images:
 {self.cam_motion_prompt}
 
 The followiing information is provided to guide your chosen sub-modules for each step of the generated procedure.
