@@ -457,3 +457,5 @@ combined_change_score_p75: overall appearance-change score.
     - A high combined score means the dataset has non-trivial photometric instability.
     - Generated Score: {scores['combined_change_score_p75']}
     """
+
+    return context
