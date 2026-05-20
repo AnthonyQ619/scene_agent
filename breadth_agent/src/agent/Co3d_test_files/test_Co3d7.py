@@ -41,7 +41,7 @@ for i in range(len(co3d_images)):
 
     results = autosfm.run(temp_prompt)
 
-    print(f"CODE from Scene eth_{TT_images[i]}:")
+    print(f"CODE from Scene co3dv2_{co3d_images[i]}:")
     print('\n', results[1])
     print("\n")
-    print(f'Results from scane{scans[i]} in Metrics:\n', results[2])
+    print(f'Results from Scene co3dv2_{co3d_images[i]} in Metrics:\n', results[2])

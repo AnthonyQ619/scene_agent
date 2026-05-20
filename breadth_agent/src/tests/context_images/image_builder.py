@@ -71,21 +71,33 @@ from modules.utilities import image_builder
 #     return new_img
 
 def main():
-    image_path = "/home/anthonyq/datasets/DTU/scan6_illumination_change"
-    img_to_save = r"/home/anthonyq/projects/scene_agent/breadth_agent/src/tests/context_images"
-    i = 3
 
-    # Use equivalent parameters to 
-    new_img = image_builder(image_path=image_path, 
-                            max_size=350, 
-                            k=5)
-    
-    # # Show Image to User
-    # imgplot = plt.imshow(new_img)
-    # plt.show()
-    
-    # Save Image for Context
-    cv2.imwrite(img_to_save + f"/image_context{i}.png", new_img) #cv2.cvtColor(new_img, cv2.COLOR_RGB2BGR))
+    image_list = ["/home/anthonyq/datasets/context_images/scan14",
+                  "/home/anthonyq/datasets/context_images/scan21",
+                  "/home/anthonyq/datasets/DTU/scan6_illumination_change",
+                  "/home/anthonyq/datasets/context_images/apple/110_13051_23361/images",
+                  "/home/anthonyq/datasets/DTU/scan8_normal_lighting",
+                  "/home/anthonyq/datasets/context_images/tanks_and_temples/Family",
+                  "/home/anthonyq/datasets/context_images/hydrant/167_18184_34441/images",
+                  "/home/anthonyq/datasets/ETH/ETH/statue/images/dslr_images_undistorted",
+                  "/home/anthonyq/datasets/ETH/ETH/office/images/dslr_images_undistorted",
+                  "/home/anthonyq/datasets/ETH/ETH/living_room/images/dslr_images_undistorted"]
+
+    for i in range(10):
+        image_path = image_list[i] #"/home/anthonyq/datasets/DTU/scan6_illumination_change"
+        img_to_save = r"/home/anthonyq/projects/scene_agent/breadth_agent/src/agent/agent_details/image_context"
+
+        # Use equivalent parameters to 
+        new_img = image_builder(image_path=image_path, 
+                                max_size=350, 
+                                k=4)
+        
+        # # Show Image to User
+        # imgplot = plt.imshow(new_img)
+        # plt.show()
+        
+        # Save Image for Context
+        cv2.imwrite(img_to_save + f"/image_context{i+1}.png", new_img) #cv2.cvtColor(new_img, cv2.COLOR_RGB2BGR))
     
 
 if __name__ == "__main__":

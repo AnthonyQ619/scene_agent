@@ -344,7 +344,7 @@ def demo_fn(gpu_num: str, image_dir:str, log_dir:str, log_file:str):
             max_query_pts=4096,
             query_frame_num=frame_nums,
             keypoint_extractor="sp",
-            fine_tracking=True,
+            fine_tracking=False,
         )
 
         torch.cuda.empty_cache()
@@ -439,7 +439,7 @@ def rename_colmap_recons_and_rescale_camera(
 
 # Log Folder
 log_folder = "/home/anthonyq/projects/scene_agent/breadth_agent/results/vggt_sparse_results"
-gpu_num = "4"
+gpu_num = "6"
 
 # ETH RUN (Change homefolder to ETH location - Path commented below)
 scene_list = ["courtyard", "delivery_area", "electro", 
@@ -449,22 +449,24 @@ scene_list = ["courtyard", "delivery_area", "electro",
 ## Home Folder/Image_path to use!
 # Uncomment all vars!
 d_set = "ETH"
-home_folder = "/home/anthonyq/datasets/ETH/ETH"
+home_folder = "/home/anthonyq/datasets/ETH"
 # image_path = home_folder + f"{ETH_images[i]}/images/dslr_images_undistorted" -> Used below, just comment out
 
 # Need Scan 9
 # reproj_dtu = [0.7117725462554642, 0.8009983799764142, 0.6011275248012603, 0.9089725036146153, 0.6054350150969812]
 with torch.no_grad():
     errors = []
-    for i in range(len(scene_list)):
-        image_path = home_folder + f"{scene_list[i]}/images/dslr_images_undistorted"
-        log_file = f"log_cam_poses_{scene_list[i]}"
-
-        error = demo_fn(gpu_num, image_path, f"{log_folder}/{d_set}", log_file)
-        print(f"/{scene_list[i]} Error: {error}")
-        errors.append(error)
-
-    print("Reprojection Mean:", np.mean(errors))
     with open(f"{log_folder}/{d_set}/mean_result.txt", "w") as f:
+        for i in range(len(scene_list)):
+            image_path = home_folder + f"/{scene_list[i]}/images/dslr_images_undistorted"
+            log_file = f"log_cam_poses_{scene_list[i]}"
+
+            error = demo_fn(gpu_num, image_path, f"{log_folder}/{d_set}", log_file)
+            print(f"/{scene_list[i]} Error: {error}")
+            errors.append(error)
+            f.write(f"/{scene_list[i]} Error: {error}\n")
+
+        print("Reprojection Mean:", np.mean(errors))
+    # with open(f"{log_folder}/{d_set}/mean_result.txt", "w") as f:
         f.write(f"Mean reprojection value: {np.mean(errors)}\n")
         # f.close()

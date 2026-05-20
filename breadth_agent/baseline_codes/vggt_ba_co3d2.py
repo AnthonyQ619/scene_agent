@@ -327,7 +327,7 @@ def demo_fn(gpu_num: str, image_dir:str, log_dir:str, log_file:str):
     image_size = np.array(images.shape[-2:])
     scale = img_load_resolution / vggt_fixed_resolution
     shared_camera = True # Was True
-    torch.cuda.empty_cache()
+
     with torch.cuda.amp.autocast(dtype=dtype):
         # Predicting Tracks
         # Using VGGSfM tracker instead of VGGT tracker for efficiency
@@ -434,39 +434,83 @@ def rename_colmap_recons_and_rescale_camera(
     return reconstruction
 
 
-# Log Folder -> Swap to where you want to log the info
+# if __name__ == "__main__":
+#     # args = parse_args()
+
+# Log Folder
 log_folder = "/home/anthonyq/projects/scene_agent/breadth_agent/results/vggt_sparse_results"
-gpu_num = "2"
-# DTU RUN (Removed scan 9, 13)
-scene_list = ["scan1", "scan4", "scan9", "scan10", 
-              "scan11", "scan12", "scan13", "scan15", 
-              "scan23", "scan24", "scan29", "scan32", "scan33",
-              "scan34", "scan48", "scan49", "scan62", "scan75",
-              "scan77", "scan110", "scan114", "scan118"]
+gpu_num = "6"
 
-# Change to dataset home location
-d_set = "DTU"
-home_folder = f"/home/anthonyq/datasets/DTU" # Change to dataset location!
+# # TT RUN 
+# scene_list = ["barn_1_40", "barn_186_225", "barn_371_410",
+#              "caterpillar_1_40", "caterpillar_173_212", "caterpillar_344_383",
+#              "church_1_40", "church_235_274", "church_468_507",
+#              "courthouse_1_40", "courthouse_534_573", "courthouse_1067_1106",
+#              "ignatius_1_40", "ignatius_113_152", "ignatius_224_263",
+#              "meetingroom_1_40", "meetingroom_167_206", "meetingroom_332_371",
+#              "truck_1_40", "truck_107_146", "truck_212_251"]
 
-# Need Scan 9
-# reproj_dtu = [0.7117725462554642, 0.8009983799764142, 0.6011275248012603, 0.9089725036146153, 0.6054350150969812]
+# # Uncomment Both vars!
+# d_set = "tanks_and_temples"
+# home_folder = f"/home/anthonyq/datasets/tanks_and_temples"
+
+
+# Co3Dv2 Test Run!
+# img_postfix = "vggt_random_10" # Swap to Sequential String when ready
+img_postfix = "middle_sequential_10"
+co3d_images = ["mouse/107_12753_23606", "mouse/377_43416_86289", 
+               "orange/374_42196_84367", "orange/385_45386_90752", 
+               "plant/247_26441_50907", "plant/374_42005_84358",
+               "remote/195_20989_41543", "remote/350_36761_68623", 
+               "skateboard/245_26182_52130", "skateboard/366_39266_76077", 
+               "suitcase/50_2928_8645", "suitcase/410_55734_107452",
+               "teddybear/34_1479_4753", "teddybear/187_20215_38541", 
+               "toaster/372_41229_82130", "toaster/416_57389_110765", 
+               "toytrain/240_25394_51994", "toytrain/399_51323_100753",
+               "toytruck/190_20494_39385", "toytruck/346_36113_66551", 
+               "vase/374_41862_83720", "vase/380_44863_89631"]
+d_set = "co3d"
+failed_runs = []
+
 with torch.no_grad():
     errors = []
     with open(f"{log_folder}/{d_set}/mean_result.txt", "w") as f:
-        for i in range(len(scene_list)):
-            image_path = home_folder + f"/{scene_list[i]}"
-            log_file = f"log_cam_poses_{scene_list[i]}"
-            # For ETH Run!
-            # image_path = home_folder + f"{ETH_images[i]}/images/dslr_images_undistorted"
-
-            error = demo_fn(gpu_num, image_path, f"{log_folder}/{d_set}", log_file)
-            print(f"/{scene_list[i]} Error: {error}")
+        for i in range(len(co3d_images)):
+            img_seq = co3d_images[i]
+            c, seq = img_seq.split('/')
+            image_path = f"/home/anthonyq/datasets/co3d_v2/{img_seq}/{img_postfix}"
+            # log_file = f"log_cam_poses_{img_seq}_{img_postfix}"
+            # cal_path = f"/home/anthonyq/datasets/co3d_v2/{c}/calibration_new_{seq}.npz"
+            # image_paths = home_folder + f"/{scene_list[i]}"
+            # out_path_pose = os.path.join(log_folder, d_set, c, seq, f"mapanything_poses_{img_postfix}.npz")
+            # out_path_ply = os.path.join(log_folder, d_set, c, seq, "mapanything_dense_points.ply")
+            outpath = f"{log_folder}/{d_set}/{img_postfix}/{c}/{seq}"
+            os.makedirs(f"{log_folder}/{d_set}/{img_postfix}/{c}", exist_ok=True)
+            log_file = f"{img_seq}_{img_postfix}_pose_log"
+            error = demo_fn(gpu_num, image_path, f"{log_folder}/{d_set}/{img_postfix}", log_file)
+            print(f"{img_seq}_{img_postfix} Error: {error}")
             errors.append(error)
-            f.write(f"/{scene_list[i]} Error: {error}\n")
+            f.write(f"{img_seq}_{img_postfix} Error: {error}\n")
 
         print("Reprojection Mean:", np.mean(errors))
-    # with open(f"{log_folder}/{d_set}/mean_result.txt", "w") as f:
+        # with open(f"{log_folder}/{d_set}/mean_result.txt", "w") as f:
         f.write(f"Mean reprojection value: {np.mean(errors)}\n")
-        # f.close()
 
-# Result: 0.7569866805025035
+# with torch.no_grad():
+#     errors = []
+#     with open(f"{log_folder}/{d_set}/mean_result.txt", "w") as f:
+#         for i in range(len(scene_list)):
+#             image_path = home_folder + f"/{scene_list[i]}"
+#             log_file = f"log_cam_poses_{scene_list[i]}"
+#             # For ETH Run!
+#             # image_path = home_folder + f"{ETH_images[i]}/images/dslr_images_undistorted"
+
+#             error = demo_fn(gpu_num, image_path, f"{log_folder}/{d_set}", log_file)
+#             print(f"/{scene_list[i]} Error: {error}")
+#             errors.append(error)
+#             f.write(f"/{scene_list[i]} Error: {error}\n")
+
+#         print("Reprojection Mean:", np.mean(errors))
+#     # with open(f"{log_folder}/{d_set}/mean_result.txt", "w") as f:
+#         f.write(f"Mean reprojection value: {np.mean(errors)}\n")
+#         # f.close()
