@@ -8,3 +8,4 @@ breadth_agent/src/modules/models/sfm_models/vggt/weights/
 breadth_agent/src/modules/models/sfm_models/vggt.egg-info/** 
 breadth_agent/src/modules/models/sfm_models/build/*
 breadth_agent/environment*
+/breadth_agent/src/modules/DataTypes/__pycache__

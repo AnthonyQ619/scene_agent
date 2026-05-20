@@ -297,7 +297,8 @@ def run_default_pycolmap_sparse_reconstruction(
     use_gpu=True,
     clean_output=True,
     matcher="exhaustive",
-    pose_file_name=""
+    pose_file_name="",
+    run_dense=True,
 ):
     """
     Default COLMAP-style sparse reconstruction using pycolmap.
@@ -344,8 +345,11 @@ def run_default_pycolmap_sparse_reconstruction(
     database_path = output_dir / "database.db"
     sparse_path = output_dir / "sparse"
     sparse_path.mkdir(parents=True, exist_ok=True)
+    dense_path = output_dir / "dense"
+    fused_ply_path = dense_path / "fused.ply"
 
     # calib = load_calibration(calibration_file)
+    # device = _get_device(use_gpu)
 
     model, params = load_calibration_npz(calibration_file)
 
@@ -428,103 +432,105 @@ def run_default_pycolmap_sparse_reconstruction(
     with open(f"{output_dir}/sparse_result.txt", "w") as f:
         f.write(best_reconstruction.summary())
     
-    store_extrinsics_information(best_reconstruction, output_dir, pose_file_name)
+    # store_extrinsics_information(best_reconstruction, output_dir, pose_file_name)
+    if run_dense:
+        # print("HERE IN DENSE")
+        # if not use_gpu:
+        #     raise RuntimeError(
+        #         "pycolmap.patch_match_stereo requires CUDA. "
+        #         "Set use_gpu=True or skip dense reconstruction."
+        #     )
+
+        dense_path.mkdir(parents=True, exist_ok=True)
+
+        # 4a. Undistort images and prepare COLMAP MVS workspace.
+        # This creates:
+        # dense/images
+        # dense/sparse
+        # dense/stereo
+        pycolmap.undistort_images(
+            output_path=str(dense_path),
+            input_path=str(final_sparse_path),
+            image_path=str(image_dir),
+            output_type="COLMAP",
+        )
+        # print("HERE IN DENSE")
+        # 4b. PatchMatch stereo.
+        patch_match_options = pycolmap.PatchMatchOptions()
+
+        # Default COLMAP dense behavior usually uses geometric consistency.
+        # This is the standard choice for better fused clouds.
+        patch_match_options.geom_consistency = True
+
+        patch_match_options.gpu_index = '1,2,3'
+
+        pycolmap.patch_match_stereo(
+            workspace_path=str(dense_path),
+            workspace_format="COLMAP",
+            options=patch_match_options,
+        )
+        # print("HERE IN DENSE")
+        # 4c. Stereo fusion to produce dense point cloud.
+        fusion_options = pycolmap.StereoFusionOptions()
+
+        pycolmap.stereo_fusion(
+            output_path=str(fused_ply_path),
+            workspace_path=str(dense_path),
+            workspace_format="COLMAP",
+            input_type="geometric",
+            options=fusion_options,
+            output_type="ply",
+        )
+
+        if not fused_ply_path.exists():
+            raise RuntimeError(
+                f"Dense fusion finished, but fused point cloud was not found: {fused_ply_path}"
+            )
+        # print("HERE IN DENSE")
+        # result["dense_path"] = str(dense_path)
+        # result["fused_ply_path"] = str(fused_ply_path)
+
+        print("Dense reconstruction complete.")
+        print(f"Dense workspace: {dense_path}")
+        print(f"Fused dense point cloud: {fused_ply_path}")
     return best_reconstruction, reconstructions
 
 # Log Folder
-log_folder = "/home/anthonyq/projects/scene_agent/breadth_agent/results/colmap_sparse_results"
+log_folder = "/home/anthonyq/projects/scene_agent/breadth_agent/results/colmap_dense_results"
 
 # # DTU RUN
-# scene_list = ["scan32", "scan33",
-#               "scan34", "scan48", "scan49", "scan62", "scan75",
-#               "scan77", "scan110", "scan114", "scan118"]
+scene_list = ["scan1", "scan4", "scan9", "scan10", 
+              "scan11", "scan12", "scan13", "scan15", 
+              "scan23", "scan24", "scan29"]
 
-# # Change to dataset home location
-# d_set = "DTU"
-# home_folder = f"/home/anthonyq/datasets/DTU"
-# cal_path = "/home/anthonyq/datasets/DTU/calibration_DTU_new.npz"
-
-## ETH RUN (Change homefolder to ETH location - Path commented below)
-# scene_list = ["courtyard", "delivery_area", "electro", 
-#               "facade", "kicker", "meadow",
-#               "office", "pipes", "playground",
-#               "relief", "relief_2", "terrace", "terrains"]
-## Home Folder/Image_path to use!
-## Uncomment all vars!
-# d_set = "ETH"
-# home_folder = "/home/anthonyq/datasets/ETH"
-# ## image_path/cal_path in the loop to uncomment!
-
-# # UNCOMMENT FOR TT RUN 
-# # scene_list = ["barn_1_40", "barn_186_225", "barn_371_410",
-# #              "caterpillar_1_40", "caterpillar_173_212", "caterpillar_344_383",
-# #              "church_1_40", "church_235_274", "church_468_507",
-# #              "courthouse_1_40", "courthouse_534_573", "courthouse_1067_1106",
-# #              "ignatius_1_40", "ignatius_113_152", "ignatius_224_263",
-# #              "meetingroom_1_40", "meetingroom_167_206", "meetingroom_332_371",
-# #              "truck_1_40", "truck_107_146", "truck_212_251"]
-# # scene_list = ["meetingroom_167_206", "meetingroom_332_371",
-# #              "truck_1_40", "truck_107_146", "truck_212_251"]
-
-# # Uncomment Both vars!
-# cal_path = "/home/anthonyq/datasets/tanks_and_temples/calibration_new_1920.npz"
-# d_set = "tanks_and_temples"
-# home_folder = f"/home/anthonyq/datasets/tanks_and_temples"
-
-# Co3Dv2 Test Run!
-img_postfix = "vggt_random_10" # Swap to Sequential String when ready
-# img_postfix = "middle_sequential_10"
-co3d_images = ["apple/110_13051_23361", "apple/189_20393_38136",
-               "ball/123_14363_28981", "ball/375_42693_85518",
-               "bench/415_57112_110099", "bench/415_57121_110109",
-               "book/119_13962_28926", "book/247_26469_51778", 
-               "bowl/69_5465_12831", "bowl/70_5792_13401", 
-               "broccoli/372_41112_81867", "broccoli/412_56288_108844",
-               "cake/374_42274_84517", "cake/403_53094_103680", 
-               "donut/391_47032_93657", "donut/403_52964_103416", 
-               "hydrant/167_18184_34441", "hydrant/411_56064_108483",
-               "mouse/107_12753_23606", "mouse/377_43416_86289", 
-               "orange/374_42196_84367", "orange/385_45386_90752", 
-               "plant/247_26441_50907", "plant/374_42005_84358",
-               "remote/195_20989_41543", "remote/350_36761_68623", 
-               "skateboard/245_26182_52130", "skateboard/366_39266_76077", 
-               "suitcase/50_2928_8645", "suitcase/410_55734_107452",
-               "teddybear/34_1479_4753", "teddybear/187_20215_38541", 
-               "toaster/372_41229_82130", "toaster/416_57389_110765", 
-               "toytrain/240_25394_51994", "toytrain/399_51323_100753",
-               "toytruck/190_20494_39385", "toytruck/346_36113_66551", 
-               "vase/374_41862_83720", "vase/380_44863_89631"]
-d_set = "co3d"
-
-# for i in range(len(scene_list)):
-#     # For ETH Run!
-#     image_path = home_folder + f"/{scene_list[i]}/images/dslr_images_undistorted"
-#     cal_path = f"/home/anthonyq/datasets/ETH/{scene_list[i]}/dslr_calibration_undistorted/calibration_ETH_new.npz"
-#     # image_path = home_folder + f"/{scene_list[i]}"
-#     outpath = f"{log_folder}/{d_set}/{scene_list[i]}"
+# Change to dataset home location
+d_set = "DTU"
+home_folder = f"/home/anthonyq/datasets/DTU"
+cal_path = "/home/anthonyq/datasets/DTU/calibration_DTU_new.npz"
 failed_runs = []
-for i in range(len(co3d_images)):
-    img_seq = co3d_images[i]
-    c, seq = img_seq.split('/')
-    image_path = f"/home/anthonyq/datasets/co3d_v2/{img_seq}/{img_postfix}"
-    cal_path = f"/home/anthonyq/datasets/co3d_v2/{c}/calibration_new_{seq}.npz"
+
+for i in range(len(scene_list)):
+    image_path = home_folder + f"/{scene_list[i]}"
+    outpath = f"{log_folder}/{d_set}/{scene_list[i]}"
     # image_paths = home_folder + f"/{scene_list[i]}"
     # out_path_pose = os.path.join(log_folder, d_set, c, seq, f"mapanything_poses_{img_postfix}.npz")
     # out_path_ply = os.path.join(log_folder, d_set, c, seq, "mapanything_dense_points.ply")
-    outpath = f"{log_folder}/{d_set}/{img_postfix}/{c}/{seq}"
-    file_name = f"{img_postfix}_pose_log.npz"
-
+    # outpath = f"{log_folder}/{d_set}/{img_postfix}/{c}/{seq}"
+    file_name = f"{scene_list[i]}_pose_log.npz"
+    # failed_runs = []
+    print(image_path)
     try:
         run_default_pycolmap_sparse_reconstruction(
             image_dir=image_path,
             calibration_file=cal_path,
             output_dir=outpath,
-            use_gpu=False,
+            use_gpu=True,
             clean_output=True,
             matcher="exhaustive",
-            pose_file_name=file_name
+            pose_file_name=file_name,
+            run_dense=True
         )
     except:
-        failed_runs.append(img_seq)
+        failed_runs.append(scene_list[i])
 
 print(failed_runs)
