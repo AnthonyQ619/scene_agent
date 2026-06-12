@@ -183,7 +183,7 @@ def store_extrinsics_information(recon, out_path) -> None:
         recon.images.items(),
         key=lambda kv: kv[1].name
     )
-
+    print(image_items_sorted)
     for image_id, image in image_items_sorted:
         has_pose = bool(getattr(image, "has_pose", False))
         if not has_pose:
@@ -344,7 +344,7 @@ def demo_fn(gpu_num: str, image_dir:str, log_dir:str, log_file:str):
             max_query_pts=4096,
             query_frame_num=frame_nums,
             keypoint_extractor="sp",
-            fine_tracking=False,
+            fine_tracking=True,
         )
 
         torch.cuda.empty_cache()
@@ -456,17 +456,17 @@ gpu_num = "7"
 
 
 # Co3Dv2 Test Run!
-# img_postfix = "vggt_random_10" # Swap to Sequential String when ready
-img_postfix = "middle_sequential_10"
-co3d_images = ["apple/110_13051_23361", "apple/189_20393_38136",
-               "ball/123_14363_28981", "ball/375_42693_85518",
-               "bench/415_57112_110099", "bench/415_57121_110109",
-               "book/119_13962_28926", "book/247_26469_51778", 
-               "bowl/69_5465_12831", "bowl/70_5792_13401", 
-               "broccoli/372_41112_81867", "broccoli/412_56288_108844",
-               "cake/374_42274_84517", "cake/403_53094_103680", 
-               "donut/391_47032_93657", "donut/403_52964_103416", 
-               "hydrant/167_18184_34441", "hydrant/411_56064_108483"]
+img_postfix = "vggt_random_10" # Swap to Sequential String when ready
+# img_postfix = "middle_sequential_10"
+co3d_images = ["apple/110_13051_23361", "apple/189_20393_38136",]
+            #    "ball/123_14363_28981", "ball/375_42693_85518",
+            #    "bench/415_57112_110099", "bench/415_57121_110109",
+            #    "book/119_13962_28926", "book/247_26469_51778", 
+            #    "bowl/69_5465_12831", "bowl/70_5792_13401", 
+            #    "broccoli/372_41112_81867", "broccoli/412_56288_108844",
+            #    "cake/374_42274_84517", "cake/403_53094_103680", 
+            #    "donut/391_47032_93657", "donut/403_52964_103416", 
+            #    "hydrant/167_18184_34441", "hydrant/411_56064_108483"]
 d_set = "co3d"
 failed_runs = []
 

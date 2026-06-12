@@ -173,6 +173,7 @@ def batch_np_matrix_to_pycolmap(
     extra_params=None,
     min_inlier_per_frame=64,
     points_rgb=None,
+    image_names=None,
 ):
     """
     Convert Batched NumPy Arrays to PyCOLMAP
@@ -271,8 +272,13 @@ def batch_np_matrix_to_pycolmap(
 
         frame = pycolmap.Frame(frame_id = fidx + 1,
                                    rig_id = rig.rig_id)
+        if image_names is None:
+            image_name = f"image_{fidx + 1}"
+        else:
+            image_name = image_names[fidx].split(".")[0]
+            
         image = pycolmap.Image(
-            image_id=fidx + 1, name=f"image_{fidx + 1}", camera_id=camera.camera_id, frame_id=frame.frame_id
+            image_id=fidx + 1, name=image_name, camera_id=camera.camera_id, frame_id=frame.frame_id
         )
         frame.add_data_id(image.data_id)
         reconstruction.add_frame(frame)

@@ -59,8 +59,10 @@ class CameraDataManager():
                 image_files = image_files[:max_images]
 
         print(image_files)
+        print(file_names)
         # self.directory_path = Path(__file__).resolve().parents[2]
         # self.directory_path = str(self.directory_path / "results" / "workspace") 
+        self.image_names = file_names
         self.directory_path = colmap_workspace
         if os.path.exists(self.directory_path):
             # Delete the directory and all its contents
@@ -99,6 +101,7 @@ class CameraDataManager():
         if intrinsics is not None and len(intrinsics) > 2:
             multi_camera = True
 
+        
         self.cam_data = CameraData(image_names=file_names,
                                    image_list=image_list,
                                    image_shape_old=image_shape_old,
@@ -187,15 +190,16 @@ class CameraDataManager():
 
                 # Resize to target size
                 square_img = square_img.resize((target_res, target_res), Image.Resampling.BICUBIC)
-                square_img_np = np.asarray(square_img)
+                # square_img_np = np.asarray(square_img)
 
-                image_list.append(square_img_np)
+                image_list.append(square_img)#square_img_np)
                 
                 # Write Image to Colmap Workspace
+                image_file_name = self.image_names[i].split(".")[0]
                 if os.name == 'nt':
-                    file_name = f"{self.image_dir}\\{i:06d}.png"
+                    file_name = f"{self.image_dir}\\{image_file_name}.png"
                 else:
-                    file_name = f"{self.image_dir}/{i:06d}.png"
+                    file_name = f"{self.image_dir}/{image_file_name}.png"
                 square_img.save(file_name)
                 # square_img.save(f"{self.image_dir}\\{i:06d}.png")
 
@@ -253,15 +257,16 @@ class CameraDataManager():
                 image = image.convert("RGB") # Confirm image is in RGB
 
                 image = image.resize(target_res, Image.Resampling.BICUBIC)
-                image_np = np.asarray(image)
+                #image_np = np.asarray(image)
 
-                image_list.append(image_np)
+                image_list.append(image) #image_np)
 
                 # Write Image to Colmap Workspace
+                image_file_name = self.image_names[i].split(".")[0]
                 if os.name == 'nt':
-                    file_name = f"{self.image_dir}\\{i:06d}.png"
+                    file_name = f"{self.image_dir}\\{image_file_name}.png"
                 else:
-                    file_name = f"{self.image_dir}/{i:06d}.png"
+                    file_name = f"{self.image_dir}/{image_file_name}.png"
                 image.save(file_name)
 
         return image_list, image_scale, image_shape_old, image_shape_new

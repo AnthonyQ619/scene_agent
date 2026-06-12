@@ -80,12 +80,12 @@ reconstructed_scene.{module_name}() # Images read in previous step (1)
                          example=example)
         
         # Initialize Model
-        # if os.name == 'nt':
-        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
-        # elif os.name == 'posix':
-        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
+        if os.name == 'nt':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        elif os.name == 'posix':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
 
-        WEIGHT_MODULE = "/workspace/model_weights/model.pt"
+        # WEIGHT_MODULE = "/workspace/model_weights/model.pt"
 
         device = f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu"
 
@@ -434,11 +434,11 @@ reconstructed_scene.{module_name}(
             "Features passed must be two view correspondences. "
             "Ensure to invoke Feature Matching Two View tools prior to this call."
         )
-
+        W, H = self.image_list[0].size
         if self.optimizer is not None:
             state = IncrementalSfMState(self.K_mat, self.dist,
-                                        width=self.cam_data.image_list[0].shape[1], 
-                                        height=self.cam_data.image_list[0].shape[0],
+                                        width=W, 
+                                        height=H,
                                         )
             for i in range(len(feature_pairs.img_features)):
                 state.keypoints[i] = feature_pairs.img_features[i]

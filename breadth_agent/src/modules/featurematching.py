@@ -606,12 +606,14 @@ reconstructed_scene.{module_name}(
 ############################################# DETECTOR--FREE #############################################
 
 class FeatureMatchRoMAPair(FeatureMatching):
-    def __init__(self, img_path:str, setting: str = "indoor", 
-                 img_reshape: bool = True):
+    def __init__(self, 
+                 cam_data: CameraData, 
+                 setting: str = "indoor", 
+                 RANSAC_homography: bool = False,
+                 RANSAC_threshold: float = 3.0,
+                 RANSAC_conf: float = 0.99):
 
-        super().__init__("None")
-
-        self.module_name = "FeatureMatchLoftrPair"
+        self.module_name = "FeatureMatchRoMAPair"
 
         self.description = f"""
 Detects point correspondance between two sequential frames at once to detect matching 
@@ -664,6 +666,14 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
         if setting.lower() not in SETTINGS:
             message = 'Error: setting is not supported. Use one of ' + str(SETTINGS) + ' instead to use this Detector-Free Matcher.'
             raise Exception(message)
+
+        super().__init__(cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC_homography=RANSAC_homography,
+                         RANSAC_threshold=RANSAC_threshold)
         
         self.setting = SETTINGS[setting.lower()]
 
@@ -671,27 +681,30 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
             self.roma_model = roma_outdoor(device=self.device)
         else:
             self.roma_model = roma_indoor(device=self.device)
-
-        self.image_path = sorted(glob.glob(img_path + "\\*"))
-
-        self.img_shape = cv2.imread(self.image_path[0]).shape[:2] #HxWxC -> HxW
-
-        # self.ep_check = EpipoleChecker(pxl_min=25)
     
-    def __call__(self):
+    def find_correspondences(self, features: list[Points2D] | None) -> PointsMatched:
+        # matched_points = PointsMatched(pairwise_matches=[], 
+        #                                image_size=np.array([self.img_shape[1], self.img_shape[0]]),
+        #                                image_scale=[1.0, 1.0])
+
         matched_points = PointsMatched(pairwise_matches=[], 
-                                       image_size=np.array([self.img_shape[1], self.img_shape[0]]),
-                                       image_scale=[1.0, 1.0])
-        H_1, W_1 = self.img_shape[:2]
-        for i in tqdm(range(8)): # len(self.image_path)
-            img1_f = self.image_path[i]
-            img2_f = self.image_path[i + 1]
+                                       pairwise_indices=[],
+                                       image_size=np.array(self.cam_data.image_shape_new),
+                                       image_scale=np.array(self.cam_data.image_scale),
+                                       img_features=[])
 
-            img1 = Image.open(img1_f)
-            img2 = Image.open(img2_f)
+        W_1, H_1 = self.cam_data.image_shape_new
+        for i in tqdm(0, len(self.image_list), 2): # len(self.image_path)
+            # img1_f = self.image_path[i]
+            # img2_f = self.image_path[i + 1]
+            img1 = self.image_list[i]
+            img2 = self.image_list[i + 1]
 
-            img1 = ImageOps.exif_transpose(img1)
-            img2 = ImageOps.exif_transpose(img2)
+            # img1 = Image.open(img1_f)
+            # img2 = Image.open(img2_f)
+
+            # img1 = ImageOps.exif_transpose(img1)
+            # img2 = ImageOps.exif_transpose(img2)
 
             # Match
             warp, certainty = self.roma_model.match(img1, img2, device=self.device)
@@ -703,28 +716,35 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
             kpts1, kpts2 = kpts1.cpu().numpy(), kpts2.cpu().numpy()
 
             print(kpts1.shape)
-            inlier_pts1, inlier_pts2 = self.outlier_reject(kpts1, kpts2)
-            #inlier_pts1, inlier_pts2 = self.ep_check(inlier_pts1, inlier_pts2)
+            inlier_pts1, inlier_pts2, idx1_inliers, idx2_inliers, M = self.outlier_reject(new_pt1, new_pt2, inlier_idx1, idx2, scene)
+            
+            feat_pair = np.hstack((inlier_pts1.points2D, inlier_pts2.points2D))
+            idx_pair = np.hstack((np.vstack(idx1_inliers), np.vstack(idx2_inliers)))
 
-            matched_points.set_matching_pair(np.hstack((inlier_pts1, inlier_pts2)))
+            # matched_points.set_matching_pair(feat_pair, idx_pair)
+            # matched_points.img_features(kpts1)
+            # matched_points.img_features(kpts2)
+            matched_points.set_matching_pair(
+                data=feat_pair,
+                idx_data=idx_pair,
+                pair=(scene, scene + 1),
+                matcher="roma",
+                index_type="pair_local",
+                confidence=mconf,
+                F=M,
+            )
+
+            # matched_points.set_matching_pair(np.hstack((inlier_pts1, inlier_pts2)))
 
         return matched_points
-
-    def outlier_reject(self, pts1: np.ndarray, pts2: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        # _, mask = cv2.findFundamentalMat(pts1, pts2, cv2.FM_LMEDS)
-        _, mask = cv2.findFundamentalMat(pts1, pts2, cv2.FM_RANSAC, ransacReprojThreshold=2.0)
-
-        # Could update points2D to inlier points with Mask
-        inlier_pts1 = pts1[mask.ravel() == 1] #Points2D( #**pts1.set_inliers(mask))
-        inlier_pts2 = pts2[mask.ravel() == 1] #Points2D( #**pts2.set_inliers(mask))
-
-
-        return inlier_pts1, inlier_pts2
     
 class FeatureMatchLoftrPair(FeatureMatching):
-    def __init__(self, img_path:str, setting: str = "indoor", 
-                 img_reshape: bool = True):
-        super().__init__("None")
+    def __init__(self, 
+                 cam_data: CameraData, 
+                 setting: str = "indoor", 
+                 RANSAC_homography: bool = False,
+                 RANSAC_threshold: float = 3.0,
+                 RANSAC_conf: float = 0.99):
 
         self.module_name = "FeatureMatchLoftrPair"
 
@@ -776,42 +796,35 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
             message = 'Error: setting is not supported. Use one of ' + str(SETTINGS) + ' instead to use this Detector-Free Matcher.'
             raise Exception(message)
         
+        super().__init__(cam_data=cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example,
+                         RANSAC_conf=RANSAC_conf,
+                         RANSAC_homography=RANSAC_homography,
+                         RANSAC_threshold=RANSAC_threshold)
+        
         weight = SETTINGS[setting.lower()]
 
         self.matcher = KF.LoFTR(pretrained=weight)
 
-        self.image_path = sorted(glob.glob(img_path + "\\*"))
-        
-        img_shape = cv2.imread(self.image_path[0]).shape[:2] #HxWxC -> HxW
-
-        self.ep_check = EpipoleChecker(pxl_min=25)
-        
-        if "jpg" in self.image_path[0].lower():
-            self.orientation = self.kornia_orientation_reader(self.image_path[0])
-        else:
-            self.orientation = False
-
-        if (img_reshape == True) or (weight == "indoor_new"):
-            self.img_shape = (480, 640) # HxW
-            self.scale = [480/img_shape[0], 640/img_shape[1]]
-        else: 
-            print(img_shape)
-            self.img_shape = img_shape
-            self.scale = [1.0, 1.0]
-
-    def __call__(self) -> PointsMatched:
+    def find_correspondences(self, features: list[Points2D] | None) -> PointsMatched:
+        # matched_points = PointsMatched(pairwise_matches=[], 
+        #                                image_size=np.array([self.img_shape[1], self.img_shape[0]]),
+        #                                image_scale=[1.0, 1.0])
 
         matched_points = PointsMatched(pairwise_matches=[], 
-                                       image_size=np.array([self.img_shape[0], self.img_shape[1]]),
-                                       image_scale=self.scale)
-        
-        for i in tqdm(range(5)): # len(self.image_path)
-        # img in self.image_path:
-            img1_f = self.image_path[i]
-            img2_f = self.image_path[i + 1]
+                                       pairwise_indices=[],
+                                       image_size=np.array(self.cam_data.image_shape_new),
+                                       image_scale=np.array(self.cam_data.image_scale),
+                                       img_features=[])
 
-            img1 = self.kornia_img_reader(img1_f)
-            img2 = self.kornia_img_reader(img2_f)
+        W_1, H_1 = self.cam_data.image_shape_new
+        for i in tqdm(0, len(self.image_list), 2): # len(self.image_path)
+            # img1_f = self.image_path[i]
+            # img2_f = self.image_path[i + 1]
+            img1 = self.image_list[i]
+            img2 = self.image_list[i + 1]
 
             input_dict = {
                 "image0": img1,  # LofTR works on grayscale images only
@@ -823,43 +836,31 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
 
             mkpts0 = correspondences["keypoints0"].cpu().numpy()
             mkpts1 = correspondences["keypoints1"].cpu().numpy()
+
+            inlier_pts1, inlier_pts2, idx1_inliers, idx2_inliers, M = self.outlier_reject(mkpts0, mkpts1, scene)
             
-            inlier_pts1, inlier_pts2 = self.outlier_reject(mkpts0, mkpts1)
+            feat_pair = np.hstack((inlier_pts1.points2D, inlier_pts2.points2D))
+            idx_pair = np.hstack((np.vstack(idx1_inliers), np.vstack(idx2_inliers)))
+
+            # inlier_pts1, inlier_pts2 = self.outlier_reject(mkpts0, mkpts1)
             #inlier_pts1, inlier_pts2 = self.ep_check(inlier_pts1, inlier_pts2)
             
-            matched_points.set_matching_pair(np.hstack((inlier_pts1, inlier_pts2)))
+            # matched_points.set_matching_pair(np.hstack((inlier_pts1, inlier_pts2)))
+            matched_points.set_matching_pair(
+                data=feat_pair,
+                idx_data=idx_pair,
+                pair=(scene, scene + 1),
+                matcher="loftr",
+                index_type="pair_local",
+                confidence=mconf,
+                F=M,
+            )
+
+            # matched_points.set_matching_pair(np.hstack((inlier_pts1, inlier_pts2)))
 
         return matched_points
 
-    def outlier_reject(self, pts1: np.ndarray, pts2: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        _, mask = cv2.findFundamentalMat(pts1, pts2, cv2.FM_LMEDS)
-
-        # Could update points2D to inlier points with Mask
-        inlier_pts1 = pts1[mask.ravel() == 1] #Points2D( #**pts1.set_inliers(mask))
-        inlier_pts2 = pts2[mask.ravel() == 1] #Points2D( #**pts2.set_inliers(mask))
-
-
-        return inlier_pts1, inlier_pts2
     
-    def kornia_orientation_reader(self, img_path):
-        img = Image.open(img_path)
-        exif_dict = piexif.load(img.info.get('exif', b''))
-        orientation = exif_dict["0th"].get(piexif.ImageIFD.Orientation, 1)
-
-        return orientation
-    
-    def kornia_img_reader(self, img_path):
-        img = K.io.load_image(img_path, K.io.ImageLoadType.RGB32)[None, ...]
-
-        img = K.geometry.resize(img, self.img_shape, antialias=True)
-
-        img_g = K.color.rgb_to_grayscale(img)
-
-        if self.orientation:
-            img_g = torch.rot90(img_g, k = 1, dims=(2,3))
-
-        return img_g
-
 ##########################################################################################################
 ############################################# DETECTOR-BASED #############################################
 class FeatureMatchSuperGluePair(FeatureMatching):
@@ -1030,7 +1031,15 @@ reconstructed_scene.{module_name}(
             feat_pair = np.hstack((inlier_pts1.points2D, inlier_pts2.points2D))
             idx_pair = np.hstack((np.vstack(idx1_inliers), np.vstack(idx2_inliers)))
 
-            matched_points.set_matching_pair(feat_pair, idx_pair)
+            # matched_points.set_matching_pair(feat_pair, idx_pair)
+            matched_points.set_matching_pair(
+                data=feat_pair,
+                idx_data=idx_pair,
+                pair=(scene, scene + 1),
+                matcher="superglue",
+                index_type="global",
+                F=F,
+            )
             matched_points.img_features.append(pt1.points2D)
 
         # Get the last image feature set
@@ -1251,7 +1260,15 @@ reconstructed_scene.{module_name}(
             # print("INDEX SHAPE:", idx_pair.shape)
             # print("INDEX Data:", idx_pair[:10])
             # print("FEAT SHAPE:", feat_pair.shape)
-            matched_points.set_matching_pair(feat_pair, idx_pair)
+            # matched_points.set_matching_pair(feat_pair, idx_pair)
+            matched_points.set_matching_pair(
+                data=feat_pair,
+                idx_data=idx_pair,
+                pair=(scene, scene + 1),
+                matcher="lightglue",
+                index_type="global",
+                F=F,
+            )
             matched_points.img_features.append(pt1.points2D)
             # matched_points.set_matching_pair(np.hstack((inlier_pts1, inlier_pts2)))
 
@@ -1436,7 +1453,15 @@ reconstructed_scene.{module_name}(
             # print("INDEX SHAPE:", idx_pair.shape)
             # print("INDEX Data:", idx_pair[:10])
             # print("FEAT SHAPE:", feat_pair.shape)
-            matched_points.set_matching_pair(feat_pair, idx_pair)
+            # matched_points.set_matching_pair(feat_pair, idx_pair)
+            matched_points.set_matching_pair(
+                data=feat_pair,
+                idx_data=idx_pair,
+                pair=(scene, scene + 1),
+                matcher="flann",
+                index_type="global",
+                F=F,
+            )
             matched_points.img_features.append(pt1.points2D)
             # matched_points.set_matching_pair(np.hstack((inlier_pts1, inlier_pts2)))
 
@@ -1615,7 +1640,15 @@ reconstructed_scene.{module_name}(
             feat_pair = np.hstack((inlier_pts1.points2D, inlier_pts2.points2D))
             idx_pair = np.hstack((np.vstack(idx1_inliers), np.vstack(idx2_inliers)))
 
-            matched_points.set_matching_pair(feat_pair, idx_pair)
+            # matched_points.set_matching_pair(feat_pair, idx_pair)
+            matched_points.set_matching_pair(
+                data=feat_pair,
+                idx_data=idx_pair,
+                pair=(scene, scene + 1),
+                matcher="lightglue",
+                index_type="global",
+                F=F,
+            )
             matched_points.img_features.append(pt1.points2D)
         # Get the last image feature set
         matched_points.img_features.append(features[-1].points2D)

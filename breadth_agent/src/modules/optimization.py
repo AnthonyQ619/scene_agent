@@ -562,10 +562,19 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         # Run Optimizer
         summary = self._solve(ba_opts, config, recon)
 
+        print("After BA:")
+        for image_id, image in recon.images.items():
+            print(image_id, image.name)
+
         # print("SUMMARY", summary)
         self.summary = summary
         # --- Step 4: Export optimized results back into the Scene ---
         self._write_back_to_scene(current_scene, recon, trackid_to_point3Did)
+
+
+        print("After Writing to Scene:")
+        for image_id, image in recon.images.items():
+            print(image_id, image.name)
 
         # Write reconstructed scene to workspace (Sparse Scene Currently)
         recon.write(self.directory_path)
@@ -585,6 +594,10 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         return current_scene #, summary
     
     def _solve(self, ba_opts, config, recon):
+        print("Before BA:")
+        for image_id, image in recon.images.items():
+            print(image_id, image.name)
+
         bundle_adjuster = pycolmap.create_default_bundle_adjuster(ba_opts, config, recon)
         return bundle_adjuster.solve()
 
@@ -779,7 +792,9 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
                 camera_id = frame_to_camera[f]
             else:
                 camera_id = 1
-
+            print(self.cam_data.image_names[f])
+            image_file_name = self.cam_data.image_names[f].split(".")[0]
+            print(image_file_name)
             # Create frame + set pose from your initial estimate
             frame = pycolmap.Frame(frame_id = frame_id,
                                    rig_id = rig.rig_id)
@@ -791,7 +806,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
             if len(rows) == 0:
                 # still add an image (pose exists), but no keypoints
                 img = pycolmap.Image(
-                    name=f"{f:06d}.png",
+                    name=f"{image_file_name}.png",#f"{f:06d}.png",
                     points2D=pycolmap.Point2DList(),
                     camera_id=camera_id,
                     image_id=image_id,
@@ -819,7 +834,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
                 pts2d.append(pycolmap.Point2D(xy))
 
             img = pycolmap.Image(
-                name=f"{f:06d}.png",
+                name=f"{image_file_name}.png",#{f:06d}.png",
                 points2D=pts2d,
                 camera_id=camera_id,
                 image_id=image_id,

@@ -226,7 +226,7 @@ reconstructed_scene.{module_name}(
         for i in tqdm(range(len(self.image_list)),
                       desc="Detecting Features"):
 
-            img = self.image_list[i] #self.image_path[i]
+            img = np.asarray(self.image_list[i]) #self.image_path[i]
             im_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) #cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2GRAY)
 
             kp, des = self.detector.detectAndCompute(im_gray, None)
@@ -352,7 +352,7 @@ reconstructed_scene.FeatureDetectionORB(
     def _detect_features(self) -> list[Points2D]:
         
         for i in tqdm(range(len(self.image_list)), desc="Detecting Features"):
-            img = self.image_list[i] 
+            img = np.asarray(self.image_list[i])
             im_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) # Convert Images to Gray
 
             kp, des = self.detector.detectAndCompute(im_gray, None)
@@ -388,83 +388,6 @@ reconstructed_scene.FeatureDetectionORB(
                                           image_size = image_size,
                                           reshape_scale=self.image_scale,
                                           binary_desc=True))
-        return self.features
-
-class FeatureDetectionFAST(FeatureClass):
-    def __init__(self, image_path:str | None,
-                 image_reshape: tuple[int, int] | None = None):
-        super().__init__(image_path)
-        """
-        Detect Features (Keypoints and Descriptors) using the FAST algorithm
-
-        Assume Calibration is zero-based for now for proper image-reshaping
-
-        Input: Path to image list
-        Output: 
-            list[Points2D]:
-                Points2D (Detected Features per Scene):
-                    points2D:       [N x 2] np.float32
-                    descriptors:    [N x 32] np.uint8
-                    scores:         [N x 1] np.float32
-                    image_size:     [1 x 2] np.int64
-        """
-
-        
-        self.module_name = "FeatureDetectionFAST"
-        self.description = f"""
-Detects existing keypoints(features) and descriptors in images using the FAST feature detector. 
-For Descriptor generation, this module uses the BRIEF description extractor algorithm.
-This module is used when feature detection needs to be very fast, and or real-time, 
-for a wokring solution pipeline, or mentioning fast feature detection to simulate 
-real-time use is directly stated.
-
-Initialization Parameters: 
-- image_path (str): the image path in which the images are stored and to utilize for scene building
-- image_reshape: shape of image in the format of (int, int) = (Height, Width) to reshape current image to.
-    - Default (int, int): None (No Reshape takes place by default)
-
-Module Output: 
-    list[Points2D]:
-        Points2D (Detected Features per Scene):
-            points2D:       [N x 2] np.float32
-            descriptors:    [N x 32] np.uint8
-            scores:         [N x 1] np.float32
-            image_size:     [1 x 2] np.int64  
-"""
-
-        self.example = f"""
-Initialization: 
-feature_detector = FeatureDetectionFAST(image_path=image_path) # image_path is a string for path to saved images
-
-Function call:  
-features = feature_detector()
-"""
-
-        self.detector = cv2.FastFeatureDetector_create(threshold=20)
-        self.brief_des = cv2.xfeatures2d.BriefDescriptorExtractor_create()
-
-    def __call__(self) -> list[Points2D]:
-        for i in tqdm(range(12)): # len(self.image_path)
-        # img in self.image_path:
-            img = self.image_path[i]
-            im_gray = cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2GRAY)
-
-            # Keypoints
-            kp = self.detector.detect(im_gray, None)
-            # Descriptors
-            kp, des = self.brief_des.compute(im_gray, kp)
-            
-            pts = np.array([kp[i].pt for i in range(len(kp))], np.float32)
-            scores = np.vstack(np.array([kp[i].response for i in range(len(kp))], np.float32))
-
-            image_size = np.array([im_gray.shape[1], im_gray.shape[0]]) 
-
-            self.features.append(Points2D(points2D = pts, 
-                                          descriptors = des,
-                                          scores = scores, 
-                                          image_size = image_size,
-                                          reshape_scale=[1.0, 1.0]))
-        
         return self.features
 
 #### DEEP LEARNING MODELS #####
@@ -551,7 +474,7 @@ reconstructed_scene.{module_name}(
         for i in tqdm(range(len(self.image_list)),
                       desc="Detecting Features"): # len(self.image_path)
             
-            img = self.image_list[i]
+            img = np.asarray(self.image_list[i])
             img_torch = numpy_image_to_torch(img)
         
             # Detect Keypoints

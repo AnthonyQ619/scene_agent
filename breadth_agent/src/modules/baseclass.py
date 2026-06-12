@@ -912,7 +912,7 @@ class FeatureClass(PipelineModule, ABC):
         self.cam_data = cam_data
         self.image_list = cam_data.image_list
         self.image_scale = cam_data.image_scale
-        self.image_shape = cam_data.image_list[0].shape[:2]
+        self.image_shape = cam_data.image_list[0].size # Width, Height
         
         # Personal Variables of Feature Module
         self.features: list[Points2D] = []
@@ -1613,7 +1613,8 @@ class OptimizationClass(PipelineModule, ABC):
         self.K = cam_data.get_K()
         self.dist = cam_data.get_distortion()
         self.cam_data = cam_data
-        self.H, self.W = cam_data.image_list[0].shape[:2] 
+        #self.H, self.W = cam_data.image_list[0].shape[:2] 
+        self.W, self.H = cam_data.image_list[0].size
         self.multi_cam = cam_data.multi_cam
 
         # Set up Bundle Adjustment Params

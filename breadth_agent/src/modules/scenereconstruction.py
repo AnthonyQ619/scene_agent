@@ -68,7 +68,7 @@ class Sparse3DReconstructionMapAnything(SparseSceneEstimation):
                 [TF.ToTensor(), TF.Normalize(mean=img_norm.mean, std=img_norm.std)]
             )
 
-        self.height, self.width = self.image_list[0].shape[:2]
+        self.width, self.height = self.image_list[0].size
         self.minimum_observation = min_observe
         self.update_intrinsics = update_intrinsics
 
@@ -309,12 +309,12 @@ reconstructed_scene.{module_name}()
                          example=example)
         
         # Initialize Model
-        # if os.name == 'nt':
-        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
-        # elif os.name == 'posix':
-        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
+        if os.name == 'nt':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        elif os.name == 'posix':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
 
-        WEIGHT_MODULE = "/workspace/model_weights/model.pt"
+        # WEIGHT_MODULE = "/workspace/model_weights/model.pt"
             
         self.device = f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu"
 
@@ -328,7 +328,7 @@ reconstructed_scene.{module_name}()
         self.model.load_state_dict(torch.load(WEIGHT_MODULE, weights_only=True))
         self.model.eval()
 
-        self.height, self.width = self.image_list[0].shape[:2]
+        self.width, self.height = self.image_list[0].size
          # Load Images in correct format for VGGT inference
         to_tensor = TF.ToTensor()
         tensor_img_list = [to_tensor(img) for img in self.image_list]
@@ -416,6 +416,7 @@ reconstructed_scene.{module_name}()
             shared_camera=True,
             camera_type="SIMPLE_PINHOLE",
             points_rgb=points_rgb,
+            image_names=self.cam_data.image_names
         )
 
         points3D = Points3D()
@@ -516,12 +517,12 @@ reconstructed_scene.{module_name}(
                          example=example)
         
         # Initialize Model
-        # if os.name == 'nt':
-        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
-        # elif os.name == 'posix':
-        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
+        if os.name == 'nt':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        elif os.name == 'posix':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
 
-        WEIGHT_MODULE = "/workspace/model_weights/model.pt"
+        # WEIGHT_MODULE = "/workspace/model_weights/model.pt"
             
         self.device = f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu"
 
@@ -535,7 +536,7 @@ reconstructed_scene.{module_name}(
         self.model.load_state_dict(torch.load(WEIGHT_MODULE, weights_only=True))
         self.model.eval()
 
-        self.height, self.width = self.image_list[0].shape[:2]
+        self.width, self.height = self.image_list[0].size
          # Load Images in correct format for VGGT inference
         to_tensor = TF.ToTensor()
         tensor_img_list = [to_tensor(img) for img in self.image_list]
@@ -1152,12 +1153,12 @@ reconstructed_scene.{module_name}()
                          example=example)
         
         # Initialize Model
-        # if os.name == 'nt':
-        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
-        # elif os.name == 'posix':
-        #     WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
+        if os.name == 'nt':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
+        elif os.name == 'posix':
+            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
 
-        WEIGHT_MODULE = "/workspace/model_weights/model.pt"
+        # WEIGHT_MODULE = "/workspace/model_weights/model.pt"
         self.device = f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu"
 
         if self.device == f"cuda:{self.cam_data.gpu_num}":
@@ -1170,7 +1171,7 @@ reconstructed_scene.{module_name}()
         self.model.load_state_dict(torch.load(WEIGHT_MODULE, weights_only=True))
         self.model.eval()
 
-        self.height, self.width = self.image_list[0].shape[:2]
+        self.width, self.height = self.image_list[0].size
         # Load Images in correct format for VGGT inference
         to_tensor = TF.ToTensor()
         tensor_img_list = []

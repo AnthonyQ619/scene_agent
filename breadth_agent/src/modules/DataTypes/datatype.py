@@ -172,75 +172,214 @@ class Points2D:
 
 @dataclass
 class PointsMatched:
-    # General Data Information for Feature Matches
-    image_size: np.ndarray              # 1x2 [np.int64] (Simply Image Shape: (W, H))
-    image_scale: list[float]            # [W_scale, H_scale] if image is resized
-    multi_view: bool                    # Determine if Pairwise/Feature Matching
-    stereo_cam: bool                    # Deterine if the camera utilized is a stereo camera for feature matching/tracking
+    # General Data Information
+    image_size: np.ndarray | None = None
+    image_scale: list[float] = field(default_factory=lambda: [1.0, 1.0])
+    multi_view: bool = False
+    stereo_cam: bool = False
 
     # Tracked Data Features
-    data_matrix: np.ndarray             # Data Structure to store corresponding points. In the form of Nx4 -> [track_id, frame_num, x, y]
-    track_map: dict                     # Used to aid in the feature matching process.
-    point_count: int                    # Based on track_id max count -> tells us how many 3D points exist
-    
-    # Image Pair Data Features
-    pairwise_matches: list[np.ndarray]  # Data Structure to store Pairwise feature matches. Form of Nx4 -> [x1, y1, x2, y2]
-    pairwise_indices: list[np.ndarray]  # Data Structure to store Pairwise feature matches by Index. Form of Nx2 -> [feature_idx1, feature_idx2]
-    img_features: list[np.ndarray]      # Data Structure to store the detected features per image
+    data_matrix: np.ndarray | None = None      # Nx4 -> [track_id, frame_num, x, y]
+    track_map: dict = field(default_factory=dict)
+    point_count: int = 0
 
+    # Pairwise Data
+    pairwise_matches: list[np.ndarray] = field(default_factory=list)  # Nx4 -> [x1, y1, x2, y2]
+    pairwise_indices: list[np.ndarray] = field(default_factory=list)  # Nx2 -> [idx1, idx2]
 
-    def __init__(self,  data_matrix: np.ndarray | None = None, 
-                        pairwise_matches: list[np.ndarray] | None = None,
-                        pairwise_indices: list[np.ndarray] | None = None,
-                        multi_view: bool = False,
-                        track_map: dict = {},
-                        point_count: int = 0,
-                        image_size: np.ndarray | None = None,
-                        image_scale: list[float] = [1.0, 1.0],
-                        img_features: list[np.ndarray] | None = None):
-        self.data_matrix = data_matrix
-        self.pairwise_matches = pairwise_matches
-        self.pairwise_indices = pairwise_indices
-        self.track_map = track_map
-        self.point_count = point_count
-        self.image_size = image_size
-        self.image_scale = image_scale
+    # Existing image-global feature storage
+    img_features: list[np.ndarray] = field(default_factory=list)
 
-        self.multi_view = multi_view
-        self.img_features = img_features
+    # New lightweight metadata; avoids new classes
+    pairwise_meta: list[dict] = field(default_factory=list)
 
-    # Feature Tracking Functions (Multi-View)
+    # Optional pair-local features for RoMa / LoFTR
+    pair_features: dict = field(default_factory=dict)
+
     def set_matched_matrix(self, data: list[list]) -> None:
         self.data_matrix = np.array(data)
         self.multi_view = True
 
-    # Feature Matching (Two-View)
-    def set_matching_pair(self, data:np.ndarray, idx_data: np.ndarray) -> None:
-        assert (data.shape[1] == 4), "Not enough data stored in column. Each row must contain: [x1, y1, x2, y2] of matching feature pair."
+    def set_matching_pair(
+        self,
+        data: np.ndarray,
+        idx_data: np.ndarray | None = None,
+        pair: tuple[int, int] | None = None,
+        matcher: str = "unknown",
+        index_type: str = "global",
+        confidence: np.ndarray | None = None,
+        F: np.ndarray | None = None,
+        inlier_mask: np.ndarray | None = None,
+    ) -> None:
+        """
+        Store pairwise matches.
+
+        Parameters
+        ----------
+        data:
+            Nx4 array: [x1, y1, x2, y2]
+
+        idx_data:
+            Nx2 array: [idx1, idx2]
+
+            If index_type == "global":
+                idx1 and idx2 index into img_features[image_i/image_j].
+
+            If index_type == "pair_local":
+                idx1 and idx2 index into this pair's local matched rows.
+                This is the correct mode for RoMa / LoFTR.
+
+        pair:
+            Tuple of image ids, e.g. (scene, scene + 1)
+
+        matcher:
+            "lightglue", "loftr", "roma", etc.
+
+        index_type:
+            "global", "pair_local", or "none"
+        """
+        assert data.ndim == 2 and data.shape[1] == 4, (
+            "Each row must contain [x1, y1, x2, y2]."
+        )
+
+        N = data.shape[0]
+
+        if idx_data is None:
+            idx_data = np.stack(
+                [np.arange(N, dtype=np.int64), np.arange(N, dtype=np.int64)],
+                axis=1,
+            )
+            index_type = "pair_local"
+
+        assert idx_data.ndim == 2 and idx_data.shape[1] == 2, (
+            "idx_data must be Nx2: [idx1, idx2]."
+        )
+
+        assert len(idx_data) == N, (
+            "idx_data and data must have the same number of rows."
+        )
+
+        assert index_type in {"global", "pair_local", "none"}, (
+            "index_type must be one of: 'global', 'pair_local', 'none'."
+        )
+
         self.pairwise_matches.append(data)
         self.pairwise_indices.append(idx_data)
+
+        self.pairwise_meta.append({
+            "pair": pair,
+            "matcher": matcher,
+            "index_type": index_type,
+            "confidence": confidence,
+            "F": F,
+            "inlier_mask": inlier_mask,
+        })
+
+        if pair is not None and index_type == "pair_local":
+            self.pair_features[pair] = (data[:, :2], data[:, 2:])
+
         self.multi_view = False
 
-    def access_point3D(self, track_id: int) -> np.ndarray: # 3D point returns a Nx3 Matrix of (Cam, x, y)
-        indicies = np.where(self.data_matrix[:, 0] == track_id)[0]
-        return self.data_matrix[indicies, 1:] 
+    def access_point3D(self, track_id: int) -> np.ndarray:
+        indices = np.where(self.data_matrix[:, 0] == track_id)[0]
+        return self.data_matrix[indices, 1:]
 
     def access_matching_pair(self, pair_index: int) -> tuple[np.ndarray, np.ndarray]:
         data = self.pairwise_matches[pair_index]
+        return data[:, :2], data[:, 2:]
 
-        pts1 = data[:, :2]
-        pts2 = data[:, 2:]
-
-        return pts1, pts2
-    
-    def access_matching_pair_with_indices(self, pair_index: int) -> tuple[np.ndarray]:
+    def access_matching_pair_with_indices(
+        self,
+        pair_index: int,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         pts = self.pairwise_matches[pair_index]
         idx = self.pairwise_indices[pair_index]
         return pts[:, :2], pts[:, 2:], idx[:, 0], idx[:, 1]
-    
-    def access_matching_indices(self, pair_index: int) -> tuple[np.ndarray]:
+
+    def access_matching_indices(self, pair_index: int) -> tuple[np.ndarray, np.ndarray]:
         idx = self.pairwise_indices[pair_index]
         return idx[:, 0], idx[:, 1]
+
+    def access_pair_meta(self, pair_index: int) -> dict:
+        return self.pairwise_meta[pair_index]
+
+    def indices_are_global(self, pair_index: int) -> bool:
+        return self.pairwise_meta[pair_index]["index_type"] == "global"
+
+    def indices_are_pair_local(self, pair_index: int) -> bool:
+        return self.pairwise_meta[pair_index]["index_type"] == "pair_local"
+        
+# @dataclass
+# class PointsMatched:
+#     # General Data Information for Feature Matches
+#     image_size: np.ndarray              # 1x2 [np.int64] (Simply Image Shape: (W, H))
+#     image_scale: list[float]            # [W_scale, H_scale] if image is resized
+#     multi_view: bool                    # Determine if Pairwise/Feature Matching
+#     stereo_cam: bool                    # Deterine if the camera utilized is a stereo camera for feature matching/tracking
+
+#     # Tracked Data Features
+#     data_matrix: np.ndarray             # Data Structure to store corresponding points. In the form of Nx4 -> [track_id, frame_num, x, y]
+#     track_map: dict                     # Used to aid in the feature matching process.
+#     point_count: int                    # Based on track_id max count -> tells us how many 3D points exist
+    
+#     # Image Pair Data Features
+#     pairwise_matches: list[np.ndarray]  # Data Structure to store Pairwise feature matches. Form of Nx4 -> [x1, y1, x2, y2]
+#     pairwise_indices: list[np.ndarray]  # Data Structure to store Pairwise feature matches by Index. Form of Nx2 -> [feature_idx1, feature_idx2]
+#     img_features: list[np.ndarray]      # Data Structure to store the detected features per image
+
+
+#     def __init__(self,  data_matrix: np.ndarray | None = None, 
+#                         pairwise_matches: list[np.ndarray] | None = None,
+#                         pairwise_indices: list[np.ndarray] | None = None,
+#                         multi_view: bool = False,
+#                         track_map: dict = {},
+#                         point_count: int = 0,
+#                         image_size: np.ndarray | None = None,
+#                         image_scale: list[float] = [1.0, 1.0],
+#                         img_features: list[np.ndarray] | None = None):
+#         self.data_matrix = data_matrix
+#         self.pairwise_matches = pairwise_matches
+#         self.pairwise_indices = pairwise_indices
+#         self.track_map = track_map
+#         self.point_count = point_count
+#         self.image_size = image_size
+#         self.image_scale = image_scale
+
+#         self.multi_view = multi_view
+#         self.img_features = img_features
+
+#     # Feature Tracking Functions (Multi-View)
+#     def set_matched_matrix(self, data: list[list]) -> None:
+#         self.data_matrix = np.array(data)
+#         self.multi_view = True
+
+#     # Feature Matching (Two-View)
+#     def set_matching_pair(self, data:np.ndarray, idx_data: np.ndarray) -> None:
+#         assert (data.shape[1] == 4), "Not enough data stored in column. Each row must contain: [x1, y1, x2, y2] of matching feature pair."
+#         self.pairwise_matches.append(data)
+#         self.pairwise_indices.append(idx_data)
+#         self.multi_view = False
+
+#     def access_point3D(self, track_id: int) -> np.ndarray: # 3D point returns a Nx3 Matrix of (Cam, x, y)
+#         indicies = np.where(self.data_matrix[:, 0] == track_id)[0]
+#         return self.data_matrix[indicies, 1:] 
+
+#     def access_matching_pair(self, pair_index: int) -> tuple[np.ndarray, np.ndarray]:
+#         data = self.pairwise_matches[pair_index]
+
+#         pts1 = data[:, :2]
+#         pts2 = data[:, 2:]
+
+#         return pts1, pts2
+    
+#     def access_matching_pair_with_indices(self, pair_index: int) -> tuple[np.ndarray]:
+#         pts = self.pairwise_matches[pair_index]
+#         idx = self.pairwise_indices[pair_index]
+#         return pts[:, :2], pts[:, 2:], idx[:, 0], idx[:, 1]
+    
+#     def access_matching_indices(self, pair_index: int) -> tuple[np.ndarray]:
+#         idx = self.pairwise_indices[pair_index]
+#         return idx[:, 0], idx[:, 1]
 
 @dataclass
 class Points3D:
