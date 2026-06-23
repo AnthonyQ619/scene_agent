@@ -1004,9 +1004,30 @@ class FeatureClass(PipelineModule, ABC):
 
 class FeatureMatching(PipelineModule, ABC):
     output_key = "feature_pairs"
+    detector_free = False
+    use_base_metrics = True
+    _registered_metric_methods: tuple[str, ...] = ()
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        metric_names = []
+
+        # inherit metrics from parent classes
+        for base in reversed(cls.__mro__[1:]):
+            metric_names.extend(getattr(base, "_registered_metric_methods", ()))
+
+        # add metrics declared directly in this subclass
+        for name, value in cls.__dict__.items():
+            if callable(value) and getattr(value, "_is_metric_provider", False):
+                metric_names.append(name)
+
+        # remove duplicates, preserve order
+        cls._registered_metric_methods = tuple(dict.fromkeys(metric_names))
+
 
     def run_from_state(self, state: SceneState) -> PointsMatched:
-        if state.features is None:
+        if state.features is None and self.detector_free is False:
             raise RuntimeError("FeatureMatching requires features. Run a FeatureClass module first.")
         try:
             return self(state.features)
@@ -1064,6 +1085,7 @@ class FeatureMatching(PipelineModule, ABC):
         self.cam_data = cam_data
         self.K = cam_data.get_K()
         self.dist = cam_data.get_distortion()
+        self.image_list = cam_data.image_list
 
         # Setup Outlier Rejection
         self.normalize = Normalization(K=self.K, 
@@ -1085,9 +1107,6 @@ class FeatureMatching(PipelineModule, ABC):
     def find_correspondences(self, features: list[Points2D]) -> PointsMatched:
         """Override for custom matching algorithm in here"""
         raise NotImplementedError
-        # matched_points = PointsMatched() 
-
-        # return matched_points
     
     def outlier_reject(self, 
                        pts1: Points2D, 
@@ -1131,54 +1150,161 @@ class FeatureMatching(PipelineModule, ABC):
 
         return inlier_pts1, inlier_pts2, idx1_inliers, idx2_inliers, F
 
-    def calculate_metrics(self, matching_points: PointsMatched, sigma_th: int = 3):
-        # outlier_count = self._z_score(matched_points=matching_points.pairwise_matches, sigma_th=sigma_th)
-        repeatability = self._calc_repeatability(matching_points=matching_points, epsilon=3.5) # Since we don't have ground truth, we assume 1px of noise.
-        mean_ct, inlier_yield_avg, inlier_yield_median = self._calculate_proxy_matching_score(matched_points=matching_points.pairwise_matches, features = matching_points.img_features)
-        gric_score_F, gric_score_H = self.evaluate_models(matching_points=matching_points)
+    # def calculate_metrics(self, matching_points: PointsMatched, sigma_th: int = 3):
+    #     # outlier_count = self._z_score(matched_points=matching_points.pairwise_matches, sigma_th=sigma_th)
+    #     repeatability = self._calc_repeatability(matching_points=matching_points, epsilon=3.5) # Since we don't have ground truth, we assume 1px of noise.
+    #     mean_ct, inlier_yield_avg, inlier_yield_median = self._calculate_proxy_matching_score(matched_points=matching_points.pairwise_matches, features = matching_points.img_features)
+    #     gric_score_F, gric_score_H = self.evaluate_models(matching_points=matching_points)
 
-        event_msg = {"Average Corresponding Features": mean_ct, "Average Inlier Yield per Frame": inlier_yield_avg,
-                     "Median Inlier Yield per Frame": inlier_yield_median,
-                     "Average Repeatability per Image Pair": repeatability, "Gric Score - Fundamental": gric_score_F, 
-                     "Gric Score - Homography": gric_score_H}
+    #     event_msg = {"Average Corresponding Features": mean_ct, "Average Inlier Yield per Frame": inlier_yield_avg,
+    #                  "Median Inlier Yield per Frame": inlier_yield_median,
+    #                  "Average Repeatability per Image Pair": repeatability, "Gric Score - Fundamental": gric_score_F, 
+    #                  "Gric Score - Homography": gric_score_H}
+    #     print(json.dumps(event_msg), flush=True)
+
+    #     # Write to file
+    #     with open(self.cam_data.metric_file_path, "a", encoding="utf-8") as file:
+    #         file.write("============================================================\n")
+    #         file.write("==================Feature Matching Metrics==================\n")
+    #         json.dump({"Corresponding Feature Metrics per Image Pair": event_msg}, file, indent=4)
+    #         file.write("\n============================================================\n")
+        
+    def calculate_metrics(self, matching_points: PointsMatched) -> None:
+        event_msg = self._collect_metrics(matching_points)
+
         print(json.dumps(event_msg), flush=True)
 
-        # Write to file
         with open(self.cam_data.metric_file_path, "a", encoding="utf-8") as file:
             file.write("============================================================\n")
             file.write("==================Feature Matching Metrics==================\n")
-            json.dump({"Corresponding Feature Metrics per Image Pair": event_msg}, file, indent=4)
+            json.dump(
+                {"Corresponding Feature Metrics per Image Pair": event_msg},
+                file,
+                indent=4,
+            )
             file.write("\n============================================================\n")
-        
-        # with open('data.json', 'w', encoding='utf-8') as f:
-        #     json.dump({"Corresponding Feature Metrics per Image Pair": event_msg}, f, indent = 4)
 
-        # return mean_ct, inlier_yield, repeatability, gric_score_F, gric_score_H
-    
-    def _calculate_proxy_matching_score(self, matched_points: list[np.ndarray], features: list[np.ndarray]):
-        set_of_pt_counts = np.zeros((len(matched_points), 1))
-        inlier_yields = np.zeros((len(features), 1))
+    def _collect_metrics(self, matching_points: PointsMatched) -> dict:
+        metrics = {}
 
-        for i in range(len(matched_points)):
-            matching_points = matched_points[i]
-            num_pts = matching_points.shape[0]
-            set_of_pt_counts[i] = num_pts # Get total correspondences
+        if self.use_base_metrics:
+            metrics.update(self._base_metric_calculation(matching_points))
 
-            # Get inlier Yield
+        for method_name in self._registered_metric_methods:
+            method = getattr(self, method_name)
+            result = method(matching_points)
+
+            if result is None:
+                continue
+
+            if not isinstance(result, dict):
+                raise TypeError(
+                    f"Metric method '{method_name}' must return dict | None, "
+                    f"got {type(result).__name__}"
+                )
+
+            overlap = set(metrics).intersection(result)
+            if overlap:
+                raise ValueError(
+                    f"Duplicate metric keys from '{method_name}': {sorted(overlap)}"
+                )
+
+            metrics.update(result)
+
+        return metrics
+
+    def _base_metric_calculation(self, matching_points: PointsMatched) -> dict:
+        pairwise_matches = getattr(matching_points, "pairwise_matches", None)
+        img_features = getattr(matching_points, "img_features", None)
+
+        if pairwise_matches is None or len(pairwise_matches) == 0:
+            return {
+                "Average Corresponding Features": 0.0,
+                "Average Inlier Yield per Frame": None,
+                "Median Inlier Yield per Frame": None,
+                "Average Repeatability per Image Pair": None,
+                "Gric Score - Fundamental": None,
+                "Gric Score - Homography": None,
+            }
+
+        mean_ct, inlier_yield_avg, inlier_yield_median = (
+            self._calculate_proxy_matching_score(
+                matched_points=pairwise_matches,
+                features=img_features,
+            )
+        )
+
+        repeatability = self._calc_repeatability(
+            matching_points=matching_points,
+            epsilon=3.5,
+        )
+
+        gric_score_F, gric_score_H = self.evaluate_models(
+            matching_points=matching_points,
+        )
+
+        return {
+            "Average Corresponding Features": mean_ct,
+            "Average Inlier Yield per Frame": inlier_yield_avg,
+            "Median Inlier Yield per Frame": inlier_yield_median,
+            "Average Repeatability per Image Pair": repeatability,
+            "Gric Score - Fundamental": gric_score_F,
+            "Gric Score - Homography": gric_score_H,
+        }
+
+    def _calculate_proxy_matching_score(
+        self,
+        matched_points: list[np.ndarray],
+        features: list[np.ndarray] | None,
+    ):
+        if matched_points is None or len(matched_points) == 0:
+            return 0.0, None, None
+
+        match_counts = []
+
+        for matches in matched_points:
+            if matches is None:
+                match_counts.append(0)
+            else:
+                match_counts.append(int(matches.shape[0]))
+
+        mean_ct = float(np.mean(match_counts))
+
+        # Detector-free matchers may not have global img_features.
+        if features is None or len(features) == 0:
+            return mean_ct, None, None
+
+        inlier_yields = []
+
+        for i, matches in enumerate(matched_points):
+            if matches is None:
+                inlier_yields.append(0.0)
+                continue
+
+            if i + 1 >= len(features):
+                continue
+
             feats1 = features[i]
             feats2 = features[i + 1]
-            inlier_yields[i] = num_pts/min(feats1.shape[0], feats2.shape[0])
-            # inlier_yields[i + 1] = num_pts/feats2.shape[0]
-        
-        # counts_np = np.array(set_of_pt_counts)
 
-        mean_ct = set_of_pt_counts.mean()
-        inlier_yield_avg = inlier_yields.mean()
-        inlier_yield_median = np.median(inlier_yields)
-        # min_count = counts_np.min()
-        # max_count = counts_np.max()
+            if feats1 is None or feats2 is None:
+                continue
 
-        return float(mean_ct), float(inlier_yield_avg), float(inlier_yield_median) #int(min_count), int(max_count)
+            denom = min(len(feats1), len(feats2))
+
+            if denom == 0:
+                inlier_yields.append(0.0)
+            else:
+                inlier_yields.append(float(matches.shape[0] / denom))
+
+        if len(inlier_yields) == 0:
+            return mean_ct, None, None
+
+        return (
+            mean_ct,
+            float(np.mean(inlier_yields)),
+            float(np.median(inlier_yields)),
+        )
 
     def _warp_points(self, src: np.ndarray, mat: np.ndarray, img_shape: list):
         KA_prime = cv2.perspectiveTransform(src, mat)
@@ -1196,24 +1322,39 @@ class FeatureMatching(PipelineModule, ABC):
     def _calc_repeatability(self, matching_points: PointsMatched, epsilon: float = 3.0):
         matched_points = matching_points.pairwise_matches
         features = matching_points.img_features
-        W, H = matching_points.image_size[:]
+        image_size = matching_points.image_size
+
+        if matched_points is None or len(matched_points) == 0:
+            return None
+
+        # Repeatability requires global keypoints/features.
+        # Detector-free methods like LoFTR/RoMa may not have this.
+        if features is None or len(features) == 0:
+            return None
+
+        if image_size is None:
+            return None
+
+        W, H = image_size[:]
 
         repeatabilities = []
-        for pair_idx in range(len(matched_points)):
-            pt_set = matched_points[pair_idx]
 
-            if pt_set.shape[0] < 4:
+        for pair_idx, pt_set in enumerate(matched_points):
+            if pt_set is None or pt_set.shape[0] < 4:
                 repeatabilities.append(0.0)
+                continue
+
+            if pair_idx + 1 >= len(features):
                 continue
 
             pts_A = pt_set[:, :2].astype(np.float32)
             pts_B = pt_set[:, 2:].astype(np.float32)
 
-            H_mat, inlier_mask = cv2.findHomography(
+            H_mat, _ = cv2.findHomography(
                 pts_A,
                 pts_B,
                 cv2.RANSAC,
-                5.0
+                5.0,
             )
 
             if H_mat is None:
@@ -1233,66 +1374,35 @@ class FeatureMatching(PipelineModule, ABC):
                 repeatabilities.append(0.0)
                 continue
 
-            # A features projected into B
             KA_to_B = self._warp_points(
                 KA.reshape(-1, 1, 2),
                 H_mat,
-                [W, H]
+                [W, H],
             )
 
-            # B features projected into A, only for visibility count
             KB_to_A = self._warp_points(
                 KB.reshape(-1, 1, 2),
                 H_inv,
-                [W, H]
+                [W, H],
             )
 
             if len(KA_to_B) == 0 or len(KB_to_A) == 0:
                 repeatabilities.append(0.0)
                 continue
 
-            # Compare warped A features against actual B features
             tree = cKDTree(KB)
-
             dists, _ = tree.query(KA_to_B, k=1)
 
             repeated = np.sum(dists <= epsilon)
-
             denom = min(len(KA_to_B), len(KB_to_A))
 
             repeatability = repeated / denom if denom > 0 else 0.0
             repeatabilities.append(float(repeatability))
-        # for pair in range(len(matched_points)):
-        #     pt_set = matched_points[pair]
-        #     # print(pt_set)
-        #     pt_set_A = pt_set[:, :2]
-        #     pt_set_B = pt_set[:, 2:]
 
-        #     H_mat, _ = cv2.findHomography(pt_set_A, pt_set_B, cv2.RANSAC, 5.0)
+        if len(repeatabilities) == 0:
+            return None
 
-        #     KA = features[pair]
-        #     KB = features[pair + 1]
-
-        #     # print("BEFORE", KB.shape)
-        #     KA_prime = self._warp_points(KA.reshape(-1, 1, 2), H_mat, [W, H])
-        #     KB_prime = self._warp_points(KB.reshape(-1, 1, 2), np.linalg.inv(H_mat),[W, H])
-        #     KB = self._warp_points(KB_prime.reshape(-1, 1, 2), H_mat, [W, H])
-        #     # print("AFTER", KB.shape)
-        #     tree = cKDTree(KB)
-
-        #     # k=2 because first neighbor is itself
-        #     dists, _ = tree.query(KA_prime, k=1)
-
-        #     nearest = dists[:,1]
-
-        #     repeated = nearest[nearest <= epsilon].shape[0]
-        #     # print(repeated)
-        #     repeatability = repeated / min(len(KA_prime), len(KB))
-
-        #     repeatabilities.append(repeatability)
-
-
-        return float(np.array(repeatabilities).mean())
+        return float(np.mean(repeatabilities))
 
     def fundamental_error(self, pts1, pts2, F):
         """
@@ -1347,13 +1457,19 @@ class FeatureMatching(PipelineModule, ABC):
         Compare homography vs fundamental matrix using GRIC
         """
 
-        matched_points = matching_points.pairwise_matches
+        matched_points = getattr(matching_points, "pairwise_matches", None)
+
+        if matched_points is None or len(matched_points) == 0:
+            return None, None
+
         features = matching_points.img_features
         W, H = matching_points.image_size[:]
 
         gric_scores = {'fundamental':[], 'homography':[]}
         for pair in range(len(matched_points)):
             pt_set = matched_points[pair]
+            if pt_set is None or pt_set.shape[0] < 8:
+                continue
             pts1 = pt_set[:, :2]
             pts2 = pt_set[:, 2:]
 
@@ -1375,16 +1491,6 @@ class FeatureMatching(PipelineModule, ABC):
             gric_scores['homography'].append(gric_H)
 
         return np.array(gric_scores['fundamental']).mean(), np.array(gric_scores['homography']).mean()
-        # if gric_H < gric_F:
-        #     model = "homography"
-        # else:
-        #     model = "fundamental"
-
-        # return {
-        #     "GRIC_H": gric_H,
-        #     "GRIC_F": gric_F,
-        #     "best_model": model
-        # }
 
 class FeatureTracking(PipelineModule, ABC):
     output_key = "tracked_features"
@@ -1530,6 +1636,152 @@ class FeatureTracking(PipelineModule, ABC):
             file.write("\n============================================================\n")
         # with open('data.json', 'w', encoding='utf-8') as f:
         #     json.dump({"Feature Track Metrics for Survivability and Stability": event_msg}, f, indent = 4)
+
+class FeatureTrackingBase(PipelineModule, ABC):
+    output_key = "tracked_features"
+
+    # Default behavior: build tracks from previous FeatureMatching output
+    requires_features = False
+    requires_feature_pairs = True
+    direct_tracker = False
+
+    def run_from_state(self, state: SceneState) -> PointsMatched:
+        try:
+            if self.direct_tracker:
+                # VGGT / VGGSfM style: use images directly
+                matched_points = self.run_direct_tracker(state)
+
+            elif self.requires_feature_pairs:
+                if state.feature_pairs is None:
+                    raise RuntimeError(
+                        "FeatureTracking requires feature_pairs. "
+                        "Run a FeatureMatching module first."
+                    )
+
+                matched_points = self.build_tracks_from_pairs(state.feature_pairs)
+
+            elif self.requires_features:
+                if state.features is None:
+                    raise RuntimeError(
+                        "FeatureTracking requires features. "
+                        "Run a FeatureClass module first."
+                    )
+
+                matched_points = self.build_tracks_from_features(state.features)
+
+            else:
+                raise RuntimeError(
+                    "Invalid FeatureTracking configuration. "
+                    "Set direct_tracker, requires_feature_pairs, or requires_features."
+                )
+
+            self.calculate_metrics(
+                data_mat=matched_points.data_matrix,
+                total_points=matched_points.point_count,
+            )
+
+            return matched_points
+
+        except Exception as e:
+            threshold = getattr(self, "RANSAC_threshold", None)
+
+            raise RuntimeError(
+                "[FeatureTracking Error]\n"
+                "Feature tracking failed.\n\n"
+                "Likely causes:\n"
+                "- Pairwise correspondences are missing or invalid.\n"
+                "- Pairwise correspondences use pair-local indices but no valid track-building strategy was selected.\n"
+                "- Too few matches survived outlier rejection.\n"
+                "- Direct tracker failed to produce enough visible tracks.\n\n"
+                "Suggested fixes:\n"
+                "- Run FeatureMatching before FeatureTracking for correspondence-based tracking.\n"
+                "- For LoFTR/RoMa, use pair-local track construction or coordinate-based pseudo-feature merging.\n"
+                "- For VGGT/VGGSfM, use direct image-based tracking mode.\n"
+                "- Check minimum track length, visibility/confidence thresholds, and RANSAC thresholds.\n\n"
+                f"Current outlier rejection threshold: {threshold}\n"
+                f"Original error: {type(e).__name__}: {e}"
+            ) from e
+
+    def build_tracks_from_pairs(self, feature_pairs: PointsMatched) -> PointsMatched:
+        raise NotImplementedError
+
+    def build_tracks_from_features(self, features: list[Points2D]) -> PointsMatched:
+        raise NotImplementedError
+
+    def run_direct_tracker(self, state: SceneState) -> PointsMatched:
+        raise NotImplementedError
+
+    def __init__(self, detector:str, 
+                 cam_data:CameraData,
+                 module_name: str,
+                 description: str,
+                 example: str,
+                 RANSAC_threshold: float,
+                 RANSAC_conf: float,
+                 RANSAC_homography: bool = False):
+        
+        # Define Module Name, Description, etc. per Sub-Module
+        self.module_name = module_name
+        self.description = description
+        self.example = example
+        self.RANSAC_threshold = RANSAC_threshold
+        self.detector = detector
+        self.det_free = False
+
+        self.cam_data = cam_data
+        self.K = cam_data.get_K()
+        self.dist = cam_data.get_distortion()
+
+        self.DETECTORS = ["sift", "superpoint", "orb"]
+
+        if self.detector not in self.DETECTORS:
+            self.det_free = True
+
+        # Set normalization function
+        normalization = Normalization(K=self.K,
+                                           dist=self.dist,
+                                           multi_cam=cam_data.multi_cam)
+
+    # Metric Function
+    def calculate_metrics(self, data_mat: np.ndarray, total_points: int):
+
+        track_ids = data_mat[:, 0].astype(int)
+
+        unique_ids, counts = np.unique(track_ids, return_counts=True)
+
+        # Track Length Average, Median, and Maximum
+        max_track = counts.max()
+        median_track_length = np.median(counts)
+        avg_track = counts.mean()
+
+        # Survival Curve Metric (Num of Tracks lasting N frames)
+        survive_ge_3  = np.mean(counts >= 3) # Multi-View Suppert rate 3
+        survive_ge_5  = np.mean(counts >= 5) # Multi-View Suppert rate 5
+        survive_ge_10 = np.mean(counts >= 10) # Multi-View Suppert rate 10
+       
+        # Lower fragmentation and higher observations-per-track are usually better.
+        fragmentation = len(counts) / np.sum(counts) # tracks per observation
+        obs_per_track = np.sum(counts) / len(counts) # observation per track
+
+
+        event_msg = {"Avg. track length": float(avg_track), 
+                     "Max. track length": float(max_track), 
+                     "Median track length": float(median_track_length), 
+                     "Survival Tracks of 3": float(survive_ge_3), 
+                     "Survival Tracks of 5": float(survive_ge_5), 
+                     "Survival Tracks of 10": float(survive_ge_10),
+                     "Fragmentation": float(fragmentation),
+                     "Obs. per Track": float(obs_per_track)}
+
+        print("HERE")
+        print(json.dumps(event_msg), flush=True)
+
+        # Write to file
+        with open(self.cam_data.metric_file_path, "a", encoding="utf-8") as file:
+            file.write("============================================================\n")
+            file.write("==================Feature Tracking Metrics==================\n")
+            json.dump({"Feature Track Metrics for Survivability and Stability": event_msg}, file, indent=4)
+            file.write("\n============================================================\n")
 
 class OptimizationClass(PipelineModule, ABC):
     use_base_metrics = True

@@ -7,13 +7,21 @@ from modules.visualize import VisualizeScene
 import os
 from modules.baseclass import SfMScene
 
+ID = "1"
+log_dir = "/home/anthonyq/projects/scene_agent/breadth_agent/results/co3d/apple_110_13051_23361_vggt_random_10"
+gpu_num = "5"
+
+
 # Construct Modules with Initialized Arguments
-image_path = "/home/anthonyq/datasets/DTU/DTU/scan22"
-calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
+image_path = "/home/anthonyq/datasets/ETH/ETH/statue/images/dslr_images_undistorted"
+calibration_path = "/home/anthonyq/datasets/ETH/ETH/statue/dslr_calibration_undistorted/calibration_new.npz"
 
 ## NEW SFM PIPELINE
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
+reconstructed_scene = SfMScene(ID,
+                                image_path = image_path, 
+                                log_dir=log_dir,
+                                gpu_num=gpu_num,
                                 max_images = 15,
                                 calibration_path = calibration_path)
 
@@ -44,8 +52,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     reprojection_error = 3.0,
     optimizer = ("BundleAdjustmentOptimizerLocal", {
         "max_num_iterations": 25,
-        "robust_loss": True,
-        "use_gpu": False
+        "robust_loss": True
     }),
 )
 
@@ -69,5 +76,4 @@ reconstructed_scene.Sparse3DReconstructionMono(
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
     max_num_iterations=200,
-    use_gpu=False
 )

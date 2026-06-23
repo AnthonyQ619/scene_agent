@@ -93,8 +93,10 @@ STEP 8: Apply Dense Reconstruction Module for dense scene reconstruction.
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path ="/home/anthonyq/datasets/DTU/scan23" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan14_normal_lighting"
-calibration_path = "/home/anthonyq/datasets/DTU/calibration_DTU_new.npz" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
+image_path = "/home/anthonyq/datasets/DTU/scan23" 
+calibration_path = "/home/anthonyq/datasets/DTU/calibration_DTU_new.npz"
+# image_path = "/home/anthonyq/datasets/co3d_v2/apple/110_13051_23361/vggt_random_10"#"/home/anthonyq/datasets/DTU/scan23" 
+# calibration_path = "/home/anthonyq/datasets/co3d_v2/apple/calibration_new_110_13051_23361.npz" #"/home/anthonyq/datasets/DTU/calibration_DTU_new.npz" 
 
 from modules.features import FeatureDetectionSIFT
 from modules.featurematching import FeatureMatchFlannPair, FeatureMatchBFTracking
@@ -106,11 +108,12 @@ from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(id=2,
-                                gpu_num="3",
+                                gpu_num="2",
                                 log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/ETH/test",
                                 image_path = image_path, 
-                                max_images = 5,
+                                max_images = 10,
                                 calibration_path = calibration_path)
+
 
 # Step 2: Detect Features
 reconstructed_scene.FeatureDetectionSIFT(

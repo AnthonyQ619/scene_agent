@@ -11,9 +11,9 @@ import glob
 from tqdm import tqdm
 from modules.DataTypes.datatype import Points2D, PointsMatched, CameraData
 from modules.models.matchers import LightGlue, SuperGlue
-# from romatch import roma_outdoor, roma_indoor
+from romatch import roma_outdoor, roma_indoor
 
-from modules.baseclass import FeatureMatching, FeatureTracking
+from modules.baseclass import FeatureMatching, FeatureTracking, FeatureTrackingBase, module_metric
 from collections.abc import Callable
 import kornia as K
 import kornia.feature as KF
@@ -569,8 +569,6 @@ reconstructed_scene.{module_name}(
         self.matcher = cv2.BFMatcher(normType=norm_type, 
                                      crossCheck=self.cross_check)
 
-        
-
     def matcher_parser(self, pt1: Points2D, pt2: Points2D) -> tuple[list, list]:
         # img_shape = (image_size[0], image_size[1]) # Convert from HxW to WxH (OpenCV Convention)
         desc1 = pt1.descriptors
@@ -606,6 +604,8 @@ reconstructed_scene.{module_name}(
 ############################################# DETECTOR--FREE #############################################
 
 class FeatureMatchRoMAPair(FeatureMatching):
+    use_base_metrics = False
+    
     def __init__(self, 
                  cam_data: CameraData, 
                  setting: str = "indoor", 
@@ -613,9 +613,9 @@ class FeatureMatchRoMAPair(FeatureMatching):
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99):
 
-        self.module_name = "FeatureMatchRoMAPair"
+        module_name = "FeatureMatchRoMAPair"
 
-        self.description = f"""
+        description = f"""
 Detects point correspondance between two sequential frames at once to detect matching 
 features across a set of images. This matching algorithm used is the detector free 
 RoMA deep learning model trained as a feature matcher. This Feature Detection and matching
@@ -637,7 +637,7 @@ Initialization Parameters:
     - Default (bool) = True (Reshape takes place by default for best model outcome)
 """ 
         
-        self.example = f"""
+        example = f"""
 Initialization: 
 # Determine the detector that was used previously and initialize module with said detector
 
@@ -659,10 +659,6 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
                     "inside": "indoor",
                     "outside": "outdoor"}
 
-        self.device = torch.device(f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else 'cpu')
-        if torch.backends.mps.is_available():
-            self.device = torch.device('mps')
-
         if setting.lower() not in SETTINGS:
             message = 'Error: setting is not supported. Use one of ' + str(SETTINGS) + ' instead to use this Detector-Free Matcher.'
             raise Exception(message)
@@ -677,10 +673,16 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
         
         self.setting = SETTINGS[setting.lower()]
 
-        if self.setting == "indoor":
+        self.device = torch.device(f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else 'cpu')
+        if torch.backends.mps.is_available():
+            self.device = torch.device('mps')
+
+        if self.setting == "outdoor":
             self.roma_model = roma_outdoor(device=self.device)
         else:
             self.roma_model = roma_indoor(device=self.device)
+
+        self.detector_free = True
     
     def find_correspondences(self, features: list[Points2D] | None) -> PointsMatched:
         # matched_points = PointsMatched(pairwise_matches=[], 
@@ -694,11 +696,11 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
                                        img_features=[])
 
         W_1, H_1 = self.cam_data.image_shape_new
-        for i in tqdm(0, len(self.image_list), 2): # len(self.image_path)
+        for scene in tqdm(range(0, len(self.image_list) - 1)): # len(self.image_path)
             # img1_f = self.image_path[i]
             # img2_f = self.image_path[i + 1]
-            img1 = self.image_list[i]
-            img2 = self.image_list[i + 1]
+            img1 = self.image_list[scene]
+            img2 = self.image_list[scene + 1]
 
             # img1 = Image.open(img1_f)
             # img2 = Image.open(img2_f)
@@ -712,11 +714,23 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
             matches, certainty = self.roma_model.sample(warp, certainty)
             kpts1, kpts2 = self.roma_model.to_pixel_coordinates(matches, H_1, W_1, H_1, W_1)
 
-            # Bring to CPU and convert to Numpy vectors
+            # Bring to CPU and convert to Numpy vectors / Build Index List
             kpts1, kpts2 = kpts1.cpu().numpy(), kpts2.cpu().numpy()
+            pts1 = Points2D(points2D = kpts1,
+                            descriptors = None,
+                            scores = certainty,
+                            image_size = img1.size,
+                            reshape_scale = self.cam_data.image_scale)
+            pts2 = Points2D(points2D = kpts2,
+                            descriptors = None,
+                            scores = certainty,
+                            image_size = img1.size,
+                            reshape_scale = self.cam_data.image_scale)
 
-            print(kpts1.shape)
-            inlier_pts1, inlier_pts2, idx1_inliers, idx2_inliers, M = self.outlier_reject(new_pt1, new_pt2, inlier_idx1, idx2, scene)
+            N = kpts1.shape[0]
+            idx1, idx2 = np.arange(N, dtype=np.int64), np.arange(N, dtype=np.int64)
+            
+            inlier_pts1, inlier_pts2, idx1_inliers, idx2_inliers, M = self.outlier_reject(pts1, pts2, idx1, idx2, scene)
             
             feat_pair = np.hstack((inlier_pts1.points2D, inlier_pts2.points2D))
             idx_pair = np.hstack((np.vstack(idx1_inliers), np.vstack(idx2_inliers)))
@@ -727,16 +741,97 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
             matched_points.set_matching_pair(
                 data=feat_pair,
                 idx_data=idx_pair,
-                pair=(scene, scene + 1),
-                matcher="roma",
+                image_pair=(scene, scene + 1),
                 index_type="pair_local",
-                confidence=mconf,
-                F=M,
+                matcher_name="roma",
+                # confidence=confidence,
             )
 
             # matched_points.set_matching_pair(np.hstack((inlier_pts1, inlier_pts2)))
 
         return matched_points
+
+    @module_metric
+    def calculate_detector_free_metrics(self, matching_points: PointsMatched):
+        raw_counts = []
+        inlier_ratios = []
+        median_sampson_errors = []
+        spatial_coverages = []
+
+        gric_score_F, gric_score_H = self.evaluate_models(matching_points)
+
+        for pair_idx, pair_matches in enumerate(matching_points.pairwise_matches):
+            pts1 = pair_matches[:, :2]
+            pts2 = pair_matches[:, 2:]
+
+            raw_counts.append(len(pair_matches))
+
+            F, mask = cv2.findFundamentalMat(
+                pts1,
+                pts2,
+                cv2.USAC_MAGSAC,
+                ransacReprojThreshold=self.ransac_threshold,
+                maxIters=10000,
+                confidence=self.ransac_conf,
+            )
+
+            if mask is None or F is None:
+                inlier_ratios.append(0.0)
+                median_sampson_errors.append(float("inf"))
+            else:
+                mask = mask.ravel().astype(bool)
+                inlier_ratios.append(float(mask.mean()))
+
+                if mask.sum() >= 8:
+                    errors = self.fundamental_error(pts1[mask], pts2[mask], F)
+                    median_sampson_errors.append(float(np.median(errors)))
+                else:
+                    median_sampson_errors.append(float("inf"))
+
+            spatial_coverages.append(
+                self._calculate_pair_spatial_coverage(
+                    pts1=pts1,
+                    pts2=pts2,
+                    image_size=matching_points.image_size,
+                )
+            )
+
+        return {
+            "Matcher Type": "detector_free_pair_local",
+            "Average Corresponding Features": float(np.mean(raw_counts)),
+            "Median Corresponding Features": float(np.median(raw_counts)),
+            "Average Geometric Inlier Ratio": float(np.mean(inlier_ratios)),
+            "Median Geometric Inlier Ratio": float(np.median(inlier_ratios)),
+            "Median Sampson Error": float(np.median(median_sampson_errors)),
+            "Average Spatial Coverage": float(np.mean(spatial_coverages)),
+            "Gric Score - Fundamental": gric_score_F,
+            "Gric Score - Homography": gric_score_H,
+        }
+
+        # Helper for Metric Function
+    def _calculate_pair_spatial_coverage(
+            self,
+            pts1: np.ndarray,
+            pts2: np.ndarray,
+            image_size: np.ndarray,
+            grid_size: int = 8,
+        ) -> float:
+        W, H = image_size[:]
+
+        def coverage_for_points(pts):
+            if len(pts) == 0:
+                return 0.0
+
+            x = np.clip((pts[:, 0] / W * grid_size).astype(int), 0, grid_size - 1)
+            y = np.clip((pts[:, 1] / H * grid_size).astype(int), 0, grid_size - 1)
+
+            occupied = set(zip(x, y))
+            return len(occupied) / float(grid_size * grid_size)
+
+        cov1 = coverage_for_points(pts1)
+        cov2 = coverage_for_points(pts2)
+
+        return min(cov1, cov2)
     
 class FeatureMatchLoftrPair(FeatureMatching):
     def __init__(self, 
@@ -808,6 +903,8 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
 
         self.matcher = KF.LoFTR(pretrained=weight)
 
+        self.detector_free = True
+
     def find_correspondences(self, features: list[Points2D] | None) -> PointsMatched:
         # matched_points = PointsMatched(pairwise_matches=[], 
         #                                image_size=np.array([self.img_shape[1], self.img_shape[0]]),
@@ -853,7 +950,6 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
                 matcher="loftr",
                 index_type="pair_local",
                 confidence=mconf,
-                F=M,
             )
 
             # matched_points.set_matching_pair(np.hstack((inlier_pts1, inlier_pts2)))
@@ -1035,10 +1131,9 @@ reconstructed_scene.{module_name}(
             matched_points.set_matching_pair(
                 data=feat_pair,
                 idx_data=idx_pair,
-                pair=(scene, scene + 1),
-                matcher="superglue",
+                image_pair=(scene, scene + 1),
                 index_type="global",
-                F=F,
+                matcher_name="superglue",
             )
             matched_points.img_features.append(pt1.points2D)
 
@@ -1264,10 +1359,9 @@ reconstructed_scene.{module_name}(
             matched_points.set_matching_pair(
                 data=feat_pair,
                 idx_data=idx_pair,
-                pair=(scene, scene + 1),
-                matcher="lightglue",
+                image_pair=(scene, scene + 1),
                 index_type="global",
-                F=F,
+                matcher_name="lightglue",
             )
             matched_points.img_features.append(pt1.points2D)
             # matched_points.set_matching_pair(np.hstack((inlier_pts1, inlier_pts2)))
@@ -1457,10 +1551,11 @@ reconstructed_scene.{module_name}(
             matched_points.set_matching_pair(
                 data=feat_pair,
                 idx_data=idx_pair,
-                pair=(scene, scene + 1),
-                matcher="flann",
+                image_pair=(scene, scene + 1),
                 index_type="global",
-                F=F,
+                matcher_name="flann",
+                # img1_feats = pt1.points2D,
+                # img2_feats = pt2.points2D
             )
             matched_points.img_features.append(pt1.points2D)
             # matched_points.set_matching_pair(np.hstack((inlier_pts1, inlier_pts2)))
@@ -1644,10 +1739,11 @@ reconstructed_scene.{module_name}(
             matched_points.set_matching_pair(
                 data=feat_pair,
                 idx_data=idx_pair,
-                pair=(scene, scene + 1),
-                matcher="lightglue",
+                image_pair=(scene, scene + 1),
                 index_type="global",
-                F=F,
+                matcher_name="bruteforce",
+                # img1_feats = pt1.points2D,
+                # img2_feats = pt2.points2D
             )
             matched_points.img_features.append(pt1.points2D)
         # Get the last image feature set

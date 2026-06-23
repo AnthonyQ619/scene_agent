@@ -11,3 +11,4 @@ breadth_agent/environment*
 /breadth_agent/src/modules/DataTypes/__pycache__
 /breadth_agent/src/agent/core/temp_images/
 /breadth_agent/src/tests/feature_images/
+/breadth_agent/eval/
