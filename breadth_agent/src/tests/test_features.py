@@ -3,7 +3,7 @@ from modules.camerapose import (CamPoseEstimatorEssentialToPnP, CamPoseEstimator
 from modules.scenereconstruction import (Sparse3DReconstructionMono, Sparse3DReconstructionVGGT, Dense3DReconstructionVGGT, Dense3DReconstructionMono)
 from modules.optimization import (BundleAdjustmentOptimizerLocal, BundleAdjustmentOptimizerGlobal)
 from modules.baseclass import SfMScene
-from modules.features import FeatureDetectionSIFT, FeatureDetectionSP, FeatureDetectionORB
+from modules.features import FeatureDetectionSIFT, FeatureDetectionSP, FeatureDetectionORB, FeatureDetectionALIKED
 from modules.featurematching import (FeatureMatchFlannTracking, 
                                      FeatureMatchBFTracking,
                                      FeatureMatchFlannPair,
@@ -74,20 +74,24 @@ reconstructed_scene = SfMScene(ID,
 #     contrast_threshold=0.009,
 #     edge_threshold=20,
 # )
-reconstructed_scene.FeatureDetectionSIFT(max_keypoints=6000)
+# reconstructed_scene.FeatureDetectionALIKED(max_keypoints=6000)
 
-# Step 3: Detect Feature Pairs
-reconstructed_scene.FeatureMatchFlannPair(detector="sift",
-                                        k=2,
-                                        lowes_thresh=0.75,
-                                        RANSAC_homography=False,
-                                        RANSAC_threshold=0.3,
-                                        RANSAC_conf=0.999)
+# # Step 3: Detect Feature Pairs
+# reconstructed_scene.FeatureMatchLightGluePair(detector="aliked",
+#                                         # k=2,
+#                                         # lowes_thresh=0.75,
+#                                         RANSAC_homography=False,
+#                                         RANSAC_threshold=0.5,
+#                                         RANSAC_conf=0.999)
 
-# reconstructed_scene.FeatureMatchRoMAPair(setting="indoor",
-#                                          RANSAC_homography=False,
-#                                          RANSAC_threshold=0.8,
-#                                          RANSAC_conf=0.999)
+reconstructed_scene.FeatureMatchLoftrPair(setting="indoor",
+                                         RANSAC_homography=False,
+                                         RANSAC_threshold=1.5,
+                                         RANSAC_conf=0.999,
+                                         coarse_thr = 0.008,
+                                         border_rm = 0,
+                                         pseudo_merge_eps_px=1.10
+                                         )
 reconstructed_scene.FeatureTrackFromPairsUnionFind()
 # Step 5: Detect Feature Tracks
 # reconstructed_scene.FeatureMatchBFTracking(
@@ -119,8 +123,8 @@ if tracks and vis:
     print(tracked_features.access_point3D(0))
     j = 0
     for i in range(1000):
-        if (tracked_features.access_point3D(i).shape[0] > 4):
-            if i < 3: 
+        if (tracked_features.access_point3D(i).shape[0] >= 3):
+            if i < 2: 
                 i += 1
                 continue
             # print(matched_features.image_size)

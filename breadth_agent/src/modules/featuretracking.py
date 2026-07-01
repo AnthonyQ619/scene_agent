@@ -109,6 +109,12 @@ class UnionFind:
             self.rank[ra] += 1
 #############################################
 #############################################
+
+class FeatureTrackVGGT(FeatureTrackingBase):
+    requires_features = True
+    requires_feature_pairs = False
+    direct_tracker = False
+
 class FeatureTrackFromPairsUnionFind(FeatureTrackingBase):
     requires_features = False
     requires_feature_pairs = True

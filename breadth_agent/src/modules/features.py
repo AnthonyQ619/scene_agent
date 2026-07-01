@@ -6,6 +6,7 @@ import json
 import sys
 
 from tqdm import tqdm
+from lightglue import ALIKED 
 from modules.DataTypes.datatype import Points2D, Calibration, CameraData
 from modules.baseclass import FeatureClass
 from modules.models.features import SuperPoint, load_image, numpy_image_to_torch 
@@ -391,6 +392,111 @@ reconstructed_scene.FeatureDetectionORB(
         return self.features
 
 #### DEEP LEARNING MODELS #####
+class FeatureDetectionALIKED(FeatureClass):
+    def __init__(self, 
+                 cam_data: CameraData,
+                 max_keypoints: int = 1024,
+                 det_thres: float = 0.005):
+        """
+            Detect Features (Keypoints and Descriptors) using the SuperPoint Deep Learning Model
+
+            Assume Calibration is zero-based for now for proper image-reshaping
+
+            Input: Path to image list
+            Output: 
+                list[Points2D]:
+                    Points2D (Detected Features per Scene):
+                        points2D:       [N x 2] np.float32
+                        descriptors:    [N x 256] np.float32
+                        scores:         [N x 1] np.float32
+                        image_size:     [1 x 2] np.int64
+            """
+
+        module_name = "FeatureDetectionALIKED"
+
+        description = f"""
+    Detects existing keypoints(features) and descriptors in images using a Deep Learning Model Feature
+    Detector denoted as SuperPoint.
+    This Feature Detector is utilized in cases where diffuse lighting materials exist in scenes, images of 
+    environments that lack texture or not well-lit for traditional detectors, or extreme view changes exist 
+    in scene video or images.
+    WHEN TO USE THIS MODULE: where the environment is well-lit AND Mixed-textured or Moderately Textured, even
+    if it contains consistent lighting through the set of images, most classical detectors WILL NOT work like SIFT. 
+    If scene is Moderately or Mixed textured use this feature detector!
+
+    Use in cases where SIFT and ORB may struggle in due to not well-lit settings, and cases where there is
+    diffuse lighting in the object and we need a feature detector more robust to these environments.
+    When specified directly to use the SuperPoint algorithm, mentioning to use a feature detector 
+    to handle view changes or material that lack texture in a given scene, or accurate dense features 
+    are necessary, use the SuperPoint detection Module.
+
+    Initialization/Function Parameters: 
+    - max_keypoints: Maximum number of Keypoints to detect per image from the feature detector
+        - Default (int): 1024
+
+    Module Output - Handled with SfMScene Object: 
+        list[Points2D]:
+            Points2D (Detected Features per Scene):
+                points2D: [N x 2] np.float32
+                descriptors: [N x 256] np.float32
+                scores:         [N x 1] np.float32
+                image_size: [1 x 2] np.int64
+    """
+
+        example = f"""
+    from modules.baseclass import SfMScene
+    from modules.features import {module_name}
+
+    Initialization of Module: 
+    # Step 1: Read in Calibration/Image Data
+    reconstructed_scene = SfMScene(image_path = image_path, 
+                                calibration_path = calibration_path)
+
+    # Step 2: Detect Features
+    reconstructed_scene.{module_name}(
+        max_keypoints=9000,
+        contrast_threshold=0.02,
+        edge_threshold=20,
+        )
+    """     
+
+        # Set up Initialization
+        super().__init__(cam_data=cam_data,
+                        module_name=module_name,
+                        description=description,
+                        example=example)
+
+        # Set Up Model
+        self.device = torch.device(f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu")
+        aliked_detector = ALIKED(max_num_keypoints=max_keypoints, detection_threshold=det_thres)
+        self.detector = aliked_detector.to(self.device).eval()
+
+    def _detect_features(self) -> list[Points2D]:
+        
+        for i in tqdm(range(len(self.image_list)),
+                      desc="Detecting Features"): # len(self.image_path)
+            
+            img = np.asarray(self.image_list[i])
+            img_torch = numpy_image_to_torch(img)
+        
+            # Detect Keypoints
+            features = self.detector.extract(img_torch.to(self.device))
+            
+            keypoints = features['keypoints'].cpu().numpy().squeeze()
+            desc = features['descriptors'].cpu().numpy().squeeze()
+            scores = np.vstack(features['keypoint_scores'].cpu().numpy().squeeze())
+
+            image_size = np.array([img_torch.shape[2], img_torch.shape[1]])
+            
+            self.features.append(Points2D(points2D = keypoints, 
+                                        descriptors = desc,
+                                        scores = scores, 
+                                        image_size = image_size,
+                                        reshape_scale=self.image_scale))
+        
+        # Output Metric Handled in set __Call__ functions
+
+        return self.features
 
 class FeatureDetectionSP(FeatureClass):
     def __init__(self, 

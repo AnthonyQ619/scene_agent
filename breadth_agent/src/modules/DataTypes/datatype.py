@@ -27,14 +27,41 @@ class IncrementalSfMState:
     # poses in cam-from-world 3x4
     poses: List[np.ndarray] = field(default_factory=list)
 
-    # per image keypoints (Nx2), must align with kp indices used in tracks
+    # For BA-compatible states:
+    #     keypoints[image_id][kp_idx] -> xy
+    #
+    # For obs-ID pose states:
+    #     this may be empty or unused.
     keypoints: Dict[int, np.ndarray] = field(default_factory=dict)
 
-    # track database: track_id -> list of observations (image_id, kp_idx)
+    # Pose-estimation state:
+    #     track_id -> list[(image_id, obs_id)]
+    #
+    # BA-compatible state:
+    #     track_id -> list[(image_id, kp_idx)]
     tracks: Dict[int, List[Obs]] = field(default_factory=dict)
 
-    # structure: track_id -> point3D (xyz)
-    points3D: Dict[int, np.ndarray] = field(default_factory=dict)  # xyz shape (3,)
+    # structure: track_id -> point3D xyz, shape (3,)
+    points3D: Dict[int, np.ndarray] = field(default_factory=dict)
+    
+# @dataclass
+# class IncrementalSfMState:
+#     K: np.ndarray
+#     dist: Optional[np.ndarray]
+#     width: int
+#     height: int
+
+#     # poses in cam-from-world 3x4
+#     poses: List[np.ndarray] = field(default_factory=list)
+
+#     # per image keypoints (Nx2), must align with kp indices used in tracks
+#     keypoints: Dict[int, np.ndarray] = field(default_factory=dict)
+
+#     # track database: track_id -> list of observations (image_id, kp_idx) -CHANGED TO-> (image_id, obs_id)
+#     tracks: Dict[int, List[Obs]] = field(default_factory=dict)
+
+#     # structure: track_id -> point3D (xyz)
+#     points3D: Dict[int, np.ndarray] = field(default_factory=dict)  # xyz shape (3,)
 
 @dataclass
 class CameraData:

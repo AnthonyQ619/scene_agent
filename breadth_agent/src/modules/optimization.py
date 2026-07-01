@@ -150,7 +150,18 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
                         new_image_id: int) -> IncrementalSfMState:
         # return super()._optimize_scene(current_scene) 
         # --- Step 1 - Build Reconstruction ---
-        recon, window = self._build_reconstruction(state, new_image_id)
+        result = self._build_reconstruction(state, new_image_id)
+
+        # return if reconstruction failed
+        if result is None:
+            return state
+
+        recon, window = result
+
+        # return if recon doesn't contain 3d points!
+        if len(recon.points3D) == 0:
+            return state
+
         # --- Step 2 - Set BA Solver Options and Config settings --- 
         ba_opts, config = self._build_adjuster(recon, window)
 
@@ -184,7 +195,8 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
         for image_id in recon.reg_image_ids():  # registered images
             config.add_image(image_id)
         # --- BA config: Fix the first camera for stability
-        config.set_constant_rig_from_world_pose(int(window[0]))
+        if len(window) > 0:
+            config.set_constant_rig_from_world_pose(int(window[0]))
 
         # --- BA options ---
         ba_opts = pycolmap.BundleAdjustmentOptions()
@@ -289,13 +301,14 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
         cam = pycolmap.Camera(
             camera_id=camera_id,
             model=model,
-            width=state.width,
-            height=state.height,
+            width=int(state.width),
+            height=int(state.height),
             params=params,
         )
+
         recon.add_camera(cam)
 
-        # Build Camera Rig 
+        # Build Camera Rig -> Single camera rig for stability
         rig = pycolmap.Rig()
         rig.rig_id = camera_id 
         sensor_t = pycolmap.sensor_t()
@@ -306,21 +319,6 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 
         # # ---- 2) Build per-image keypoints and (track_id, frame)->point2D_idx ----
         # # points.data_matrix rows: [track_id, frame_num, x, y]
-        # obs = scene.observations #points.data_matrix
-        # track_ids = obs[:, 1].astype(np.int64)
-        # frame_nums = obs[:, 0].astype(np.int64)
-        # xys = obs[:, 2:4].astype(np.float64)
-
-        # num_frames = len(scene.cam_poses)
-
-        # # group observations by frame
-        # frame_to_rows = [[] for _ in range(num_frames)]
-        # for row_i, f in enumerate(frame_nums):
-        #     if 0 <= f < num_frames:
-        #         frame_to_rows[f].append(row_i)
-
-        # maps (track_id, frame) -> point2D_idx in that image's keypoint list
-        keypoint_index = {}
 
         # Add frames/images
         for img_id in window:
@@ -332,7 +330,9 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 
             # print("Proposed Pose", scene.cam_poses[f])
             # Get Camera Rotation
-            cam_from_world = pycolmap.Rigid3d(state.poses[img_id])#camera_poses.camera_pose[f])  # 3x4
+            cam_from_world = pycolmap.Rigid3d(
+                np.asarray(state.poses[img_id], dtype=np.float64)
+            )
             # print("CFW", cam_from_world)
             # frame.set_cam_from_world(camera_id, cam_from_world)
             # recon.add_frame(frame)
@@ -376,6 +376,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
             # track = pycolmap.Track(track_elems)
             # xyz = np.asarray(state.points3D[track_id], dtype=np.float64).reshape(3, 1)
             # recon.add_point3D(xyz, track)
+            track_id = int(track_id)
 
             # Keep only observations in the current window
             obs_w = [(int(im), int(kp)) for (im, kp) in obs if im in window]
@@ -384,49 +385,89 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
             if track_id not in state.points3D:
                 continue
 
-            # Check whether any observation is already assigned to a point3D
-            existing_pids = set()
-            for im, kp in obs_w:
-                pid = recon.image(im).points2D[kp].point3D_id
-                if pid != pycolmap.INVALID_POINT3D_ID:
-                    existing_pids.add(pid)
+            # Find Valid Tracks to append new 3D points
+            valid_track_elems = []
 
-            # ---- Case 1: conflicting assignments → skip track ----
-            if len(existing_pids) > 1:
-                # Multiple different point3D IDs → inconsistent track
+            for im, kp_idx in obs_w:
+                if not recon.exists_image(im):
+                    continue
+
+                img = recon.image(im)
+
+                if kp_idx < 0 or kp_idx >= len(img.points2D):
+                    continue
+
+                # Skip if already assigned.
+                if img.points2D[kp_idx].point3D_id != pycolmap.INVALID_POINT3D_ID:
+                    continue
+
+                valid_track_elems.append(
+                    pycolmap.TrackElement(im, kp_idx)
+                )
+
+            if len(valid_track_elems) < self.min_track_len:
                 continue
 
-            # ---- Case 2: exactly one existing point3D → extend it ----
-            if len(existing_pids) == 1:
-                pid = existing_pids.pop()
-                p3d = recon.point3D(pid)
+            xyz = np.asarray(
+                state.points3D[track_id],
+                dtype=np.float64,
+            ).reshape(3)
 
-                for im, kp in obs_w:
-                    img = recon.image(im)
-                    if img.points2D[kp].point3D_id == pycolmap.INVALID_POINT3D_ID:
-                        recon.add_observation(pid, pycolmap.TrackElement(im, kp))
+            track = pycolmap.Track(valid_track_elems)
 
-                continue  # do NOT create a new point3D
-
-            # ---- Case 3: no existing assignments → create a new point3D ----
-            track_elems = [
-                pycolmap.TrackElement(im, kp)
-                for im, kp in obs_w
-                if recon.image(im).points2D[kp].point3D_id == pycolmap.INVALID_POINT3D_ID
-            ]
-
-            if len(track_elems) < self.min_track_len:
+            try:
+                recon.add_point3D(xyz, track)
+            except Exception:
+                # Skip inconsistent tracks rather than crashing BA.
                 continue
 
-            xyz = np.asarray(state.points3D[track_id], dtype=np.float64).reshape(3, 1)
-            track = pycolmap.Track(track_elems)
-            recon.add_point3D(xyz, track)
-
-        # If no points, skip
         if len(recon.points3D) == 0:
-            return
+            return None
 
         return recon, window
+        #     # Check whether any observation is already assigned to a point3D
+        #     existing_pids = set()
+        #     for im, kp in obs_w:
+        #         pid = recon.image(im).points2D[kp].point3D_id
+        #         if pid != pycolmap.INVALID_POINT3D_ID:
+        #             existing_pids.add(pid)
+
+        #     # ---- Case 1: conflicting assignments → skip track ----
+        #     if len(existing_pids) > 1:
+        #         # Multiple different point3D IDs → inconsistent track
+        #         continue
+
+        #     # ---- Case 2: exactly one existing point3D → extend it ----
+        #     if len(existing_pids) == 1:
+        #         pid = existing_pids.pop()
+        #         p3d = recon.point3D(pid)
+
+        #         for im, kp in obs_w:
+        #             img = recon.image(im)
+        #             if img.points2D[kp].point3D_id == pycolmap.INVALID_POINT3D_ID:
+        #                 recon.add_observation(pid, pycolmap.TrackElement(im, kp))
+
+        #         continue  # do NOT create a new point3D
+
+        #     # ---- Case 3: no existing assignments → create a new point3D ----
+        #     track_elems = [
+        #         pycolmap.TrackElement(im, kp)
+        #         for im, kp in obs_w
+        #         if recon.image(im).points2D[kp].point3D_id == pycolmap.INVALID_POINT3D_ID
+        #     ]
+
+        #     if len(track_elems) < self.min_track_len:
+        #         continue
+
+        #     xyz = np.asarray(state.points3D[track_id], dtype=np.float64).reshape(3, 1)
+        #     track = pycolmap.Track(track_elems)
+        #     recon.add_point3D(xyz, track)
+
+        # # If no points, skip
+        # if len(recon.points3D) == 0:
+        #     return
+
+        # return recon, window
 
 class BundleAdjustmentOptimizerGlobal(OptimizationClass):
     def __init__(

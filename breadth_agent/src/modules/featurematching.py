@@ -15,8 +15,10 @@ from romatch import roma_outdoor, roma_indoor
 
 from modules.baseclass import FeatureMatching, FeatureTracking, FeatureTrackingBase, module_metric
 from collections.abc import Callable
+from torchvision import transforms as TF
 import kornia as K
 import kornia.feature as KF
+from kornia.feature.loftr.loftr import default_cfg
 import torch
 from PIL import Image, ImageOps
 import piexif
@@ -609,6 +611,7 @@ class FeatureMatchRoMAPair(FeatureMatching):
     def __init__(self, 
                  cam_data: CameraData, 
                  setting: str = "indoor", 
+                 pseudo_merge_eps_px: float = 1.5,
                  RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99):
@@ -683,6 +686,7 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
             self.roma_model = roma_indoor(device=self.device)
 
         self.detector_free = True
+        self.pseudo_merge_eps_px = pseudo_merge_eps_px
     
     def find_correspondences(self, features: list[Points2D] | None) -> PointsMatched:
         # matched_points = PointsMatched(pairwise_matches=[], 
@@ -693,7 +697,8 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
                                        pairwise_indices=[],
                                        image_size=np.array(self.cam_data.image_shape_new),
                                        image_scale=np.array(self.cam_data.image_scale),
-                                       img_features=[])
+                                       img_features=[],
+                                       pseudo_merge_eps_px=self.pseudo_merge_eps_px )
 
         W_1, H_1 = self.cam_data.image_shape_new
         for scene in tqdm(range(0, len(self.image_list) - 1)): # len(self.image_path)
@@ -834,16 +839,23 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
         return min(cov1, cov2)
     
 class FeatureMatchLoftrPair(FeatureMatching):
+    use_base_metrics = False
+    
     def __init__(self, 
                  cam_data: CameraData, 
                  setting: str = "indoor", 
+                 pseudo_merge_eps_px: float = 1.5,
+                 coarse_thr: float = 0.2,
+                 border_rm: int = 2,
+                 min_confidence: float | None = None,
+                 max_matches: int | None = None,
                  RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99):
 
-        self.module_name = "FeatureMatchLoftrPair"
+        module_name = "FeatureMatchLoftrPair"
 
-        self.description = f"""
+        description = f"""
 Detects point correspondance between two sequential frames at once to detect matching 
 features across a set of images. The  matching algorithm used is the detector free 
 LoFTR deep learning model trained as a feature matcher. This Feature Detection and Matching
@@ -865,7 +877,7 @@ Initialization Parameters:
     - Default (bool) = True (Reshape takes place by default for best model outcome)
 """ 
         
-        self.example = f"""
+        example = f"""
 Initialization: 
 # Determine the detector that was used previously and initialize module with said detector
 
@@ -900,16 +912,27 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
                          RANSAC_threshold=RANSAC_threshold)
         
         weight = SETTINGS[setting.lower()]
+        self.device = torch.device(f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else 'cpu')
+        cfg = copy.deepcopy(default_cfg)
+        cfg["match_coarse"]["thr"] = coarse_thr
+        cfg["match_coarse"]["border_rm"] = border_rm
 
-        self.matcher = KF.LoFTR(pretrained=weight)
+        self.matcher = KF.LoFTR(
+            pretrained=weight,
+            config=cfg,
+        ).to(self.device).eval()
 
+        self.min_confidence = min_confidence
+        self.max_matches = max_matches
+
+        self.to_tensor = TF.ToTensor()
         self.detector_free = True
+        
 
     def find_correspondences(self, features: list[Points2D] | None) -> PointsMatched:
         # matched_points = PointsMatched(pairwise_matches=[], 
         #                                image_size=np.array([self.img_shape[1], self.img_shape[0]]),
         #                                image_scale=[1.0, 1.0])
-
         matched_points = PointsMatched(pairwise_matches=[], 
                                        pairwise_indices=[],
                                        image_size=np.array(self.cam_data.image_shape_new),
@@ -917,15 +940,20 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
                                        img_features=[])
 
         W_1, H_1 = self.cam_data.image_shape_new
-        for i in tqdm(0, len(self.image_list), 2): # len(self.image_path)
+
+        for scene in tqdm(range(0, len(self.image_list)-1)): # len(self.image_path)
             # img1_f = self.image_path[i]
             # img2_f = self.image_path[i + 1]
-            img1 = self.image_list[i]
-            img2 = self.image_list[i + 1]
+            img1 = self.image_list[scene]
+            img2 = self.image_list[scene + 1]
+
+            image1 = self.pil_to_kornia_gray(img1, self.device)
+            image2 = self.pil_to_kornia_gray(img2, self.device)
+            print(image1.shape, image1.dtype, image1.min().item(), image1.max().item())
 
             input_dict = {
-                "image0": img1,  # LofTR works on grayscale images only
-                "image1": img2,
+                "image0": image1,  # LofTR works on grayscale images only
+                "image1": image2,
             }
 
             with torch.inference_mode():
@@ -933,8 +961,24 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
 
             mkpts0 = correspondences["keypoints0"].cpu().numpy()
             mkpts1 = correspondences["keypoints1"].cpu().numpy()
+            confidence = correspondences["confidence"].cpu().numpy()
+            pts1 = Points2D(points2D = mkpts0,
+                            descriptors = None,
+                            scores = confidence,
+                            image_size = img1.size,
+                            reshape_scale = self.cam_data.image_scale)
+            pts2 = Points2D(points2D = mkpts1,
+                            descriptors = None,
+                            scores = confidence,
+                            image_size = img2.size,
+                            reshape_scale = self.cam_data.image_scale)
 
-            inlier_pts1, inlier_pts2, idx1_inliers, idx2_inliers, M = self.outlier_reject(mkpts0, mkpts1, scene)
+            N = mkpts0.shape[0]
+            idx1, idx2 = np.arange(N, dtype=np.int64), np.arange(N, dtype=np.int64)
+            
+            inlier_pts1, inlier_pts2, idx1_inliers, idx2_inliers, M = self.outlier_reject(pts1, pts2, idx1, idx2, scene)
+
+            # inlier_pts1, inlier_pts2, idx1_inliers, idx2_inliers, M = self.outlier_reject(mkpts0, mkpts1, scene)
             
             feat_pair = np.hstack((inlier_pts1.points2D, inlier_pts2.points2D))
             idx_pair = np.hstack((np.vstack(idx1_inliers), np.vstack(idx2_inliers)))
@@ -946,16 +990,122 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
             matched_points.set_matching_pair(
                 data=feat_pair,
                 idx_data=idx_pair,
-                pair=(scene, scene + 1),
-                matcher="loftr",
+                image_pair=(scene, scene + 1),
                 index_type="pair_local",
-                confidence=mconf,
+                matcher_name="loftr",
+                # confidence=confidence,
             )
 
             # matched_points.set_matching_pair(np.hstack((inlier_pts1, inlier_pts2)))
 
         return matched_points
 
+    def pil_to_kornia_gray(
+        self,
+        img: Image.Image,
+        device: torch.device | str = "cuda",
+    ) -> torch.Tensor:
+        """
+        Convert PIL image to Kornia/LoFTR-compatible grayscale tensor.
+
+        Returns:
+            Tensor of shape [1, 1, H, W], dtype float32, range [0, 1]
+        """
+        # Ensure RGB first, even if PIL image is L, RGBA, etc.
+        img = img.convert("RGB")
+
+        # PIL -> torch tensor [3, H, W], float32, range [0, 1]
+        tensor = self.to_tensor(img)
+
+        # Add batch dimension: [1, 3, H, W]
+        tensor = tensor.unsqueeze(0).to(device)
+
+        # RGB -> grayscale: [1, 1, H, W]
+        gray = K.color.rgb_to_grayscale(tensor)
+
+        return gray
+
+    @module_metric
+    def calculate_detector_free_metrics(self, matching_points: PointsMatched):
+        raw_counts = []
+        inlier_ratios = []
+        median_sampson_errors = []
+        spatial_coverages = []
+
+        gric_score_F, gric_score_H = self.evaluate_models(matching_points)
+
+        for pair_idx, pair_matches in enumerate(matching_points.pairwise_matches):
+            pts1 = pair_matches[:, :2]
+            pts2 = pair_matches[:, 2:]
+
+            raw_counts.append(len(pair_matches))
+
+            F, mask = cv2.findFundamentalMat(
+                pts1,
+                pts2,
+                cv2.USAC_MAGSAC,
+                ransacReprojThreshold=self.ransac_threshold,
+                maxIters=10000,
+                confidence=self.ransac_conf,
+            )
+
+            if mask is None or F is None:
+                inlier_ratios.append(0.0)
+                median_sampson_errors.append(float("inf"))
+            else:
+                mask = mask.ravel().astype(bool)
+                inlier_ratios.append(float(mask.mean()))
+
+                if mask.sum() >= 8:
+                    errors = self.fundamental_error(pts1[mask], pts2[mask], F)
+                    median_sampson_errors.append(float(np.median(errors)))
+                else:
+                    median_sampson_errors.append(float("inf"))
+
+            spatial_coverages.append(
+                self._calculate_pair_spatial_coverage(
+                    pts1=pts1,
+                    pts2=pts2,
+                    image_size=matching_points.image_size,
+                )
+            )
+
+        return {
+            "Matcher Type": "detector_free_pair_local",
+            "Average Corresponding Features": float(np.mean(raw_counts)),
+            "Median Corresponding Features": float(np.median(raw_counts)),
+            "Average Geometric Inlier Ratio": float(np.mean(inlier_ratios)),
+            "Median Geometric Inlier Ratio": float(np.median(inlier_ratios)),
+            "Median Sampson Error": float(np.median(median_sampson_errors)),
+            "Average Spatial Coverage": float(np.mean(spatial_coverages)),
+            "Gric Score - Fundamental": gric_score_F,
+            "Gric Score - Homography": gric_score_H,
+        }
+
+        # Helper for Metric Function
+    def _calculate_pair_spatial_coverage(
+            self,
+            pts1: np.ndarray,
+            pts2: np.ndarray,
+            image_size: np.ndarray,
+            grid_size: int = 8,
+        ) -> float:
+        W, H = image_size[:]
+
+        def coverage_for_points(pts):
+            if len(pts) == 0:
+                return 0.0
+
+            x = np.clip((pts[:, 0] / W * grid_size).astype(int), 0, grid_size - 1)
+            y = np.clip((pts[:, 1] / H * grid_size).astype(int), 0, grid_size - 1)
+
+            occupied = set(zip(x, y))
+            return len(occupied) / float(grid_size * grid_size)
+
+        cov1 = coverage_for_points(pts1)
+        cov2 = coverage_for_points(pts2)
+
+        return min(cov1, cov2)
     
 ##########################################################################################################
 ############################################# DETECTOR-BASED #############################################
@@ -1190,7 +1340,7 @@ class FeatureMatchLightGluePair(FeatureMatching):
                  RANSAC_threshold: float = 3.0,
                  RANSAC_conf: float = 0.99):
         
-        SUPPORTED_FEATURES = ["superpoint", "sp", "sift"]
+        SUPPORTED_FEATURES = ["superpoint", "sp", "sift", "aliked"]
 
         if detector.lower() not in SUPPORTED_FEATURES:
             message = 'Error: detector is not supported. Use one of ' + str(self.FORMATS) + ' instead to use this Feature Matcher.'
@@ -1490,7 +1640,7 @@ reconstructed_scene.{module_name}(
         
         self.detector = detector
         # print(self.detector)
-        if detector in ["sift", "sp", "superpoint"]:
+        if detector in ["sift", "sp", "superpoint", "aliked"]:
             FLANN_INDEX_KDTREE = 1
             index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
         else: # Fast and Orb
@@ -1685,7 +1835,7 @@ reconstructed_scene.{module_name}(
         
         self.detector = detector
 
-        if self.detector in ["sift", "sp", "superpoint"]:
+        if self.detector in ["sift", "sp", "superpoint", "aliked"]:
             norm_type = cv2.NORM_L2
         else:
             norm_type = cv2.NORM_HAMMING
