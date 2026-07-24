@@ -603,9 +603,9 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         # Run Optimizer
         summary = self._solve(ba_opts, config, recon)
 
-        print("After BA:")
-        for image_id, image in recon.images.items():
-            print(image_id, image.name)
+        # print("After BA:")
+        # for image_id, image in recon.images.items():
+        #     print(image_id, image.name)
 
         # print("SUMMARY", summary)
         self.summary = summary
@@ -613,9 +613,9 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         self._write_back_to_scene(current_scene, recon, trackid_to_point3Did)
 
 
-        print("After Writing to Scene:")
-        for image_id, image in recon.images.items():
-            print(image_id, image.name)
+        # print("After Writing to Scene:")
+        # for image_id, image in recon.images.items():
+        #     print(image_id, image.name)
 
         # Write reconstructed scene to workspace (Sparse Scene Currently)
         recon.write(self.directory_path)
@@ -635,9 +635,9 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         return current_scene #, summary
     
     def _solve(self, ba_opts, config, recon):
-        print("Before BA:")
-        for image_id, image in recon.images.items():
-            print(image_id, image.name)
+        # print("Before BA:")
+        # for image_id, image in recon.images.items():
+        #     print(image_id, image.name)
 
         bundle_adjuster = pycolmap.create_default_bundle_adjuster(ba_opts, config, recon)
         return bundle_adjuster.solve()
@@ -833,9 +833,9 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
                 camera_id = frame_to_camera[f]
             else:
                 camera_id = 1
-            print(self.cam_data.image_names[f])
+            # print(self.cam_data.image_names[f])
             image_file_name = self.cam_data.image_names[f].split(".")[0]
-            print(image_file_name)
+            # print(image_file_name)
             # Create frame + set pose from your initial estimate
             frame = pycolmap.Frame(frame_id = frame_id,
                                    rig_id = rig.rig_id)
@@ -1034,7 +1034,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
 
         if trackid_to_point3Did is None:
             # temp_recon = pycolmap.Reconstruction(self.directory_path)
-            print("HERE")
+            # print("HERE")
             # Obtain 3D Points from Dense Reconstruction
             points = np.array([p.xyz for p in recon.points3D.values()])
             colors = np.array([p.color / 255.0 for p in recon.points3D.values()])

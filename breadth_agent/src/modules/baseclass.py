@@ -1557,6 +1557,7 @@ class FeatureTracking(PipelineModule, ABC):
         self.det_free = False
 
         self.cam_data = cam_data
+        self.image_list = copy.copy(cam_data.image_list)
         self.K = cam_data.get_K()
         self.dist = cam_data.get_distortion()
 

@@ -1078,7 +1078,7 @@ reconstructed_scene.{module_name}(
         if E is None or mask is None:
             raise RuntimeError(f"Essential matrix failed for pair {pair_index}.")
 
-        _, R, T, _ = cv2.recoverPose(
+        _, R, T, pose_mask = cv2.recoverPose(
             points1 = pts2, 
             points2 = pts1, 
             cameraMatrix = self.K_mat, 
@@ -1093,7 +1093,7 @@ reconstructed_scene.{module_name}(
             dtype=np.float64,
         )
 
-        pose1 = np.hstack([R, t.reshape(3, 1)]).astype(np.float64)
+        pose1 = np.hstack([R, T.reshape(3, 1)]).astype(np.float64)
 
         inlier_mask = (pose_mask.ravel() > 0)
 

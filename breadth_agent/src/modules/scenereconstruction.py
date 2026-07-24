@@ -5,6 +5,10 @@ from tqdm import tqdm
 import torch
 import torch.nn.functional as F
 from torchvision import transforms as TF
+from itertools import combinations
+from typing import Optional
+from scipy.optimize import least_squares
+import gtsam
 import os
 import shutil
 import struct
@@ -786,665 +790,1580 @@ sparse_scene = sparse_reconstruction(tracked_features, cam_poses, view="two")
     #     return X
 
 # Global Pose and 3D Reconstruction
-class SparseSceneEstimationGLOMAP(SparseSceneEstimation):
+# class SparseSceneEstimationGLOMAP(SparseSceneEstimation):
+#     """
+#     GLOMAP-backed global sparse scene estimator.
+
+#     This module belongs under SparseSceneEstimation, not CameraPoseEstimatorClass,
+#     because GLOMAP estimates:
+#         1. global camera poses
+#         2. sparse 3D points
+#         3. point tracks / observations
+
+#     Input:
+#         PointsMatched feature_pairs
+
+#     Output:
+#         Scene with:
+#             scene.points3D
+#             scene.cam_poses
+#             scene.observations
+
+#     Requirements:
+#         - GLOMAP installed as a command-line executable.
+#         - pycolmap installed.
+#         - Pairwise matches stored in PointsMatched.
+#         - Intrinsics provided by CameraData.
+#     """
+
+#     detector_free_modules = ["SparseSceneEstimationGLOMAP"]
+
+#     def __init__(
+#         self,
+#         cam_data: CameraData,
+#         glomap_bin: str = "glomap",
+#         work_dir: str | None = None,
+#         min_track_len: int = 2,
+#         min_num_matches: int = 30,
+#         geometric_verification: bool = True,
+#         keep_work_dir: bool = False,
+#         track_builder: FeatureTrackFromPairsUnionFind | None = None,
+#     ):
+#         super().__init__(
+#             cam_data=cam_data,
+#             module_name="SparseSceneEstimationGLOMAP",
+#             description=(
+#                 "Global SfM sparse reconstruction using GLOMAP. "
+#                 "Builds a COLMAP-compatible database from custom PointsMatched "
+#                 "pairwise correspondences, runs GLOMAP, and imports the sparse "
+#                 "scene back into the framework."
+#             ),
+#             example="scene.SparseSceneEstimationGLOMAP()",
+#         )
+
+#         self.glomap_bin = glomap_bin
+#         self.work_dir = work_dir
+#         self.min_track_len = min_track_len
+#         self.min_num_matches = min_num_matches
+#         self.geometric_verification = geometric_verification
+#         self.keep_work_dir = keep_work_dir
+#         self.track_builder = track_builder
+
+#         # GLOMAP estimates camera poses, so this module should not require
+#         # state.camera_poses from a previous CameraPoseEstimatorClass module.
+#         self.requires_camera_poses = False
+
+#     # -------------------------------------------------------------------------
+#     # Override SparseSceneEstimation.run_from_state
+#     # -------------------------------------------------------------------------
+
+#     def run_from_state(self, state: SceneState) -> Scene:
+#         """
+#         GLOMAP estimates poses and scene jointly, so unlike the base
+#         SparseSceneEstimation class, this should not require state.camera_poses.
+#         """
+
+#         feature_pairs = state.feature_pairs
+
+#         if feature_pairs is None:
+#             raise RuntimeError(
+#                 "[SparseSceneEstimationGLOMAP Error]\n"
+#                 "GLOMAP scene estimation requires state.feature_pairs.\n"
+#                 "Run a pairwise feature matching module before this module."
+#             )
+
+#         try:
+#             return self(feature_pairs)
+#         except Exception as e:
+#             raise RuntimeError(
+#                 "[SparseSceneEstimationGLOMAP Error]\n"
+#                 "GLOMAP sparse scene estimation failed.\n\n"
+#                 "Likely causes:\n"
+#                 "- GLOMAP is not installed or not visible on PATH.\n"
+#                 "- The COLMAP database export failed.\n"
+#                 "- Pairwise feature matches are too weak or too sparse.\n"
+#                 "- The image names used in the database do not match the image folder.\n"
+#                 "- There are not enough geometrically verified image pairs.\n\n"
+#                 "Action needed:\n"
+#                 "- Confirm that `glomap mapper` runs from the command line.\n"
+#                 "- Check that feature_pairs.pairwise_matches and pairwise_obs_ids are populated.\n"
+#                 "- Improve matching or increase the number of reliable pairwise matches.\n"
+#                 "- Check the exported database and sparse reconstruction folder.\n\n"
+#                 f"Original error: {type(e).__name__}: {e}"
+#             ) from e
+
+#     def __call__(self, feature_pairs: PointsMatched) -> Scene:
+#         return self.build_reconstruction(feature_pairs, cam_poses=None)
+
+#     # -------------------------------------------------------------------------
+#     # Main reconstruction method
+#     # -------------------------------------------------------------------------
+
+#     def build_reconstruction(
+#         self,
+#         tracked_features: PointsMatched,
+#         cam_poses: CameraPose | None = None,
+#     ) -> Scene:
+#         """
+#         Main GLOMAP scene estimation entry point.
+
+#         Note:
+#             cam_poses is intentionally unused because GLOMAP estimates poses.
+#         """
+
+#         feature_pairs = tracked_features
+
+#         if len(feature_pairs.pairwise_matches) == 0:
+#             raise RuntimeError("No pairwise matches found for GLOMAP.")
+
+#         if len(feature_pairs.pairwise_obs_ids) != len(feature_pairs.pairwise_matches):
+#             raise RuntimeError(
+#                 "feature_pairs.pairwise_obs_ids must be populated. "
+#                 "Use PointsMatched.set_matching_pair(...) before GLOMAP."
+#             )
+
+#         # Build multi-view tracks for your framework-level Scene observations.
+#         # GLOMAP itself consumes pairwise matches, but your later global optimizer
+#         # likely benefits from Scene observations.
+#         if not feature_pairs.multi_view:
+#             if self.track_builder is not None:
+#                 tracked = self.track_builder.build_tracks_from_pairs(feature_pairs)
+#             else:
+#                 tracked = FeatureTrackFromPairsUnionFind(
+#                     cam_data=self.cam_data,
+#                     min_track_len=self.min_track_len,
+#                 ).build_tracks_from_pairs(feature_pairs)
+#         else:
+#             tracked = feature_pairs
+
+#         work_dir = self._prepare_work_dir()
+#         database_path = work_dir / "database.db"
+#         image_dir = work_dir / "images"
+#         sparse_dir = work_dir / "sparse"
+
+#         image_dir.mkdir(parents=True, exist_ok=True)
+#         sparse_dir.mkdir(parents=True, exist_ok=True)
+
+#         try:
+#             self._stage_images(image_dir=image_dir)
+#             self._export_colmap_database(
+#                 database_path=database_path,
+#                 feature_pairs=feature_pairs,
+#             )
+#             self._run_glomap(
+#                 database_path=database_path,
+#                 image_dir=image_dir,
+#                 output_dir=sparse_dir,
+#             )
+
+#             reconstruction = self._load_first_reconstruction(sparse_dir)
+
+#             scene = self._convert_reconstruction_to_scene(
+#                 reconstruction=reconstruction,
+#                 tracked_features=tracked,
+#             )
+
+#             self._write_metrics(scene=scene, reconstruction=reconstruction)
+
+#             return scene
+
+#         finally:
+#             if not self.keep_work_dir and self.work_dir is None:
+#                 shutil.rmtree(work_dir, ignore_errors=True)
+
+#     # -------------------------------------------------------------------------
+#     # Work directory / images
+#     # -------------------------------------------------------------------------
+
+#     def _prepare_work_dir(self) -> Path:
+#         if self.work_dir is not None:
+#             work_dir = Path(self.work_dir)
+#             work_dir.mkdir(parents=True, exist_ok=True)
+#             return work_dir
+
+#         return Path(tempfile.mkdtemp(prefix="scene_glomap_"))
+
+#     def _stage_images(self, image_dir: Path) -> None:
+#         """
+#         GLOMAP/COLMAP requires images on disk.
+
+#         This assumes cam_data.image_list stores PIL Images or image-like objects.
+#         If your CameraData already has image file paths, replace this function
+#         with symlinks/copies from those paths.
+#         """
+
+#         for image_id, image in enumerate(self.image_list):
+#             out_path = image_dir / f"{image_id:06d}.png"
+
+#             if hasattr(image, "save"):
+#                 image.save(out_path)
+#             else:
+#                 arr = np.asarray(image)
+
+#                 if arr.ndim == 3 and arr.shape[2] == 3:
+#                     arr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+
+#                 cv2.imwrite(str(out_path), arr)
+
+#     # -------------------------------------------------------------------------
+#     # COLMAP database export
+#     # -------------------------------------------------------------------------
+
+#     def _export_colmap_database(
+#         self,
+#         database_path: Path,
+#         feature_pairs: PointsMatched,
+#     ) -> None:
+#         """
+#         Export custom PointsMatched data into a COLMAP database.
+
+#         Important:
+#             COLMAP/GLOMAP databases use per-image keypoint indices.
+#             Your PointsMatched data uses stable obs IDs.
+
+#         Therefore:
+#             obs_id -> per-image kp_idx
+#             pairwise_obs_ids -> pairwise local match indices
+#         """
+
+#         if database_path.exists():
+#             database_path.unlink()
+
+#         db = COLMAPDatabase.connect(str(database_path))
+#         db.create_tables()
+
+#         camera_id = self._add_camera_to_database(db)
+#         image_id_map = self._add_images_to_database(db, camera_id)
+
+#         obs_to_kp_idx = self._add_keypoints_to_database(
+#             db=db,
+#             feature_pairs=feature_pairs,
+#             image_id_map=image_id_map,
+#         )
+
+#         self._add_matches_to_database(
+#             db=db,
+#             feature_pairs=feature_pairs,
+#             image_id_map=image_id_map,
+#             obs_to_kp_idx=obs_to_kp_idx,
+#         )
+
+#         db.commit()
+#         db.close()
+
+#     def _add_camera_to_database(self, db) -> int:
+#         K = self.K_mat
+#         fx, fy = float(K[0, 0]), float(K[1, 1])
+#         cx, cy = float(K[0, 2]), float(K[1, 2])
+
+#         width = int(self.image_list[0].size[0])
+#         height = int(self.image_list[0].size[1])
+
+#         if self.dist is None:
+#             model = "PINHOLE"
+#             params = np.array([fx, fy, cx, cy], dtype=np.float64)
+#         else:
+#             d = np.asarray(self.dist, dtype=np.float64).ravel()
+
+#             if len(d) >= 4:
+#                 model = "OPENCV"
+#                 params = np.array(
+#                     [fx, fy, cx, cy, d[0], d[1], d[2], d[3]],
+#                     dtype=np.float64,
+#                 )
+#             else:
+#                 model = "PINHOLE"
+#                 params = np.array([fx, fy, cx, cy], dtype=np.float64)
+
+#         camera_id = db.add_camera(
+#             model=model,
+#             width=width,
+#             height=height,
+#             params=params,
+#             prior_focal_length=True,
+#         )
+
+#         return int(camera_id)
+
+#     def _add_images_to_database(self, db, camera_id: int) -> dict[int, int]:
+#         """
+#         Returns:
+#             image_id_map[framework_image_id] = colmap_image_id
+#         """
+
+#         image_id_map = {}
+
+#         for image_id in range(len(self.image_list)):
+#             name = f"{image_id:06d}.png"
+
+#             colmap_image_id = db.add_image(
+#                 name=name,
+#                 camera_id=camera_id,
+#                 image_id=image_id + 1,
+#             )
+
+#             image_id_map[image_id] = int(colmap_image_id)
+
+#         return image_id_map
+
+#     def _add_keypoints_to_database(
+#         self,
+#         db,
+#         feature_pairs: PointsMatched,
+#         image_id_map: dict[int, int],
+#     ) -> dict[int, int]:
+#         """
+#         Add one keypoint table per image.
+
+#         Returns:
+#             obs_to_kp_idx[obs_id] = local keypoint index in that image
+#         """
+
+#         image_to_obs_ids: dict[int, list[int]] = {}
+
+#         for obs_id in feature_pairs.obs_xy.keys():
+#             image_id = feature_pairs.get_obs_image(obs_id)
+#             image_to_obs_ids.setdefault(image_id, []).append(int(obs_id))
+
+#         obs_to_kp_idx = {}
+
+#         for image_id, obs_ids in image_to_obs_ids.items():
+#             obs_ids = sorted(obs_ids)
+
+#             keypoints = []
+
+#             for kp_idx, obs_id in enumerate(obs_ids):
+#                 xy = np.asarray(
+#                     feature_pairs.get_obs_xy(obs_id),
+#                     dtype=np.float32,
+#                 ).reshape(2)
+
+#                 # COLMAP keypoint format can be Nx2, Nx4, or Nx6.
+#                 # Nx2 is sufficient for imported custom keypoints.
+#                 keypoints.append([float(xy[0]), float(xy[1])])
+
+#                 obs_to_kp_idx[obs_id] = kp_idx
+
+#             keypoints = np.asarray(keypoints, dtype=np.float32)
+
+#             colmap_image_id = image_id_map[image_id]
+#             db.add_keypoints(colmap_image_id, keypoints)
+
+#         return obs_to_kp_idx
+
+#     def _add_matches_to_database(
+#         self,
+#         db,
+#         feature_pairs: PointsMatched,
+#         image_id_map: dict[int, int],
+#         obs_to_kp_idx: dict[int, int],
+#     ) -> None:
+#         """
+#         Convert pairwise obs IDs into local keypoint-index matches.
+#         """
+
+#         for pair_idx, obs_pairs in enumerate(feature_pairs.pairwise_obs_ids):
+#             if obs_pairs.shape[0] < self.min_num_matches:
+#                 continue
+
+#             # Infer image pair from the first correspondence.
+#             obs_i0 = int(obs_pairs[0, 0])
+#             obs_j0 = int(obs_pairs[0, 1])
+
+#             image_i = feature_pairs.get_obs_image(obs_i0)
+#             image_j = feature_pairs.get_obs_image(obs_j0)
+
+#             colmap_i = image_id_map[image_i]
+#             colmap_j = image_id_map[image_j]
+
+#             matches = []
+
+#             for obs_i, obs_j in obs_pairs:
+#                 obs_i = int(obs_i)
+#                 obs_j = int(obs_j)
+
+#                 if obs_i not in obs_to_kp_idx or obs_j not in obs_to_kp_idx:
+#                     continue
+
+#                 kp_i = obs_to_kp_idx[obs_i]
+#                 kp_j = obs_to_kp_idx[obs_j]
+
+#                 matches.append([kp_i, kp_j])
+
+#             if len(matches) < self.min_num_matches:
+#                 continue
+
+#             matches = np.asarray(matches, dtype=np.uint32)
+
+#             db.add_matches(colmap_i, colmap_j, matches)
+
+#             if self.geometric_verification:
+#                 self._add_two_view_geometry(
+#                     db=db,
+#                     image_id1=colmap_i,
+#                     image_id2=colmap_j,
+#                     matches=matches,
+#                     feature_pairs=feature_pairs,
+#                     obs_pairs=obs_pairs,
+#                 )
+
+#     def _add_two_view_geometry(
+#         self,
+#         db,
+#         image_id1: int,
+#         image_id2: int,
+#         matches: np.ndarray,
+#         feature_pairs: PointsMatched,
+#         obs_pairs: np.ndarray,
+#     ) -> None:
+#         """
+#         Add verified two-view geometry.
+
+#         This uses OpenCV Essential matrix verification from your existing
+#         custom correspondences. GLOMAP benefits from verified image pairs.
+#         """
+
+#         pts1 = []
+#         pts2 = []
+
+#         for obs_i, obs_j in obs_pairs:
+#             obs_i = int(obs_i)
+#             obs_j = int(obs_j)
+
+#             pts1.append(feature_pairs.get_obs_xy(obs_i))
+#             pts2.append(feature_pairs.get_obs_xy(obs_j))
+
+#         pts1 = np.asarray(pts1, dtype=np.float64).reshape(-1, 2)
+#         pts2 = np.asarray(pts2, dtype=np.float64).reshape(-1, 2)
+
+#         if len(pts1) < self.min_num_matches:
+#             return
+
+#         E, mask = cv2.findEssentialMat(
+#             pts1,
+#             pts2,
+#             self.K_mat,
+#             method=cv2.RANSAC,
+#             prob=0.999,
+#             threshold=1.0,
+#         )
+
+#         if E is None or mask is None:
+#             return
+
+#         inlier_mask = mask.ravel().astype(bool)
+
+#         if int(inlier_mask.sum()) < self.min_num_matches:
+#             return
+
+#         verified_matches = matches[inlier_mask].astype(np.uint32)
+
+#         try:
+#             db.add_two_view_geometry(
+#                 image_id1,
+#                 image_id2,
+#                 verified_matches,
+#                 E=E.astype(np.float64),
+#                 config=2,  # calibrated two-view geometry
+#             )
+#         except TypeError:
+#             # pycolmap / COLMAP database wrappers vary by version.
+#             # If your add_two_view_geometry signature differs, adapt this call.
+#             db.add_two_view_geometry(
+#                 image_id1,
+#                 image_id2,
+#                 verified_matches,
+#             )
+
+#     # -------------------------------------------------------------------------
+#     # Run GLOMAP
+#     # -------------------------------------------------------------------------
+
+#     def _run_glomap(
+#         self,
+#         database_path: Path,
+#         image_dir: Path,
+#         output_dir: Path,
+#     ) -> None:
+#         """
+#         Run external GLOMAP mapper.
+
+#         Typical command:
+#             glomap mapper
+#                 --database_path database.db
+#                 --image_path images
+#                 --output_path sparse
+#         """
+
+#         cmd = [
+#             self.glomap_bin,
+#             "mapper",
+#             "--database_path",
+#             str(database_path),
+#             "--image_path",
+#             str(image_dir),
+#             "--output_path",
+#             str(output_dir),
+#         ]
+
+#         result = subprocess.run(
+#             cmd,
+#             stdout=subprocess.PIPE,
+#             stderr=subprocess.PIPE,
+#             text=True,
+#         )
+
+#         if result.returncode != 0:
+#             raise RuntimeError(
+#                 "GLOMAP failed.\n\n"
+#                 f"Command:\n{' '.join(cmd)}\n\n"
+#                 f"STDOUT:\n{result.stdout}\n\n"
+#                 f"STDERR:\n{result.stderr}"
+#             )
+
+#     # -------------------------------------------------------------------------
+#     # Import GLOMAP/COLMAP sparse reconstruction
+#     # -------------------------------------------------------------------------
+
+#     def _load_first_reconstruction(self, sparse_dir: Path) -> pycolmap.Reconstruction:
+#         """
+#         GLOMAP writes a COLMAP sparse reconstruction.
+
+#         Usually this appears as:
+#             sparse/0
+#         but this function finds the first valid reconstruction directory.
+#         """
+
+#         candidates = []
+
+#         for child in sparse_dir.iterdir():
+#             if child.is_dir():
+#                 candidates.append(child)
+
+#         # Some versions/tools may write directly into sparse_dir.
+#         candidates.append(sparse_dir)
+
+#         for candidate in candidates:
+#             try:
+#                 recon = pycolmap.Reconstruction(str(candidate))
+
+#                 if recon.num_reg_images() > 0:
+#                     return recon
+#             except Exception:
+#                 continue
+
+#         raise RuntimeError(f"No valid reconstruction found in: {sparse_dir}")
+
+#     def _convert_reconstruction_to_scene(
+#         self,
+#         reconstruction: pycolmap.Reconstruction,
+#         tracked_features: PointsMatched,
+#     ) -> Scene:
+#         """
+#         Convert pycolmap.Reconstruction into your framework Scene.
+
+#         This uses:
+#             - GLOMAP poses and 3D points from reconstruction
+#             - observations from pycolmap tracks when possible
+#             - fallback observations from tracked_features.data_matrix
+#         """
+
+#         num_images = len(self.image_list)
+
+#         camera_poses = [None for _ in range(num_images)]
+
+#         for image_id in reconstruction.reg_image_ids():
+#             img = reconstruction.image(image_id)
+#             T = img.cam_from_world()
+
+#             R = T.rotation.matrix()
+#             t = np.asarray(T.translation).reshape(3, 1)
+
+#             framework_image_id = int(image_id) - 1
+
+#             if 0 <= framework_image_id < num_images:
+#                 camera_poses[framework_image_id] = np.hstack([R, t]).astype(np.float64)
+
+#         # Fill missing poses with identity or skip, depending on your downstream expectations.
+#         # I prefer explicit identity only as a placeholder.
+#         for i in range(num_images):
+#             if camera_poses[i] is None:
+#                 camera_poses[i] = np.array(
+#                     [
+#                         [1.0, 0.0, 0.0, 0.0],
+#                         [0.0, 1.0, 0.0, 0.0],
+#                         [0.0, 0.0, 1.0, 0.0],
+#                     ],
+#                     dtype=np.float64,
+#                 )
+
+#         points3d_container = Points3D()
+#         observations = []
+
+#         point_index = 0
+
+#         for point3D_id in reconstruction.point3D_ids():
+#             p3d = reconstruction.point3D(point3D_id)
+#             xyz = np.asarray(p3d.xyz, dtype=np.float64).reshape(3)
+
+#             points3d_container.update_points(xyz)
+
+#             for elem in p3d.track.elements:
+#                 framework_image_id = int(elem.image_id) - 1
+#                 point2D_idx = int(elem.point2D_idx)
+
+#                 if not reconstruction.exists_image(elem.image_id):
+#                     continue
+
+#                 img = reconstruction.image(elem.image_id)
+
+#                 if point2D_idx < 0 or point2D_idx >= len(img.points2D):
+#                     continue
+
+#                 xy = np.asarray(img.points2D[point2D_idx].xy, dtype=np.float64)
+
+#                 observations.append(
+#                     [
+#                         framework_image_id,
+#                         point_index,
+#                         float(xy[0]),
+#                         float(xy[1]),
+#                     ]
+#                 )
+
+#             point_index += 1
+
+#         if len(observations) == 0:
+#             observations_arr = np.empty((0, 4), dtype=np.float64)
+#         else:
+#             observations_arr = np.asarray(observations, dtype=np.float64)
+
+#         scene = Scene(
+#             points3D=points3d_container,
+#             cam_poses=camera_poses,
+#             observations=observations_arr,
+#             representation="point cloud",
+#             sparse=True,
+#         )
+
+#         return scene
+
+
+class Sparse3DReconstructionIncremental(SparseSceneEstimation):
+    """Sparse reconstruction from known poses and pre-built feature tracks.
+
+    The main path follows a COLMAP/GLOMAP-like structure:
+
+        N-view triangulation
+        -> point-only robust refinement
+        -> per-observation reprojection/depth filtering
+        -> retriangulation and refinement until stable
+        -> final track-length and triangulation-angle filtering
+
+    A two-view consensus initializer is retained only as a fallback for tracks
+    that fail direct N-view initialization because their observations contain
+    one or more mismatches.
+
+    Pose convention:
+        X_camera = R @ X_world + t
     """
-    GLOMAP-backed global sparse scene estimator.
-
-    This module belongs under SparseSceneEstimation, not CameraPoseEstimatorClass,
-    because GLOMAP estimates:
-        1. global camera poses
-        2. sparse 3D points
-        3. point tracks / observations
-
-    Input:
-        PointsMatched feature_pairs
-
-    Output:
-        Scene with:
-            scene.points3D
-            scene.cam_poses
-            scene.observations
-
-    Requirements:
-        - GLOMAP installed as a command-line executable.
-        - pycolmap installed.
-        - Pairwise matches stored in PointsMatched.
-        - Intrinsics provided by CameraData.
-    """
-
-    detector_free_modules = ["SparseSceneEstimationGLOMAP"]
 
     def __init__(
         self,
         cam_data: CameraData,
-        glomap_bin: str = "glomap",
-        work_dir: str | None = None,
-        min_track_len: int = 2,
-        min_num_matches: int = 30,
-        geometric_verification: bool = True,
-        keep_work_dir: bool = False,
-        track_builder: FeatureTrackFromPairsUnionFind | None = None,
+        max_reproj_error: float = 3.0,
+        reproj_threshold: float = 1.5,
+        min_observe: int = 3,
+        min_angle: float = 1.0,
+        min_inlier_ratio: float = 0.60,
+        max_filter_iterations: int = 5,
+        use_ransac_fallback: bool = True,
+        max_pair_hypotheses: int = 100,
+        robust_loss: str = "huber",
+        loss_scale: float = 1.0,
+        landmark_distance_threshold: float = 10.0,
     ):
+        module_name = "Sparse3DReconstruction"
+        example = f"""
+Initialization:
+from modules.scenereconstruction import {module_name}
+
+Function Use:
+reconstructed_scene.{module_name}(
+    min_observe=3,
+    reproj_threshold=1.5,
+    max_reproj_error=3.0,
+    min_angle=1.0,
+)
+"""
         super().__init__(
             cam_data=cam_data,
-            module_name="SparseSceneEstimationGLOMAP",
-            description=(
-                "Global SfM sparse reconstruction using GLOMAP. "
-                "Builds a COLMAP-compatible database from custom PointsMatched "
-                "pairwise correspondences, runs GLOMAP, and imports the sparse "
-                "scene back into the framework."
-            ),
-            example="scene.SparseSceneEstimationGLOMAP()",
+            module_name=module_name,
+            description="Sparse 3D reconstruction from known poses and tracks",
+            example=example,
         )
 
-        self.glomap_bin = glomap_bin
-        self.work_dir = work_dir
-        self.min_track_len = min_track_len
-        self.min_num_matches = min_num_matches
-        self.geometric_verification = geometric_verification
-        self.keep_work_dir = keep_work_dir
-        self.track_builder = track_builder
+        self.minimum_observation = min_observe
+        self.min_angle = min_angle
+        self.reproj_error_min = max_reproj_error
+        self.reprojection_threshold = reproj_threshold
+        self.min_inlier_ratio = min_inlier_ratio
+        self.max_filter_iterations = max_filter_iterations
+        self.use_ransac_fallback = use_ransac_fallback
+        self.max_pair_hypotheses = max_pair_hypotheses
+        self.robust_loss = robust_loss
+        self.loss_scale = loss_scale
+        self.landmark_distance_threshold = landmark_distance_threshold
 
-        # GLOMAP estimates camera poses, so this module should not require
-        # state.camera_poses from a previous CameraPoseEstimatorClass module.
-        self.requires_camera_poses = False
+    # ------------------------------------------------------------------
+    # Camera helpers
+    # ------------------------------------------------------------------
 
-    # -------------------------------------------------------------------------
-    # Override SparseSceneEstimation.run_from_state
-    # -------------------------------------------------------------------------
+    def _camera_center(self, pose: np.ndarray) -> np.ndarray:
+        # pose = self._pose_3x4(pose)
+        R = pose[:, :3]
+        t = pose[:, 3]
+        return -R.T @ t
 
-    def run_from_state(self, state: SceneState) -> Scene:
-        """
-        GLOMAP estimates poses and scene jointly, so unlike the base
-        SparseSceneEstimation class, this should not require state.camera_poses.
-        """
+    def _depth(self, xyz: np.ndarray, pose: np.ndarray) -> float:
+        # pose = self._pose_3x4(pose)
+        xyz_cam = pose[:, :3] @ xyz + pose[:, 3]
+        return float(xyz_cam[2])
 
-        feature_pairs = state.feature_pairs
+    def _project_point(
+        self,
+        xyz: np.ndarray,
+        camera_id: int,
+        pose: np.ndarray,
+    ) -> Optional[np.ndarray]:
 
-        if feature_pairs is None:
-            raise RuntimeError(
-                "[SparseSceneEstimationGLOMAP Error]\n"
-                "GLOMAP scene estimation requires state.feature_pairs.\n"
-                "Run a pairwise feature matching module before this module."
-            )
+        R = pose[:, :3]
+        t = pose[:, 3]
+        xyz_cam = R @ xyz + t
+
+        if not np.all(np.isfinite(xyz_cam)) or xyz_cam[2] <= 1e-10:
+            return None
+
+        # K, dist = self._camera_parameters(camera_id)
+        rvec, _ = cv2.Rodrigues(R)
+        projected, _ = cv2.projectPoints(
+            objectPoints=np.asarray(xyz, dtype=np.float64).reshape(1, 1, 3),
+            rvec=rvec,
+            tvec=t.reshape(3, 1),
+            cameraMatrix=self.K_mat,
+            distCoeffs=self.dist,
+        )
+        return projected.reshape(2)
+
+    def _normalized_point(self, xy: np.ndarray, camera_id: int) -> np.ndarray:
+        xy = np.asarray(xy, dtype=np.float64).reshape(1, 1, 2)
+        return cv2.undistortPoints(xy, self.K_mat, self.dist).reshape(2)
+
+    # ------------------------------------------------------------------
+    # Triangulation and projection error
+    # ------------------------------------------------------------------
+    def _triangulate_linear(
+        self,
+        views: np.ndarray,
+        camera_poses: list[np.ndarray],
+    ) -> tuple[Optional[np.ndarray], float]:
+        num_views = views.shape[0]
+        if num_views < 2:
+            return None, np.inf
+
+        A = np.zeros((2 * num_views, 4), dtype=np.float64)
+
+        for row_idx, view in enumerate(views):
+            camera_id = int(view[0])
+            pose = camera_poses[camera_id]
+            x, y = self._normalized_point(view[1:3], camera_id)
+            A[2 * row_idx] = x * pose[2] - pose[0]
+            A[2 * row_idx + 1] = y * pose[2] - pose[1]
+
+        row_norms = np.linalg.norm(A, axis=1, keepdims=True)
+        valid_rows = row_norms[:, 0] > 1e-12
+        if np.count_nonzero(valid_rows) < 4:
+            return None, np.inf
+        A[valid_rows] /= row_norms[valid_rows]
 
         try:
-            return self(feature_pairs)
-        except Exception as e:
-            raise RuntimeError(
-                "[SparseSceneEstimationGLOMAP Error]\n"
-                "GLOMAP sparse scene estimation failed.\n\n"
-                "Likely causes:\n"
-                "- GLOMAP is not installed or not visible on PATH.\n"
-                "- The COLMAP database export failed.\n"
-                "- Pairwise feature matches are too weak or too sparse.\n"
-                "- The image names used in the database do not match the image folder.\n"
-                "- There are not enough geometrically verified image pairs.\n\n"
-                "Action needed:\n"
-                "- Confirm that `glomap mapper` runs from the command line.\n"
-                "- Check that feature_pairs.pairwise_matches and pairwise_obs_ids are populated.\n"
-                "- Improve matching or increase the number of reliable pairwise matches.\n"
-                "- Check the exported database and sparse reconstruction folder.\n\n"
-                f"Original error: {type(e).__name__}: {e}"
-            ) from e
+            _, singular_values, Vt = np.linalg.svd(A)
+        except np.linalg.LinAlgError:
+            return None, np.inf
 
-    def __call__(self, feature_pairs: PointsMatched) -> Scene:
-        return self.build_reconstruction(feature_pairs, cam_poses=None)
+        X_h = Vt[-1]
+        if not np.all(np.isfinite(X_h)) or abs(X_h[3]) < 1e-12:
+            return None, np.inf
 
-    # -------------------------------------------------------------------------
-    # Main reconstruction method
-    # -------------------------------------------------------------------------
+        xyz = X_h[:3] / X_h[3]
+        if not np.all(np.isfinite(xyz)):
+            return None, np.inf
 
-    def build_reconstruction(
+        return xyz
+
+    # Helpers for LOST Implementation 
+    def _check_landmark_distance(
         self,
-        tracked_features: PointsMatched,
-        cam_poses: CameraPose | None = None,
-    ) -> Scene:
+        xyz: np.ndarray,
+        views: np.ndarray,
+        camera_poses: list[np.ndarray],
+    ) -> bool:
         """
-        Main GLOMAP scene estimation entry point.
+        GTSAM-style far-landmark rejection.
 
-        Note:
-            cam_poses is intentionally unused because GLOMAP estimates poses.
-        """
-
-        feature_pairs = tracked_features
-
-        if len(feature_pairs.pairwise_matches) == 0:
-            raise RuntimeError("No pairwise matches found for GLOMAP.")
-
-        if len(feature_pairs.pairwise_obs_ids) != len(feature_pairs.pairwise_matches):
-            raise RuntimeError(
-                "feature_pairs.pairwise_obs_ids must be populated. "
-                "Use PointsMatched.set_matching_pair(...) before GLOMAP."
-            )
-
-        # Build multi-view tracks for your framework-level Scene observations.
-        # GLOMAP itself consumes pairwise matches, but your later global optimizer
-        # likely benefits from Scene observations.
-        if not feature_pairs.multi_view:
-            if self.track_builder is not None:
-                tracked = self.track_builder.build_tracks_from_pairs(feature_pairs)
-            else:
-                tracked = FeatureTrackFromPairsUnionFind(
-                    cam_data=self.cam_data,
-                    min_track_len=self.min_track_len,
-                ).build_tracks_from_pairs(feature_pairs)
-        else:
-            tracked = feature_pairs
-
-        work_dir = self._prepare_work_dir()
-        database_path = work_dir / "database.db"
-        image_dir = work_dir / "images"
-        sparse_dir = work_dir / "sparse"
-
-        image_dir.mkdir(parents=True, exist_ok=True)
-        sparse_dir.mkdir(parents=True, exist_ok=True)
-
-        try:
-            self._stage_images(image_dir=image_dir)
-            self._export_colmap_database(
-                database_path=database_path,
-                feature_pairs=feature_pairs,
-            )
-            self._run_glomap(
-                database_path=database_path,
-                image_dir=image_dir,
-                output_dir=sparse_dir,
-            )
-
-            reconstruction = self._load_first_reconstruction(sparse_dir)
-
-            scene = self._convert_reconstruction_to_scene(
-                reconstruction=reconstruction,
-                tracked_features=tracked,
-            )
-
-            self._write_metrics(scene=scene, reconstruction=reconstruction)
-
-            return scene
-
-        finally:
-            if not self.keep_work_dir and self.work_dir is None:
-                shutil.rmtree(work_dir, ignore_errors=True)
-
-    # -------------------------------------------------------------------------
-    # Work directory / images
-    # -------------------------------------------------------------------------
-
-    def _prepare_work_dir(self) -> Path:
-        if self.work_dir is not None:
-            work_dir = Path(self.work_dir)
-            work_dir.mkdir(parents=True, exist_ok=True)
-            return work_dir
-
-        return Path(tempfile.mkdtemp(prefix="scene_glomap_"))
-
-    def _stage_images(self, image_dir: Path) -> None:
-        """
-        GLOMAP/COLMAP requires images on disk.
-
-        This assumes cam_data.image_list stores PIL Images or image-like objects.
-        If your CameraData already has image file paths, replace this function
-        with symlinks/copies from those paths.
+        Returns True when the landmark lies within the maximum allowed
+        distance from every camera observing the point.
         """
 
-        for image_id, image in enumerate(self.image_list):
-            out_path = image_dir / f"{image_id:06d}.png"
+        if self.landmark_distance_threshold <= 0.0:
+            return True
 
-            if hasattr(image, "save"):
-                image.save(out_path)
-            else:
-                arr = np.asarray(image)
-
-                if arr.ndim == 3 and arr.shape[2] == 3:
-                    arr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
-
-                cv2.imwrite(str(out_path), arr)
-
-    # -------------------------------------------------------------------------
-    # COLMAP database export
-    # -------------------------------------------------------------------------
-
-    def _export_colmap_database(
-        self,
-        database_path: Path,
-        feature_pairs: PointsMatched,
-    ) -> None:
-        """
-        Export custom PointsMatched data into a COLMAP database.
-
-        Important:
-            COLMAP/GLOMAP databases use per-image keypoint indices.
-            Your PointsMatched data uses stable obs IDs.
-
-        Therefore:
-            obs_id -> per-image kp_idx
-            pairwise_obs_ids -> pairwise local match indices
-        """
-
-        if database_path.exists():
-            database_path.unlink()
-
-        db = COLMAPDatabase.connect(str(database_path))
-        db.create_tables()
-
-        camera_id = self._add_camera_to_database(db)
-        image_id_map = self._add_images_to_database(db, camera_id)
-
-        obs_to_kp_idx = self._add_keypoints_to_database(
-            db=db,
-            feature_pairs=feature_pairs,
-            image_id_map=image_id_map,
+        camera_ids = np.unique(
+            views[:, 0].astype(np.int64)
         )
 
-        self._add_matches_to_database(
-            db=db,
-            feature_pairs=feature_pairs,
-            image_id_map=image_id_map,
-            obs_to_kp_idx=obs_to_kp_idx,
-        )
+        for camera_id in camera_ids:
+            camera_center = self._camera_center(
+                camera_poses[camera_id]
+            )
 
-        db.commit()
-        db.close()
+            landmark_distance = np.linalg.norm(
+                xyz - camera_center
+            )
 
-    def _add_camera_to_database(self, db) -> int:
-        K = self.K_mat
-        fx, fy = float(K[0, 0]), float(K[1, 1])
-        cx, cy = float(K[0, 2]), float(K[1, 2])
+            if landmark_distance > self.landmark_distance_threshold:
+                return False
 
-        width = int(self.image_list[0].size[0])
-        height = int(self.image_list[0].size[1])
+        return True
 
-        if self.dist is None:
-            model = "PINHOLE"
-            params = np.array([fx, fy, cx, cy], dtype=np.float64)
-        else:
-            d = np.asarray(self.dist, dtype=np.float64).ravel()
+    
+    def _triangulate_lost(
+        self,
+        views: np.ndarray,
+        camera_poses: list[np.ndarray],
+        ) -> tuple[Optional[np.ndarray], float]:
 
-            if len(d) >= 4:
-                model = "OPENCV"
-                params = np.array(
-                    [fx, fy, cx, cy, d[0], d[1], d[2], d[3]],
+        # Vars to add if this is successful!
+        rank_tol: float = 1e-9
+        optimize: bool = True
+        use_lost: bool = True
+        measurement_sigma: float = 1.0
+
+        # ------------------------------------------------------------
+        # Build GTSAM camera set and measurement vector
+        # ------------------------------------------------------------
+        cameras = gtsam.CameraSetCal3_S2()
+        measurements = gtsam.Point2Vector()
+
+        for view in views:
+            camera_id = int(view[0])
+            pixel_xy = view[1:3]
+
+            # --------------------------------------------------------
+            # Get camera-specific calibration if using multi-camera.
+            # --------------------------------------------------------
+            if self.multi_cam:
+                K = np.asarray(
+                    self.K_mat[camera_id],
                     dtype=np.float64,
                 )
+
+                dist = (
+                    None
+                    if not np.any(self.dist[camera_id])
+                    else np.asarray(
+                        self.dist[camera_id],
+                        dtype=np.float64,
+                    )
+                )
             else:
-                model = "PINHOLE"
-                params = np.array([fx, fy, cx, cy], dtype=np.float64)
+                K = np.asarray(
+                    self.K_mat,
+                    dtype=np.float64,
+                )
 
-        camera_id = db.add_camera(
-            model=model,
-            width=width,
-            height=height,
-            params=params,
-            prior_focal_length=True,
-        )
+                dist = (
+                    None
+                    if not np.any(self.dist)
+                    else np.asarray(
+                        self.dist,
+                        dtype=np.float64,
+                    )
+                )
 
-        return int(camera_id)
-
-    def _add_images_to_database(self, db, camera_id: int) -> dict[int, int]:
-        """
-        Returns:
-            image_id_map[framework_image_id] = colmap_image_id
-        """
-
-        image_id_map = {}
-
-        for image_id in range(len(self.image_list)):
-            name = f"{image_id:06d}.png"
-
-            colmap_image_id = db.add_image(
-                name=name,
-                camera_id=camera_id,
-                image_id=image_id + 1,
+            # --------------------------------------------------------
+            # Project convention:
+            #
+            #     X_cam = R_cw @ X_world + t_cw
+            #
+            # Convert world->camera to camera->world for GTSAM.
+            # --------------------------------------------------------
+            pose_cw = np.asarray(
+                camera_poses[camera_id],
+                dtype=np.float64,
             )
 
-            image_id_map[image_id] = int(colmap_image_id)
+            if pose_cw.shape == (4, 4):
+                R_cw = pose_cw[:3, :3]
+                t_cw = pose_cw[:3, 3]
 
-        return image_id_map
+            elif pose_cw.shape == (3, 4):
+                R_cw = pose_cw[:, :3]
+                t_cw = pose_cw[:, 3]
 
-    def _add_keypoints_to_database(
-        self,
-        db,
-        feature_pairs: PointsMatched,
-        image_id_map: dict[int, int],
-    ) -> dict[int, int]:
-        """
-        Add one keypoint table per image.
+            # Invert world -> camera:
+            #
+            # R_wc = R_cw.T
+            #
+            # t_wc = -R_cw.T @ t_cw
+            #
+            R_wc = R_cw.T
+            t_wc = -R_cw.T @ t_cw
 
-        Returns:
-            obs_to_kp_idx[obs_id] = local keypoint index in that image
-        """
+            gtsam_pose = gtsam.Pose3(
+                gtsam.Rot3(R_wc),
+                gtsam.Point3(
+                    float(t_wc[0]),
+                    float(t_wc[1]),
+                    float(t_wc[2]),
+                ),
+            )
 
-        image_to_obs_ids: dict[int, list[int]] = {}
+            # -----------------------------------------------------------
+            # Handle Camera Distortion Case: Case 1 = None, Case 2 = Dist
+            # -----------------------------------------------------------
+            if dist is None:
+                fx = float(K[0, 0])
+                fy = float(K[1, 1])
+                skew = float(K[0, 1])
+                cx = float(K[0, 2])
+                cy = float(K[1, 2])
 
-        for obs_id in feature_pairs.obs_xy.keys():
-            image_id = feature_pairs.get_obs_image(obs_id)
-            image_to_obs_ids.setdefault(image_id, []).append(int(obs_id))
+                calibration = gtsam.Cal3_S2(
+                    fx,
+                    fy,
+                    skew,
+                    cx,
+                    cy,
+                )
 
-        obs_to_kp_idx = {}
-
-        for image_id, obs_ids in image_to_obs_ids.items():
-            obs_ids = sorted(obs_ids)
-
-            keypoints = []
-
-            for kp_idx, obs_id in enumerate(obs_ids):
-                xy = np.asarray(
-                    feature_pairs.get_obs_xy(obs_id),
-                    dtype=np.float32,
+                measurement_xy = pixel_xy
+            else:
+                normalized_xy = cv2.undistortPoints(
+                    src=pixel_xy.reshape(1, 1, 2),
+                    cameraMatrix=K,
+                    distCoeffs=dist,
                 ).reshape(2)
 
-                # COLMAP keypoint format can be Nx2, Nx4, or Nx6.
-                # Nx2 is sufficient for imported custom keypoints.
-                keypoints.append([float(xy[0]), float(xy[1])])
-
-                obs_to_kp_idx[obs_id] = kp_idx
-
-            keypoints = np.asarray(keypoints, dtype=np.float32)
-
-            colmap_image_id = image_id_map[image_id]
-            db.add_keypoints(colmap_image_id, keypoints)
-
-        return obs_to_kp_idx
-
-    def _add_matches_to_database(
-        self,
-        db,
-        feature_pairs: PointsMatched,
-        image_id_map: dict[int, int],
-        obs_to_kp_idx: dict[int, int],
-    ) -> None:
-        """
-        Convert pairwise obs IDs into local keypoint-index matches.
-        """
-
-        for pair_idx, obs_pairs in enumerate(feature_pairs.pairwise_obs_ids):
-            if obs_pairs.shape[0] < self.min_num_matches:
-                continue
-
-            # Infer image pair from the first correspondence.
-            obs_i0 = int(obs_pairs[0, 0])
-            obs_j0 = int(obs_pairs[0, 1])
-
-            image_i = feature_pairs.get_obs_image(obs_i0)
-            image_j = feature_pairs.get_obs_image(obs_j0)
-
-            colmap_i = image_id_map[image_i]
-            colmap_j = image_id_map[image_j]
-
-            matches = []
-
-            for obs_i, obs_j in obs_pairs:
-                obs_i = int(obs_i)
-                obs_j = int(obs_j)
-
-                if obs_i not in obs_to_kp_idx or obs_j not in obs_to_kp_idx:
-                    continue
-
-                kp_i = obs_to_kp_idx[obs_i]
-                kp_j = obs_to_kp_idx[obs_j]
-
-                matches.append([kp_i, kp_j])
-
-            if len(matches) < self.min_num_matches:
-                continue
-
-            matches = np.asarray(matches, dtype=np.uint32)
-
-            db.add_matches(colmap_i, colmap_j, matches)
-
-            if self.geometric_verification:
-                self._add_two_view_geometry(
-                    db=db,
-                    image_id1=colmap_i,
-                    image_id2=colmap_j,
-                    matches=matches,
-                    feature_pairs=feature_pairs,
-                    obs_pairs=obs_pairs,
+                calibration = gtsam.Cal3_S2(
+                    1.0,  # fx
+                    1.0,  # fy
+                    0.0,  # skew
+                    0.0,  # cx
+                    0.0,  # cy
                 )
 
-    def _add_two_view_geometry(
-        self,
-        db,
-        image_id1: int,
-        image_id2: int,
-        matches: np.ndarray,
-        feature_pairs: PointsMatched,
-        obs_pairs: np.ndarray,
-    ) -> None:
-        """
-        Add verified two-view geometry.
+                measurement_xy = normalized_xy
 
-        This uses OpenCV Essential matrix verification from your existing
-        custom correspondences. GLOMAP benefits from verified image pairs.
-        """
+            # --------------------------------------------------------
+            # Construct GTSAM pinhole camera.
+            # --------------------------------------------------------
+            camera = gtsam.PinholeCameraCal3_S2(
+                gtsam_pose,
+                calibration,
+            )
 
-        pts1 = []
-        pts2 = []
+            cameras.append(camera)
 
-        for obs_i, obs_j in obs_pairs:
-            obs_i = int(obs_i)
-            obs_j = int(obs_j)
+            measurements.append(
+                gtsam.Point2(
+                    float(measurement_xy[0]),
+                    float(measurement_xy[1]),
+                )
+            )
 
-            pts1.append(feature_pairs.get_obs_xy(obs_i))
-            pts2.append(feature_pairs.get_obs_xy(obs_j))
+        # ------------------------------------------------------------
+        # Measurement uncertainty
+        #
+        # LOST uses the measurement-noise model in its weighting.
+        # Optimization also requires the noise model.
+        # ------------------------------------------------------------
+        # noise_model = gtsam.noiseModel.Isotropic.Sigma(
+        #     2,
+        #     float(measurement_sigma),
+        # )
+        if dist is None:
+            sigma = float(measurement_sigma)
+        else:
+            # Convert an approximate pixel-domain sigma to normalized units.
+            #
+            # This uses the average focal length. For multi-camera tracks,
+            # cameras may have different focal lengths, so this is only an
+            # approximation because triangulatePoint3 accepts a single noise
+            # model for the measurement set.
+            focal_lengths = []
 
-        pts1 = np.asarray(pts1, dtype=np.float64).reshape(-1, 2)
-        pts2 = np.asarray(pts2, dtype=np.float64).reshape(-1, 2)
+            for view in views:
+                camera_id = int(view[0])
 
-        if len(pts1) < self.min_num_matches:
-            return
+                if self.multi_cam:
+                    K_i = np.asarray(
+                        self.K_mat[camera_id],
+                        dtype=np.float64,
+                    )
+                else:
+                    K_i = np.asarray(
+                        self.K_mat,
+                        dtype=np.float64,
+                    )
 
-        E, mask = cv2.findEssentialMat(
-            pts1,
-            pts2,
-            self.K_mat,
-            method=cv2.RANSAC,
-            prob=0.999,
-            threshold=1.0,
+                focal_lengths.extend([
+                    float(K_i[0, 0]),
+                    float(K_i[1, 1]),
+                ])
+
+            mean_focal = float(np.mean(focal_lengths))
+
+            if mean_focal <= 0.0:
+                raise ValueError(
+                    "Invalid focal length encountered while converting "
+                    "measurement sigma to normalized coordinates."
+                )
+
+            sigma = float(measurement_sigma) / mean_focal
+
+        noise_model = gtsam.noiseModel.Isotropic.Sigma(
+            2,
+            sigma,
         )
 
-        if E is None or mask is None:
-            return
-
-        inlier_mask = mask.ravel().astype(bool)
-
-        if int(inlier_mask.sum()) < self.min_num_matches:
-            return
-
-        verified_matches = matches[inlier_mask].astype(np.uint32)
-
+        # ------------------------------------------------------------
+        # GTSAM triangulation
+        # ------------------------------------------------------------
         try:
-            db.add_two_view_geometry(
-                image_id1,
-                image_id2,
-                verified_matches,
-                E=E.astype(np.float64),
-                config=2,  # calibrated two-view geometry
+            point = gtsam.triangulatePoint3(
+                cameras,
+                measurements,
+                rank_tol,
+                optimize,
+                noise_model,
+                use_lost,
             )
-        except TypeError:
-            # pycolmap / COLMAP database wrappers vary by version.
-            # If your add_two_view_geometry signature differs, adapt this call.
-            db.add_two_view_geometry(
-                image_id1,
-                image_id2,
-                verified_matches,
-            )
+        except RuntimeError:
+            # Depending on GTSAM build/configuration this can include
+            # rank deficiency or cheirality-related triangulation failure.
+            return None 
 
-    # -------------------------------------------------------------------------
-    # Run GLOMAP
-    # -------------------------------------------------------------------------
+        xyz = np.asarray(point, dtype=np.float64).reshape(3)
 
-    def _run_glomap(
+        if not np.all(np.isfinite(xyz)):
+            return None 
+
+        return xyz #, condition
+        
+
+    def _reprojection_errors_per_view(
         self,
-        database_path: Path,
-        image_dir: Path,
-        output_dir: Path,
-    ) -> None:
-        """
-        Run external GLOMAP mapper.
+        xyz: np.ndarray,
+        views: np.ndarray,
+        camera_poses: list[np.ndarray],
+    ) -> tuple[np.ndarray, np.ndarray]:
+        errors = np.full(views.shape[0], np.inf, dtype=np.float64)
+        positive_depth = np.zeros(views.shape[0], dtype=bool)
 
-        Typical command:
-            glomap mapper
-                --database_path database.db
-                --image_path images
-                --output_path sparse
-        """
+        for idx, view in enumerate(views):
+            camera_id = int(view[0])
+            positive_depth[idx] = self._depth(
+                xyz, camera_poses[camera_id]
+            ) > 1e-10
+            if not positive_depth[idx]:
+                continue
 
-        cmd = [
-            self.glomap_bin,
-            "mapper",
-            "--database_path",
-            str(database_path),
-            "--image_path",
-            str(image_dir),
-            "--output_path",
-            str(output_dir),
-        ]
+            projected_xy = self._project_point(
+                xyz, camera_id, camera_poses[camera_id]
+            )
+            if projected_xy is None:
+                continue
 
-        result = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
+            errors[idx] = np.linalg.norm(projected_xy - view[1:3])
+
+        return errors, positive_depth
+
+    def _refine_point(
+        self,
+        xyz_initial: np.ndarray,
+        views: np.ndarray,
+        camera_poses: list[np.ndarray],
+        max_iterations: int = 50,
+    ) -> Optional[np.ndarray]:
+        loss = self.robust_loss
+        f_scale = self.loss_scale 
+
+        def residual_function(xyz: np.ndarray) -> np.ndarray:
+            residuals = np.empty(2 * views.shape[0], dtype=np.float64)
+            for idx, view in enumerate(views):
+                camera_id = int(view[0])
+                projected_xy = self._project_point(
+                    xyz, camera_id, camera_poses[camera_id]
+                )
+                if projected_xy is None:
+                    residuals[2 * idx : 2 * idx + 2] = 1e3
+                else:
+                    residuals[2 * idx : 2 * idx + 2] = (
+                        projected_xy - view[1:3]
+                    )
+            return residuals
+
+        result = least_squares(
+            residual_function,
+            x0=np.asarray(xyz_initial, dtype=np.float64),
+            method="trf",
+            loss=self.robust_loss,
+            f_scale=self.loss_scale,
+            max_nfev=max_iterations,
+        )
+        if not result.success or not np.all(np.isfinite(result.x)):
+            return None
+        return result.x
+
+    # ------------------------------------------------------------------
+    # Geometry checks
+    # ------------------------------------------------------------------
+    def _triangulation_angle_deg(
+        self,
+        xyz: np.ndarray,
+        pose_a: np.ndarray,
+        pose_b: np.ndarray,
+    ) -> float:
+        ray_a = xyz - self._camera_center(pose_a)
+        ray_b = xyz - self._camera_center(pose_b)
+        norm_a = np.linalg.norm(ray_a)
+        norm_b = np.linalg.norm(ray_b)
+        if norm_a < 1e-12 or norm_b < 1e-12:
+            return 0.0
+        cos_angle = np.dot(ray_a, ray_b) / (norm_a * norm_b)
+        return float(np.degrees(np.arccos(np.clip(cos_angle, -1.0, 1.0))))
+
+    def _maximum_triangulation_angle_deg(
+        self,
+        xyz: np.ndarray,
+        views: np.ndarray,
+        camera_poses: list[np.ndarray],
+    ) -> float:
+        camera_ids = np.unique(views[:, 0].astype(np.int64))
+        if camera_ids.size < 2:
+            return 0.0
+
+        return max(
+            self._triangulation_angle_deg(
+                xyz,
+                camera_poses[int(camera_a)],
+                camera_poses[int(camera_b)],
+            )
+            for camera_a, camera_b in combinations(camera_ids, 2)
         )
 
-        if result.returncode != 0:
-            raise RuntimeError(
-                "GLOMAP failed.\n\n"
-                f"Command:\n{' '.join(cmd)}\n\n"
-                f"STDOUT:\n{result.stdout}\n\n"
-                f"STDERR:\n{result.stderr}"
-            )
-
-    # -------------------------------------------------------------------------
-    # Import GLOMAP/COLMAP sparse reconstruction
-    # -------------------------------------------------------------------------
-
-    def _load_first_reconstruction(self, sparse_dir: Path) -> pycolmap.Reconstruction:
-        """
-        GLOMAP writes a COLMAP sparse reconstruction.
-
-        Usually this appears as:
-            sparse/0
-        but this function finds the first valid reconstruction directory.
-        """
-
+    # ------------------------------------------------------------------
+    # Optional fallback initializer for unstable tracks
+    # ------------------------------------------------------------------
+    def _pair_consensus_initialization(
+        self,
+        views: np.ndarray,
+        camera_poses: list[np.ndarray],
+        reproj_threshold: float,
+        min_observations: int,
+        min_tri_angle_deg: float,
+    ) -> tuple[Optional[np.ndarray], Optional[np.ndarray], float]:
+        """Find a two-view point hypothesis supported by the complete track."""
         candidates = []
 
-        for child in sparse_dir.iterdir():
-            if child.is_dir():
-                candidates.append(child)
-
-        # Some versions/tools may write directly into sparse_dir.
-        candidates.append(sparse_dir)
-
-        for candidate in candidates:
-            try:
-                recon = pycolmap.Reconstruction(str(candidate))
-
-                if recon.num_reg_images() > 0:
-                    return recon
-            except Exception:
+        for idx_a, idx_b in combinations(range(views.shape[0]), 2):
+            pair_views = views[[idx_a, idx_b]]
+            #xyz = self._triangulate_linear(pair_views, camera_poses)
+            xyz = self._triangulate_lost(pair_views, camera_poses)
+            if xyz is None:
                 continue
 
-        raise RuntimeError(f"No valid reconstruction found in: {sparse_dir}")
+            camera_a = int(views[idx_a, 0])
+            camera_b = int(views[idx_b, 0])
+            if self._depth(xyz, camera_poses[camera_a]) <= 1e-10:
+                continue
+            if self._depth(xyz, camera_poses[camera_b]) <= 1e-10:
+                continue
 
-    def _convert_reconstruction_to_scene(
+            angle = self._triangulation_angle_deg(
+                xyz, camera_poses[camera_a], camera_poses[camera_b]
+            )
+            if angle < min_tri_angle_deg:
+                continue
+
+            candidates.append((idx_a, idx_b, angle))#, condition))
+
+        if not candidates:
+            return None, None, np.inf
+
+        # This cap is only a fallback-speed heuristic, not COLMAP behavior.
+        candidates.sort(key=lambda item: item[2], reverse=True)
+
+        if len(candidates) > self.max_pair_hypotheses:
+            rng = np.random.default_rng(41)
+            strong_count = self.max_pair_hypotheses // 2
+            selected_candidates = candidates[:strong_count]
+            remaining = candidates[strong_count:]
+            random_count = self.max_pair_hypotheses - strong_count
+            if len(remaining) > random_count:
+                chosen = rng.choice(len(remaining), random_count, replace=False)
+                selected_candidates.extend(remaining[idx] for idx in chosen)
+            else:
+                selected_candidates.extend(remaining)
+            candidates = selected_candidates
+
+        best_xyz = None
+        best_mask = None
+        # best_condition = np.inf
+        best_score = None
+
+        for idx_a, idx_b, angle in candidates:
+            xyz = self._triangulate_lost( #self._triangulate_linear(
+                views[[idx_a, idx_b]], camera_poses
+            )
+            if xyz is None:
+                continue
+
+            errors, positive_depth = self._reprojection_errors_per_view(
+                xyz, views, camera_poses
+            )
+            mask = positive_depth & np.isfinite(errors) & (
+                errors <= reproj_threshold
+            )
+            count = int(np.count_nonzero(mask))
+            if count < min_observations:
+                continue
+
+            score = (
+                count,
+                -float(np.median(errors[mask])),
+                -float(np.mean(errors[mask])),
+                angle,
+            )
+            if best_score is None or score > best_score:
+                best_score = score
+                best_xyz = xyz
+                best_mask = mask
+                # best_condition = condition
+
+        return best_xyz, best_mask#, best_condition
+
+    # ------------------------------------------------------------------
+    # COLMAP/GLOMAP-style track triangulation and observation filtering
+    # ------------------------------------------------------------------
+    def robust_triangulate_track(
         self,
-        reconstruction: pycolmap.Reconstruction,
-        tracked_features: PointsMatched,
-    ) -> Scene:
-        """
-        Convert pycolmap.Reconstruction into your framework Scene.
+        views: np.ndarray,
+        camera_poses: list[np.ndarray],
+    ) -> tuple[np.ndarray]:#TrackTriangulationResult]:
 
-        This uses:
-            - GLOMAP poses and 3D points from reconstruction
-            - observations from pycolmap tracks when possible
-            - fallback observations from tracked_features.data_matrix
-        """
+        reproj_threshold = self.reprojection_threshold   
+        max_reproj_error = self.reproj_error_min
+        min_observations = self.minimum_observation
+            
+        min_inlier_ratio = self.min_inlier_ratio   
+        min_tri_angle_deg = self.min_angle 
 
-        num_images = len(self.image_list)
+        max_filter_iterations = self.max_filter_iterations
+        use_ransac_fallback = self.use_ransac_fallback
+            
 
-        camera_poses = [None for _ in range(num_images)]
+        views = np.asarray(views, dtype=np.float64)
 
-        for image_id in reconstruction.reg_image_ids():
-            img = reconstruction.image(image_id)
-            T = img.cam_from_world()
+        if views.shape[0] < min_observations:
+            return None
+        if not np.all(np.isfinite(views)):
+            return None
 
-            R = T.rotation.matrix()
-            t = np.asarray(T.translation).reshape(3, 1)
+        # views = self._remove_duplicate_camera_observations(views)
+        if views is None:
+            return None
 
-            framework_image_id = int(image_id) - 1
+        original_count = views.shape[0]
+        active_mask = np.ones(original_count, dtype=bool)
+        initialization = "n_view"
 
-            if 0 <= framework_image_id < num_images:
-                camera_poses[framework_image_id] = np.hstack([R, t]).astype(np.float64)
+        # 1. Direct N-view initialization: preferred path.
+        xyz = self._triangulate_lost(views, camera_poses) #self._triangulate_linear(views, camera_poses)
+        direct_valid = xyz is not None
 
-        # Fill missing poses with identity or skip, depending on your downstream expectations.
-        # I prefer explicit identity only as a placeholder.
-        for i in range(num_images):
-            if camera_poses[i] is None:
-                camera_poses[i] = np.array(
-                    [
-                        [1.0, 0.0, 0.0, 0.0],
-                        [0.0, 1.0, 0.0, 0.0],
-                        [0.0, 0.0, 1.0, 0.0],
-                    ],
-                    dtype=np.float64,
+        # print("ORIGINAL POINT EST.", xyz)
+        if direct_valid:
+            errors, positive_depth = self._reprojection_errors_per_view(
+                xyz, views, camera_poses
+            )
+            direct_mask = positive_depth & np.isfinite(errors) & (
+                errors <= max_reproj_error
+            )
+            direct_valid = np.count_nonzero(direct_mask) >= min_observations
+
+        # 2. Pair-consensus fallback only when the direct track is not viable.
+        if not direct_valid:
+            if not use_ransac_fallback:
+                return None
+            xyz, active_mask = (
+                self._pair_consensus_initialization(
+                    views=views,
+                    camera_poses=camera_poses,
+                    reproj_threshold=max_reproj_error,
+                    min_observations=min_observations,
+                    min_tri_angle_deg=min_tri_angle_deg,
                 )
+            )
+            if xyz is None or active_mask is None:
+                return None
+            initialization = "pair_consensus_fallback"
+        else:
+            active_mask = direct_mask
 
-        points3d_container = Points3D()
-        observations = []
+        # 3. Iterative point-only refinement and observation-level pruning.
+        #    A relaxed threshold is used first; the strict threshold is applied
+        #    only after the inlier set and point estimate stabilize.
+        for _ in range(max_filter_iterations):
+            if np.count_nonzero(active_mask) < min_observations:
+                return None
+
+            active_views = views[active_mask]
+            xyz_linear = self._triangulate_lost(#self._triangulate_linear(
+                active_views, camera_poses
+            )
+            if xyz_linear is None:
+                return None
+
+            xyz_refined = self._refine_point(
+                xyz_initial=xyz_linear,
+                views=active_views,
+                camera_poses=camera_poses,
+            )
+            if xyz_refined is None:
+                break
+            
+            # xyz = xyz_linear if xyz_refined is None else xyz_refined
+
+            errors, positive_depth = self._reprojection_errors_per_view(
+                xyz_refined, views, camera_poses
+            )
+            updated_mask = positive_depth & np.isfinite(errors) & (
+                errors <= max_reproj_error
+            )
+
+            if np.count_nonzero(updated_mask) < min_observations:
+                return None
+            if np.array_equal(updated_mask, active_mask):
+                active_mask = updated_mask
+                break
+            active_mask = updated_mask
+
+        # 4. Final refinement with stabilized observations.
+        final_views = views[active_mask]
+        xyz_linear = self._triangulate_lost(#self._triangulate_linear(
+            final_views, camera_poses
+        )
+        if xyz_linear is None:
+            return None
+
+        xyz_refined = self._refine_point(
+            xyz_initial=xyz_linear,
+            views=final_views,
+            camera_poses=camera_poses,
+        )
+        xyz = xyz_linear if xyz_refined is None else xyz_refined
+
+        errors, positive_depth = self._reprojection_errors_per_view(
+            xyz, views, camera_poses
+        )
+
+        # 5. Strict final observation filter.
+        final_mask = active_mask & positive_depth & np.isfinite(errors) & (
+            errors <= reproj_threshold
+        )
+
+        # Avoid deleting a geometrically valid point merely because the strict
+        # threshold is too aggressive. Fall back to the configured hard limit,
+        # but still enforce median quality below.
+        if np.count_nonzero(final_mask) < min_observations:
+            final_mask = active_mask & positive_depth & np.isfinite(errors) & (
+                errors <= max_reproj_error
+            )
+
+        num_inliers = int(np.count_nonzero(final_mask))
+        if num_inliers < min_observations:
+            return None
+        if num_inliers / original_count < min_inlier_ratio:
+            return None
+
+        final_views = views[final_mask]
+
+        # Re-optimize after the final observation removal.
+        xyz_linear = self._triangulate_lost(#self._triangulate_linear(
+            final_views, camera_poses
+        )
+        if xyz_linear is None:
+            return None
+        xyz_refined = self._refine_point(
+            xyz_initial=xyz_linear,
+            views=final_views,
+            camera_poses=camera_poses,
+        )
+        xyz = xyz_linear if xyz_refined is None else xyz_refined
+
+        final_errors, final_positive_depth = self._reprojection_errors_per_view(
+            xyz, views, camera_poses
+        )
+        final_mask = final_mask & final_positive_depth & np.isfinite(final_errors) & (
+            final_errors <= max_reproj_error
+        )
+
+        if np.count_nonzero(final_mask) < min_observations:
+            return None
+
+        final_views = views[final_mask]
+        inlier_errors = final_errors[final_mask]
+        max_tri_angle = self._maximum_triangulation_angle_deg(
+            xyz, final_views, camera_poses
+        )
+
+        if max_tri_angle < min_tri_angle_deg:
+            return None
+        if float(np.median(inlier_errors)) > reproj_threshold:
+            return None
+        if float(np.max(inlier_errors)) > max_reproj_error:
+            return None
+        if not self._check_landmark_distance(
+            xyz=xyz,
+            views=final_views,
+            camera_poses=camera_poses,
+        ):
+            return None
+
+        return (xyz, final_views, final_mask)
+        # return TrackTriangulationResult(
+        #     xyz=xyz,
+        #     inlier_views=final_views,
+        #     inlier_mask=final_mask,
+        #     reprojection_errors=final_errors,
+        #     median_error=float(np.median(inlier_errors)),
+        #     max_error=float(np.max(inlier_errors)),
+        #     max_tri_angle_deg=max_tri_angle,
+        #     condition_number=condition_number,
+        #     initialization=initialization,
+        # )
+
+    # ------------------------------------------------------------------
+    # Scene construction
+    # ------------------------------------------------------------------
+    def build_reconstruction(
+        self,
+        points: PointsMatched,
+        camera_poses: CameraPose,
+    ) -> Scene:
+
+        # if not self.multi_view:
+        if not points.multi_view:
+            return self._build_two_view_reconstruction(points, camera_poses)
+
+        if not points.multi_view:
+            raise ValueError(
+                "Features are not tracked. Set multi_view=False for "
+                "pairwise-only reconstruction."
+            )
+
+        points_3d = Points3D()
+        observations_pixel = []
+        accepted_track_ids = []
+        track_quality = []
+
+        # rejection_counts = {
+        #     "too_short": 0,
+        #     "triangulation_failed": 0,
+        #     "accepted": 0,
+        #     "ransac_fallback": 0,
+        # }
 
         point_index = 0
+        for track_id in tqdm(range(points.point_count)):
+            views = np.asarray(points.access_point3D(track_id), dtype=np.float64)
 
-        for point3D_id in reconstruction.point3D_ids():
-            p3d = reconstruction.point3D(point3D_id)
-            xyz = np.asarray(p3d.xyz, dtype=np.float64).reshape(3)
+            if views.shape[0] < self.minimum_observation:
+                # rejection_counts["too_short"] += 1
+                continue
 
-            points3d_container.update_points(xyz)
+            result = self.robust_triangulate_track(
+                views=views,
+                camera_poses=camera_poses.camera_pose,
+            )
+            if result is None:
+                # rejection_counts["triangulation_failed"] += 1
+                continue
 
-            for elem in p3d.track.elements:
-                framework_image_id = int(elem.image_id) - 1
-                point2D_idx = int(elem.point2D_idx)
-
-                if not reconstruction.exists_image(elem.image_id):
-                    continue
-
-                img = reconstruction.image(elem.image_id)
-
-                if point2D_idx < 0 or point2D_idx >= len(img.points2D):
-                    continue
-
-                xy = np.asarray(img.points2D[point2D_idx].xy, dtype=np.float64)
-
-                observations.append(
-                    [
-                        framework_image_id,
-                        point_index,
-                        float(xy[0]),
-                        float(xy[1]),
-                    ]
+            final_xyz, inlier_views, mask = result[:]
+            point_indices = np.full(
+                (inlier_views.shape[0], 1),
+                point_index,
+                dtype=np.int64,
+            )
+            camera_indices = inlier_views[:, 0:1].astype(np.int64)
+            observation_pixel = np.hstack(
+                (
+                    camera_indices,
+                    point_indices,
+                    inlier_views[:, 1:3],
                 )
+            )
+            observations_pixel.append(observation_pixel)
+            points_3d.update_points(final_xyz)
+            accepted_track_ids.append(track_id)
 
+            # track_quality.append(
+            #     {
+            #         "track_id": track_id,
+            #         "point_index": point_index,
+            #         "initial_track_length": int(views.shape[0]),
+            #         "inlier_track_length": int(result.inlier_views.shape[0]),
+            #         "inlier_ratio": float(
+            #             result.inlier_views.shape[0] / views.shape[0]
+            #         ),
+            #         "median_reprojection_error": result.median_error,
+            #         "max_reprojection_error": result.max_error,
+            #         "max_triangulation_angle_deg": result.max_tri_angle_deg,
+            #         "condition_number": result.condition_number,
+            #         "initialization": result.initialization,
+            #     }
+            # )
+
+            # rejection_counts["accepted"] += 1
+            # if result.initialization == "pair_consensus_fallback":
+            #     rejection_counts["ransac_fallback"] += 1
             point_index += 1
 
-        if len(observations) == 0:
-            observations_arr = np.empty((0, 4), dtype=np.float64)
-        else:
-            observations_arr = np.asarray(observations, dtype=np.float64)
+        if point_index == 0:
+            raise RuntimeError(
+                "No valid 3D points were reconstructed. Inspect pose convention, "
+                "intrinsics, tracks, reprojection thresholds, and triangulation angles."
+            )
 
+        print("NUMBer OF POINTS")
+        print(points_3d.points3D.shape)
         scene = Scene(
-            points3D=points3d_container,
-            cam_poses=camera_poses,
-            observations=observations_arr,
+            points3D=points_3d,
+            cam_poses=camera_poses.camera_pose,
+            observations=np.vstack(observations_pixel),
             representation="point cloud",
             sparse=True,
         )
 
-        return scene
-    
+        # Retain these only if Scene permits dynamic metadata attributes.
+        # scene.accepted_track_ids = np.asarray(accepted_track_ids, dtype=np.int64)
+        # scene.track_quality = track_quality
+        # scene.reconstruction_stats = rejection_counts
 
+        return scene
 
 # Mono Camera Reconstruction
 class Sparse3DReconstructionMono(SparseSceneEstimation):

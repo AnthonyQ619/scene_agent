@@ -614,7 +614,8 @@ class FeatureMatchRoMAPair(FeatureMatching):
                  pseudo_merge_eps_px: float = 1.5,
                  RANSAC_homography: bool = False,
                  RANSAC_threshold: float = 3.0,
-                 RANSAC_conf: float = 0.99):
+                 RANSAC_conf: float = 0.99,
+                 max_keypoints: int = 10000):
 
         module_name = "FeatureMatchRoMAPair"
 
@@ -687,6 +688,7 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
 
         self.detector_free = True
         self.pseudo_merge_eps_px = pseudo_merge_eps_px
+        self.max_keypoints = max_keypoints
     
     def find_correspondences(self, features: list[Points2D] | None) -> PointsMatched:
         # matched_points = PointsMatched(pairwise_matches=[], 
@@ -716,7 +718,7 @@ tracked_features = feature_matcher() # Features are not needed as this matcher d
             # Match
             warp, certainty = self.roma_model.match(img1, img2, device=self.device)
             # Sample matches for estimation
-            matches, certainty = self.roma_model.sample(warp, certainty)
+            matches, certainty = self.roma_model.sample(warp, certainty, num=self.max_keypoints)
             kpts1, kpts2 = self.roma_model.to_pixel_coordinates(matches, H_1, W_1, H_1, W_1)
 
             # Bring to CPU and convert to Numpy vectors / Build Index List

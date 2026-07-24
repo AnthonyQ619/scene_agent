@@ -1,9 +1,10 @@
 from modules.features import FeatureDetectionSP
 from modules.featurematching import FeatureMatchSuperGlueTracking, FeatureMatchSuperGluePair
 # from modules.camerapose import CamPoseEstimatorEssentialToPnP
+from modules.featuretracking import FeatureTrackFromPairsUnionFind
 from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.scenereconstruction import Sparse3DReconstructionMono
-from modules.visualize import VisualizeScene
+from modules.scenereconstruction import Sparse3DReconstructionMono, Sparse3DReconstructionIncremental
+from modules.visualize import VisualizeScene, visualize_camera_poses_plotly, visualize_3d_points
 import os
 from modules.baseclass import SfMScene
 
@@ -13,8 +14,8 @@ gpu_num = "5"
 
 
 # Construct Modules with Initialized Arguments
-image_path = "/home/anthonyq/datasets/ETH/ETH/statue/images/dslr_images_undistorted"
-calibration_path = "/home/anthonyq/datasets/ETH/ETH/statue/dslr_calibration_undistorted/calibration_new.npz"
+image_path = "/home/anthonyq/datasets/DTU/scan15"
+calibration_path = "/home/anthonyq/datasets/DTU/calibration_DTU_new.npz"
 
 ## NEW SFM PIPELINE
 # Step 1: Read in Calibration/Image Data
@@ -22,7 +23,7 @@ reconstructed_scene = SfMScene(ID,
                                 image_path = image_path, 
                                 log_dir=log_dir,
                                 gpu_num=gpu_num,
-                                max_images = 15,
+                                # max_images = 15,
                                 calibration_path = calibration_path)
 
 # Step 2: Detect Features
@@ -37,7 +38,7 @@ reconstructed_scene.FeatureMatchFlannPair(detector="sift",
                                         k=2,
                                         lowes_thresh=0.78,
                                         RANSAC_homography=False,
-                                        RANSAC_threshold=0.02,
+                                        RANSAC_threshold=1.0,
                                         RANSAC_conf=0.999)
 
 # FeatureMatchLightGluePair(
@@ -57,23 +58,25 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 )
 
 # Step 5: Detect Feature Tracks
-reconstructed_scene.FeatureMatchBFTracking(
-    detector = "sift",
-    k=2,
-    cross_check=False,
-    lowes_thresh=0.70,
-    RANSAC_threshold=0.015,
-    RANSAC_conf=0.999
-)
+reconstructed_scene.FeatureTrackFromPairsUnionFind()
 
 # Step 6: Estimate Sparse Reconstruction
-reconstructed_scene.Sparse3DReconstructionMono(
+reconstructed_scene.Sparse3DReconstructionIncremental(
     min_observe=3,
-    min_angle=2.0,
-    multi_view=True
+    min_angle=1.5,
+    # multi_view=True,
+    max_reproj_error=1.5,
+    reproj_threshold=1.0,
+    max_filter_iterations=5
 )
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(
-    max_num_iterations=200,
+    max_num_iterations=130,
 )
+
+visualize_3d_points(reconstructed_scene.optimized_scene.points3D.points3D)
+# Step 7: Run Optimization
+# reconstructed_scene.BundleAdjustmentOptimizerGlobal(
+#     max_num_iterations=200,
+# )
