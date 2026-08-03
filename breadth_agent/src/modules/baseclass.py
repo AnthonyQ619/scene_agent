@@ -347,6 +347,7 @@ def module_metric(func):
     return func
 
 class SparseSceneEstimation(PipelineModule, ABC):
+    requires_camera_poses = True
     use_base_metrics = True
     _registered_metric_methods: tuple[str, ...] = ()
     output_key = "sparse_scene"
@@ -375,7 +376,7 @@ class SparseSceneEstimation(PipelineModule, ABC):
             raise RuntimeError(
                 "SparseSceneEstimation requires tracked_features or feature_pairs."
             )
-        if state.camera_poses is None:
+        if self.requires_camera_poses and state.camera_poses is None:
             raise RuntimeError("SparseSceneEstimation requires camera_poses.")
         
         try:
@@ -428,6 +429,8 @@ class SparseSceneEstimation(PipelineModule, ABC):
         self.dist = cam_data.get_distortion()
         self.stereo = cam_data.stereo
         self.multi_cam = cam_data.multi_cam
+        width, height = cam_data.image_list[0].size
+        self.width, self.height = int(width), int(height)
 
         # Setup Minimum Angle Check Function
         self.angle_check = TriangulationCheck(self.K_mat, self.dist)
@@ -1730,6 +1733,7 @@ class FeatureTrackingBase(PipelineModule, ABC):
         self.det_free = False
 
         self.cam_data = cam_data
+        self.image_list = copy.copy(cam_data.image_list)
         self.K = cam_data.get_K()
         self.dist = cam_data.get_distortion()
 

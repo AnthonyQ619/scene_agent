@@ -233,10 +233,6 @@ class PointsMatched:
     # Optional pair-local features for RoMa / LoFTR
     pair_features: dict = field(default_factory=dict)
 
-    def set_matched_matrix(self, data: list[list]) -> None:
-        self.data_matrix = np.array(data)
-        self.multi_view = True
-
     # Observation registry
     # obs_id -> image_id, xy
     obs_image: dict[int, int] = field(default_factory=dict)
@@ -936,6 +932,7 @@ class SceneState:
 
     last_output: Any = None
     history: list[dict[str, Any]] = field(default_factory=list)
+
 
 @dataclass
 class Scene:

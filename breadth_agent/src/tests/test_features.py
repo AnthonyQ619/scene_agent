@@ -15,7 +15,7 @@ from modules.featurematching import (FeatureMatchFlannTracking,
                                      FeatureMatchSuperGluePair,
                                      FeatureMatchRoMAPair,)
                                      
-from modules.featuretracking import FeatureTrackFromPairsUnionFind
+from modules.featuretracking import FeatureTrackFromPairsUnionFind, FeatureTrackingVGGSfM, FeatureTrackingTapir
     
 from modules.visualize import VisualizeScene
 from modules.cameramanager import CameraDataManager
@@ -59,7 +59,7 @@ calibration_path = "/home/anthonyq/datasets/DTU/calibration_DTU_new.npz"
 
 ID = "1"
 log_dir = "/home/anthonyq/projects/scene_agent/breadth_agent/results/co3d/apple_110_13051_23361_vggt_random_10"
-gpu_num = "5"
+gpu_num = "3"
 reconstructed_scene = SfMScene(ID,
                                image_path = image_path, 
                                log_dir=log_dir,
@@ -70,29 +70,32 @@ reconstructed_scene = SfMScene(ID,
 # Solution Pipeline 
 # Step 2: Detect Features
 # reconstructed_scene.FeatureDetectionSIFT(
-#     max_keypoints=10000,
+#     max_keypoints=3000,
 #     contrast_threshold=0.009,
 #     edge_threshold=20,
 # )
-# reconstructed_scene.FeatureDetectionALIKED(max_keypoints=6000)
+reconstructed_scene.FeatureDetectionALIKED(max_keypoints=3000)
 
 # # Step 3: Detect Feature Pairs
-# reconstructed_scene.FeatureMatchLightGluePair(detector="aliked",
-#                                         # k=2,
-#                                         # lowes_thresh=0.75,
-#                                         RANSAC_homography=False,
-#                                         RANSAC_threshold=0.5,
-#                                         RANSAC_conf=0.999)
+reconstructed_scene.FeatureMatchLightGluePair(detector="aliked",
+                                        # k=2,
+                                        # lowes_thresh=0.75,
+                                        RANSAC_homography=False,
+                                        RANSAC_threshold=0.5,
+                                        RANSAC_conf=0.999)
 
-reconstructed_scene.FeatureMatchLoftrPair(setting="indoor",
-                                         RANSAC_homography=False,
-                                         RANSAC_threshold=1.5,
-                                         RANSAC_conf=0.999,
-                                         coarse_thr = 0.008,
-                                         border_rm = 0,
-                                         pseudo_merge_eps_px=1.10
-                                         )
-reconstructed_scene.FeatureTrackFromPairsUnionFind()
+# reconstructed_scene.FeatureMatchLoftrPair(setting="indoor",
+#                                          RANSAC_homography=False,
+#                                          RANSAC_threshold=1.5,
+#                                          RANSAC_conf=0.999,
+#                                          coarse_thr = 0.008,
+#                                          border_rm = 0,
+#                                          pseudo_merge_eps_px=1.10
+#                                          )
+# reconstructed_scene.FeatureTrackFromPairsUnionFind()
+# reconstructed_scene.FeatureTrackingVGGSfM()
+reconstructed_scene.FeatureTrackingTapir()
+
 # Step 5: Detect Feature Tracks
 # reconstructed_scene.FeatureMatchBFTracking(
 #     detector = "sift",
@@ -116,16 +119,17 @@ image_path = sorted(glob.glob(image_path + "/*"))
 
 if tracks and vis: 
     print("here")
-    tracked_features = reconstructed_scene.feature_pairs
-    # tracked_features = reconstructed_scene.tracked_features
+    # tracked_features = reconstructed_scene.feature_pairs
+    tracked_features = reconstructed_scene.tracked_features
     # matched_features = reconstructed_scene.feature_pairs
 
     print(tracked_features.access_point3D(0))
-    j = 0
+    # j = 0
+    count = 0
     for i in range(1000):
         if (tracked_features.access_point3D(i).shape[0] >= 3):
-            if i < 2: 
-                i += 1
+            if count < 3: 
+                count += 1
                 continue
             # print(matched_features.image_size)
             print(tracked_features.image_size)
@@ -136,7 +140,8 @@ if tracks and vis:
             fig,ax = plt.subplots(1, tracked_features.access_point3D(i).shape[0], figsize=(30, 15))
 
             for j in range(tracked_features.access_point3D(i).shape[0]):
-                img = cv2.resize(cv2.imread(image_path[j]),  tracked_features.image_size, interpolation=cv2.INTER_AREA)
+                index = int(tracked_features.access_point3D(i)[j,0])
+                img = cv2.resize(cv2.imread(image_path[index]),  tracked_features.image_size, interpolation=cv2.INTER_AREA)
                 #img = cv2.resize(img, (640, 480), interpolation=cv2.INTER_AREA)
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                 ax[j].imshow(img)

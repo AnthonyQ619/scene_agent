@@ -338,15 +338,16 @@ def demo_fn(gpu_num: str, image_dir:str, log_dir:str, log_file:str):
         # e.g., from COLMAP, from CoTracker, or by chaining 2D matches from Lightglue/LoFTR.
         pred_tracks, pred_vis_scores, pred_confs, points_3d, points_rgb = predict_tracks(
             images,
-            conf=depth_conf,
-            points_3d=points_3d,
+            # conf=depth_conf,
+            # points_3d=points_3d,
             masks=None,
             max_query_pts=4096,
             query_frame_num=frame_nums,
             keypoint_extractor="sp",
             fine_tracking=True,
         )
-
+        print("TRACKS")
+        print(pred_tracks.shape)
         torch.cuda.empty_cache()
 
     # rescale the intrinsic matrix from 518 to 1024
@@ -458,7 +459,7 @@ gpu_num = "7"
 # Co3Dv2 Test Run!
 img_postfix = "vggt_random_10" # Swap to Sequential String when ready
 # img_postfix = "middle_sequential_10"
-co3d_images = ["apple/110_13051_23361", "apple/189_20393_38136",]
+co3d_images = ["apple/110_13051_23361"]#, "apple/189_20393_38136",]
             #    "ball/123_14363_28981", "ball/375_42693_85518",
             #    "bench/415_57112_110099", "bench/415_57121_110109",
             #    "book/119_13962_28926", "book/247_26469_51778", 
