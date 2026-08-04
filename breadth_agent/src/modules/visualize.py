@@ -1,4 +1,6 @@
-from .DataTypes.datatype import Scene, CameraPose, CameraData
+from modules.DataTypes.sceneDT import Scene
+from modules.DataTypes.cameraDT import CameraData
+from modules.DataTypes.cameraposeDT import CameraPose
 from .baseclass import VisualizeClass
 import matplotlib as plt
 plt.use('Agg')

@@ -8,7 +8,11 @@ import glob
 from tqdm import tqdm
 from omegaconf import OmegaConf
 from torchvision import transforms as TF
-from modules.DataTypes.datatype import Points2D, PointsMatched, CameraData
+
+from modules.DataTypes.pointDT import Points2D
+from modules.DataTypes.featmatchDT import PointsMatched
+from modules.DataTypes.cameraDT import CameraData
+
 from modules.models.matchers import LightGlue, SuperGlue
 from romatch import roma_outdoor, roma_indoor
 from modules.models.sfm_models.vggt.dependency.vggsfm_utils import generate_rank_by_dino
@@ -150,12 +154,89 @@ class FeatureTrackingTapir(FeatureTrackingBase):
     ):
         model_path = "/home/anthonyq/projects/repos/tapnet/checkpoints/bootstapir_checkpoint_v2.pt"
 
+        module_name = "FeatureTrackingTapir"
+
+        description = f"""
+Tracks detected feature points across an image sequence using the learned
+BootsTAPIR point tracker. Features from selected query frames are tracked
+throughout the sequence and converted into persistent multi-view tracks.
+
+Tracks selected query points throughout an ordered video using learned temporal 
+matching and refinement, including visibility estimation and recovery after temporary 
+occlusion. USE THIS MODULE for continuous video with smooth-to-moderate motion, 
+changing illumination, motion blur, temporary occlusions, or low-texture regions 
+where pairwise descriptor matching creates fragmented tracks. 
+Query points may come from SIFT, ORB, SuperPoint, or ALIKED, although well-distributed 
+points from SuperPoint or ALIKED are generally preferable. Avoid using tracks on 
+independently moving objects for static-scene SfM.
+
+Note: Detector Free feature pairs must use UnionFind, this module does not support 
+RoMa and Loftr Features!
+
+Initialization/Function Parameters:
+
+- min_track_len: Minimum number of visible frames required to retain a track.
+    - Default (int): 2
+- query_fram_num: Number of frames used to initialize feature tracks.
+    - Default (int): 5
+- query_selection: Method used to select query frames. Supported values are "dino",
+  "interval", and "midpoint".
+    - Default (str): "dino"
+- max_query_pts: Maximum number of detected points tracked from each query frame.
+    - Default (int): 2048
+- query_chunk_size: Number of query points processed together during inference.
+    - Default (int): 64
+- visibility_threshold: Minimum predicted visibility required to keep an observation.
+    - Default (float): 0.5
+- score_threshold: Minimum confidence required to keep an observation. A value of zero
+  disables additional score filtering.
+    - Default (float): 0.0
+- pyramid_level: Feature pyramid level used by the BootsTAPIR tracker.
+    - Default (int): 1
+- resize_to: Image resolution used during tracking. Set to None to use the original
+  image resolution.
+    - Default (tuple[int, int] | None): (512, 512)
+
+Function Call Parameters - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IS IN USE:
+
+- img_features: list[Points2D]
+    Detected feature points for each input frame.
+"""
+
+        example = f"""
+from modules.baseclass import SfMScene
+from modules.features import FeatureDetectionSIFT
+from modules.featuretracking import {module_name}
+
+# Step 1: Load image and calibration data.
+reconstructed_scene = SfMScene(
+    image_path=image_path,
+    calibration_path=calibration_path,
+)
+
+# Step 2: Detect features before tracking.
+reconstructed_scene.FeatureDetectionSIFT()
+
+# Step 3: Track features using BootsTAPIR.
+reconstructed_scene.{module_name}(
+    min_track_len=3,
+    query_fram_num=5,
+    query_selection="dino",
+    max_query_pts=2048,
+    query_chunk_size=64,
+    visibility_threshold=0.5,
+    score_threshold=0.0,
+    pyramid_level=1,
+    resize_to=(512, 512),
+)
+"""
+
         super().__init__(
             detector="features",
             cam_data=cam_data,
-            module_name="FeatureTrackingTapir",
-            description="Build feature tracks from existing image features using BootsTAPIR.",
-            example="scene.FeatureTrackingTapir()",
+            module_name=module_name,
+            description=description,
+            example=example,
             RANSAC_threshold=kwargs.get("RANSAC_threshold", 3.0),
             RANSAC_conf=kwargs.get("RANSAC_conf", 0.99),
             RANSAC_homography=kwargs.get("RANSAC_homography", False),
@@ -802,12 +883,109 @@ class FeatureTrackingVGGSfM(FeatureTrackingBase):
         **kwargs,
     ):  
 
+        module_name = "FeatureTrackingVGGSfM"
+
+        description = f"""
+Tracks detected feature points across an image sequence using the learned
+VGGSfM tracker. Features from selected query frames are propagated across the
+remaining frames and converted into persistent multi-view tracks.
+
+Creates learned multi-view feature tracks specifically for camera-pose estimation, 
+triangulation, and bundle adjustment. USE THIS MODULE for SfM reconstruction when 
+images contain substantial viewpoint or baseline changes, imperfect illumination, 
+or cases where sequential pairwise matching does not maintain sufficiently long tracks. 
+It is best used with GPU processing and can refine query points initialized from sparse 
+detectors such as SIFT or SuperPoint. Choose it when reconstruction accuracy and 
+multi-view consistency are more important than lightweight runtime.
+
+Note: Detector Free feature pairs must use UnionFind, this module does not support 
+RoMa and Loftr Features!
+
+Initialization/Function Parameters:
+
+- model_path: Optional path to VGGSfM tracker weights. The default pretrained weights are
+  downloaded when no path is provided.
+    - Default: None
+- min_track_len:Minimum number of visible frames required to retain a track.
+    - Default (int): 2
+- query_fram_num: Number of frames used to initialize feature trajectories.
+    - Default (int): 5
+- query_selection: Method used to select query frames. Supported values are "dino", "interval", and "midpoint".
+    - Default (str): "dino"
+- max_points_num: Controls the number of points processed at once to limit memory usage.
+    - Default (int): 163840
+- fine_tracking: Enables the VGGSfM fine-tracking refinement stage.
+    - Default (bool): True
+- coarse_iters: Number of coarse tracking refinement iterations.
+    - Default (int): 6
+- visibility_threshold: Minimum predicted visibility required to keep an observation.
+    - Default (float): 0.5
+- score_threshold: Minimum tracking score required to keep an observation. A value of zero
+  disables score filtering.
+    - Default (float): 0.0
+
+Coarse Tracker Parameters:
+
+- coarse_stride: Feature-map stride used by the coarse tracker.
+    - Default (int): 4
+- coarse_down_ratio: Image downsampling ratio used during coarse tracking.
+    - Default (int): 2
+- efficient_corr: Enables the memory-efficient correlation implementation.
+    - Default (bool): False
+
+Fine Tracker Parameters:
+
+- fine_depth: Number of fine tracker refinement layers.
+    - Default (int): 4
+- fine_corr_levels: Number of correlation pyramid levels.
+    - Default (int): 3
+- fine_corr_radius: Search radius used by the fine correlation stage.
+    - Default (int): 3
+- fine_latent_dim: Latent feature dimension used by the fine tracker.
+    - Default (int): 32
+- fine_hidden_size: Hidden feature dimension used by the fine tracker.
+    - Default (int): 256
+- fine_use_spaceatt: Enables spatial attention in the fine tracker.
+    - Default (bool): False
+
+Function Call Parameters - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IS IN USE:
+
+- img_features: list[Points2D]
+    Detected feature points for each input frame.
+"""
+
+        example = f"""
+from modules.baseclass import SfMScene
+from modules.features import FeatureDetectionSIFT
+from modules.featuretracking import {module_name}
+
+# Step 1: Load image and calibration data.
+reconstructed_scene = SfMScene(
+    image_path=image_path,
+    calibration_path=calibration_path,
+)
+
+# Step 2: Detect features before tracking.
+reconstructed_scene.FeatureDetectionSIFT()
+
+# Step 3: Track features using VGGSfM.
+reconstructed_scene.{module_name}(
+    min_track_len=3,
+    query_fram_num=5,
+    query_selection="dino",
+    fine_tracking=True,
+    visibility_threshold=0.5,
+    score_threshold=0.0,
+)
+"""
+
+
         super().__init__(
             detector="features",
             cam_data=cam_data,
-            module_name="FeatureTrackFromPairsUnionFind",
-            description="Build feature tracks from existing pairwise correspondences using Union-Find.",
-            example="scene.FeatureTrackFromPairsUnionFind()",
+            module_name=module_name,
+            description=description,
+            example=example,
             RANSAC_threshold=kwargs.get("RANSAC_threshold", 3.0),
             RANSAC_conf=kwargs.get("RANSAC_conf", 0.99),
             RANSAC_homography=kwargs.get("RANSAC_homography", False),
@@ -913,40 +1091,6 @@ class FeatureTrackingVGGSfM(FeatureTrackingBase):
 
         return query_frames[:num_queries]
 
-    # def _select_query_frames(self, frame_num: int) -> list[int]:
-
-    #     num_queries = min(self.query_frame_num, frame_num)
-
-    #     if self.query_selection == "interval":
-    #         # Spread query frames across the sequence.
-    #         #
-    #         # Similar to:
-    #         #
-    #         # 0 ----- 20 ----- 40 ----- 60 ----- 80
-
-    #         interval = max(1, frame_num // num_queries)
-    #         ranking = generate_rank_by_interval(frame_num, interval)
-
-    #     elif self.query_selection == "midpoint":
-    #         ranking = generate_rank_by_midpoint(frame_num)
-
-    #     else:
-    #         raise ValueError("query_selection must be interval' or 'midpoint'.")
-
-    #     ranking = list(ranking)
-
-    #     # ------------------------------------------------------------
-    #     # Always include frame zero.
-    #     #
-    #     # This follows the behavior you wanted from the VGGT demo.
-    #     # ------------------------------------------------------------
-
-    #     if 0 in ranking:
-    #         ranking.remove(0)
-
-    #     query_frames = [0, *ranking]
-
-    #     return query_frames[:num_queries]
 
     # ================================================================
     # Chunked VGGSfM tracking
@@ -1163,25 +1307,9 @@ class FeatureTrackingVGGSfM(FeatureTrackingBase):
                     device=self.device,
                 )
             )
-            # all_query_frames.append(
-            #     torch.full(query_points.shape[0],
-            #                query_index,
-            #                dtype=torch.long,
-            #                device=self.device)
-            # )
 
         if not all_tracks:
             raise RuntimeError("VGGSfM could not generate any tracks.")
-
-        # ------------------------------------------------------------
-        # Combine trajectories seeded by different query frames.
-        #
-        # Each:
-        #     [1,T,N_i,2]
-        #
-        # Combined:
-        #     [1,T,N_total,2]
-        # ------------------------------------------------------------
 
         pred_tracks = torch.cat(all_tracks, dim=2)
         pred_vis = torch.cat(all_vis, dim=2)
@@ -1363,12 +1491,138 @@ class FeatureTrackFromPairsUnionFind(FeatureTrackingBase):
         allow_pair_local_merge: bool = True,
         **kwargs,
     ):
+
+        module_name = "FeatureTrackFromPairsUnionFind"
+
+        description = f"""
+Builds multi-view feature tracks from existing pairwise point correspondences.
+This module follows a global track-construction approach similar to the
+Union-Find track-building stage used in global Structure-from-Motion pipelines.
+
+Unlike direct feature trackers, this module does not detect features or estimate
+new correspondences between images. Pairwise feature matches must already have
+been generated by a feature-matching module. USE THIS MODULE for classical sparse 
+SfM when reliable features and pairwise matches already exist. It works well with 
+SIFT for textured, wide-baseline image collections and with SuperPoint or ALIKED 
+plus LightGlue for more challenging appearance changes. ORB is better suited to 
+well-lit, sequential, high-overlap imagery. This is the fastest and most 
+lightweight option.
+
+Each pairwise match indicates that two observations likely correspond to the
+same physical 3D point. Union-Find combines these pairwise relationships into
+connected components, where each connected component becomes a candidate
+feature track spanning multiple images.
+
+Use this module after pairwise feature matching when globally consistent
+multi-view tracks are required for camera pose estimation, triangulation, scene
+reconstruction, or bundle adjustment. This module is especially useful when
+the pairwise correspondences were generated by matchers such as FLANN,
+Brute-Force, LightGlue, SuperGlue, LoFTR, RoMa, or another pairwise matching
+method supported by SfMCore.
+
+This is not a direct tracking module and does not process image sequences using
+optical flow or a learned temporal tracking network.
+
+Initialization/Function Parameters:
+- min_track_len: Minimum number of unique image observations required for a connected
+  component to be retained as a valid feature track.
+    - Default (int): 2
+- allow_pair_local_merge: Determines whether observations generated by pair-local matchers may be
+  merged across image pairs when constructing global tracks.
+    - Default (bool): True
+
+- RANSAC_homography: Determines whether Homography or Fundamental matrix geometry is used for
+  pairwise correspondence outlier rejection.
+    - Default (bool): False
+    - True: Use a Homography model
+    - False: Use a Fundamental matrix model
+
+- RANSAC_threshold: Maximum geometric residual allowed for a correspondence to be considered
+  an inlier during RANSAC-based geometric verification. For Fundamental matrix estimation, 
+  this typically represents the maximum point-to-epipolar-line error in pixel coordinates. 
+  For Homography estimation, it typically represents the maximum reprojection error.
+    - Default (float): 3.0
+
+- RANSAC_conf: Desired confidence that the model estimated by RANSAC is valid.
+  Higher values may require more RANSAC iterations but reduce the probability
+  that the selected model was generated from an insufficient inlier sample.
+    - Default (float): 0.99
+
+Function Call Parameters - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IS IN USE:
+
+- feature_pairs: PointsMatched
+    Existing pairwise feature correspondences produced by a feature-matching
+    module.
+    The PointsMatched object must contain:
+    - pairwise_obs_ids:
+        Observation ID pairs associated with each accepted pairwise match.
+    - obs_image:
+        Mapping from each observation ID to its source image.
+    - obs_xy:
+        Mapping from each observation ID to its 2D image coordinates.
+
+Module Output:
+
+- PointsMatched: The input PointsMatched object is updated with multi-view feature-track
+    information.
+
+    Updated fields include:
+    - data_matrix:
+        Float array with shape [N, 4], where each row contains:
+        [track_id, image_id, x, y]
+    - track_map:
+        Dictionary mapping each track ID to its image observations.
+    - point_count:
+        Number of valid multi-view tracks.
+    - multi_view:
+        Set to True after track construction.
+"""
+
+
+        example = f"""
+# Initialization
+from modules.baseclass import SfMScene
+from modules.features import FeatureDetectionSIFT
+from modules.featurematching import FeatureMatchFlann
+from modules.featuretracking import {module_name}
+
+# Start SfM Pipeline
+
+# Step 1: Read calibration and image data.
+reconstructed_scene = SfMScene(
+    image_path=image_path,
+    calibration_path=calibration_path,
+)
+
+# Step 2: Detect image features.
+reconstructed_scene.FeatureDetectionSIFT()
+
+# Step 3: Estimate pairwise feature correspondences.
+reconstructed_scene.FeatureMatchFlann(
+    detector="sift",
+    k=2,
+    lowes_thresh=0.78,
+    RANSAC_homography=False,
+    RANSAC_threshold=2.0,
+    RANSAC_conf=0.999,
+)
+
+# Step 4: Convert pairwise correspondences into multi-view tracks.
+reconstructed_scene.{module_name}(
+    min_track_len=2,
+    allow_pair_local_merge=True,
+    RANSAC_homography=False,
+    RANSAC_threshold=3.0,
+    RANSAC_conf=0.99,
+)
+"""
+
         super().__init__(
             detector="pairwise",
             cam_data=cam_data,
-            module_name="FeatureTrackFromPairsUnionFind",
-            description="Build feature tracks from existing pairwise correspondences using Union-Find.",
-            example="scene.FeatureTrackFromPairsUnionFind()",
+            module_name=module_name,
+            description=description,
+            example=example,
             RANSAC_threshold=kwargs.get("RANSAC_threshold", 3.0),
             RANSAC_conf=kwargs.get("RANSAC_conf", 0.99),
             RANSAC_homography=kwargs.get("RANSAC_homography", False),

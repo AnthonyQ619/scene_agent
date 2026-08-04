@@ -1,9 +1,9 @@
 from modules.features import FeatureDetectionSP
-from modules.featurematching import FeatureMatchSuperGlueTracking, FeatureMatchSuperGluePair
+from modules.featurematching import FeatureMatchSuperGluePair
 # from modules.camerapose import CamPoseEstimatorEssentialToPnP
 from modules.featuretracking import FeatureTrackFromPairsUnionFind
 from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.scenereconstruction import Sparse3DReconstructionMono, Sparse3DReconstructionIncremental, SparseSceneEstimationCOLMAPGlobal
+from modules.scenereconstruction import Sparse3DReconstructionIncremental, SparseSceneEstimationCOLMAPGlobal, Sparse3DReconstructionMapAnything
 from modules.visualize import VisualizeScene, visualize_camera_poses_plotly, visualize_3d_points
 import os
 from modules.baseclass import SfMScene
@@ -48,36 +48,36 @@ reconstructed_scene.FeatureMatchFlannPair(detector="sift",
 # )
 
 # Step 4: Detect/Estimate Camera Poses
-# reconstructed_scene.CamPoseEstimatorEssentialToPnP(
-#     iteration_count=150,
-#     reprojection_error = 3.0,
-#     optimizer = ("BundleAdjustmentOptimizerLocal", {
-#         "max_num_iterations": 25,
-#         "robust_loss": True
-#     }),
-# )
+reconstructed_scene.CamPoseEstimatorEssentialToPnP(
+    iteration_count=150,
+    reprojection_error = 3.0,
+    optimizer = ("BundleAdjustmentOptimizerLocal", {
+        "max_num_iterations": 25,
+        "robust_loss": True
+    }),
+)
 
 # Step 5: Detect Feature Tracks
 reconstructed_scene.FeatureTrackFromPairsUnionFind()
 
 # Step 6: Estimate Sparse Reconstruction
-reconstructed_scene.SparseSceneEstimationCOLMAPGlobal(
-    min_track_len = 3,
-    min_num_matches = 30,
-    max_epipolar_error = 1.0,
-    min_tri_angle_deg = 1.0,
-    max_angular_reproj_error_deg  = 1.0,
-    max_normalized_reproj_error  = 0.01,
-    ba_num_iterations = 3
-)
-# reconstructed_scene.Sparse3DReconstructionIncremental(
-#     min_observe=3,
-#     min_angle=1.5,
-#     # multi_view=True,
-#     max_reproj_error=1.5,
-#     reproj_threshold=1.0,
-#     max_filter_iterations=5
+# reconstructed_scene.SparseSceneEstimationCOLMAPGlobal(
+#     min_track_len = 3,
+#     min_num_matches = 30,
+#     max_epipolar_error = 1.0,
+#     min_tri_angle_deg = 1.0,
+#     max_angular_reproj_error_deg  = 1.0,
+#     max_normalized_reproj_error  = 0.01,
+#     ba_num_iterations = 3
 # )
+reconstructed_scene.Sparse3DReconstructionIncremental(
+    min_observe=3,
+    min_angle=1.5,
+    # multi_view=True,
+    max_reproj_error=1.5,
+    reproj_threshold=1.0,
+    max_filter_iterations=5
+)
 
 # Step 7: Run Optimization
 reconstructed_scene.BundleAdjustmentOptimizerGlobal(

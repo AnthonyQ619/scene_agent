@@ -96,18 +96,22 @@ STEP 8:  Apply Dense Reconstruction Module for dense scene reconstruction.
 
 # Construct Modules with Initialized Arguments
 image_path = "/home/anthonyq/datasets/DTU/scan8_normal_lighting" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan8_normal_lighting" # Scan 21 came out really good!
-calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
+calibration_path = "/home/anthonyq/datasets/DTU/calibration_DTU_new.npz" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
 
 from modules.features import FeatureDetectionSP
-from modules.featurematching import FeatureMatchSuperGluePair, FeatureMatchSuperGlueTracking
+from modules.featurematching import FeatureMatchSuperGluePair
+from modules.featuretracking import FeatureTrackFromPairsUnionFind
 from modules.camerapose import CamPoseEstimatorEssentialToPnP
 from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.scenereconstruction import Sparse3DReconstructionMono
+from modules.scenereconstruction import Sparse3DReconstructionIncremental
 from modules.optimization import BundleAdjustmentOptimizerGlobal, BundleAdjustmentOptimizerLocal
 from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(id=5, image_path = image_path, 
+reconstructed_scene = SfMScene(id=5, 
+                              gpu_num="5",
+                              log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/DTU/",
+                                image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
 
@@ -134,16 +138,15 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 )
 
 # Step 5: Detect Feature Tracks
-reconstructed_scene.FeatureMatchSuperGlueTracking(
-    detector="superpoint",
-    RANSAC_threshold=3.0
-)
+reconstructed_scene.FeatureTrackFromPairsUnionFind()
 
 # Step 6: Estimate Sparse Reconstruction
-reconstructed_scene.Sparse3DReconstructionMono(
-    min_observe = 3,
-    min_angle = 0.1,
-    multi_view = True
+reconstructed_scene.Sparse3DReconstructionIncremental(
+    min_observe=4,
+    min_angle=1.0,
+    max_reproj_error=1.5,
+    reproj_threshold=1.0,
+    max_filter_iterations=5
 )
 
 # Step 7: Run Optimization
@@ -152,9 +155,9 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
 )
 
 # STEP 8: Run Rense Reconstruction Algorithm
-reconstructed_scene.Dense3DReconstructionMono(
-    reproj_error=3.0,
-    min_triangulation_angle=1.0,
-    num_samples=15,
-    num_iterations=3
-)
+# reconstructed_scene.Dense3DReconstructionMono(
+#     reproj_error=3.0,
+#     min_triangulation_angle=1.0,
+#     num_samples=15,
+#     num_iterations=3
+# )

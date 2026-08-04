@@ -26,33 +26,123 @@ from mapanything.utils.geometry import closed_form_pose_inverse, depthmap_to_wor
 from uniception.models.encoders.image_normalizations import IMAGE_NORMALIZATION_DICT
 from pathlib import Path
 
-
-from modules.DataTypes.datatype import (Points2D, 
-                                        CameraData, 
-                                        Points3D, 
-                                        CameraPose, 
-                                        Scene, 
-                                        PointsMatched,
-                                        BundleAdjustmentData)
+from modules.DataTypes.pointDT import Points2D, Points3D
+from modules.DataTypes.cameraDT import CameraData
+from modules.DataTypes.cameraposeDT import CameraPose
+from modules.DataTypes.featmatchDT import PointsMatched
+from modules.DataTypes.sceneDT import Scene
 
 torch.manual_seed(42)
 
-# Import Pycolmap
-# os.add_dll_directory(r"C:\\Users\\Anthony\\Desktop\\VCPKG\\vcpkg\\installed\\x64-windows\\bin")
-# os.add_dll_directory(r"C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4\\bin")
-# os.add_dll_directory(r"C:\\Program Files\\NVIDIA cuDSS\\v0.7\\bin\\12")
 import pycolmap
 
 ##########################################################################################################
 ############################################### ML MODULES ###############################################
 
 class Sparse3DReconstructionMapAnything(SparseSceneEstimation):
+    requires_camera_poses = False
     def __init__(self,
                  cam_data: CameraData,
                  min_observe: int = 3,
                  update_intrinsics = False):
-        
-        super().__init__(cam_data = cam_data)
+    
+        module_name = "Sparse3DReconstructionMapAnything"
+
+        description = f"""
+Reconstructs a sparse 3D scene using the learned MapAnything model. MapAnything predicts
+metric scene geometry from one or more images and can optionally use available camera
+intrinsics and camera poses as geometric inputs. Unlike classical sparse reconstruction,
+this module does not require reliable feature detection, matching, or triangulation to
+generate the initial scene geometry.
+
+USE THIS MODULE when sparse features are insufficient, classical pose estimation or
+triangulation is unreliable, the scene contains weakly textured regions, or rapid learned
+reconstruction is preferred. It is also useful when camera calibration or previously
+estimated poses are available and should be used to condition the reconstruction.
+Classical incremental or global SfM is preferable when highly accurate feature tracks,
+well-optimized poses, and strict geometric consistency are available.
+
+This module supports single-view and multi-view reconstruction. GPU memory should be
+considered when processing large images or many views.
+
+Initialization Parameters:
+- min_observe: Minimum number of image observations required for a predicted 3D point to
+  be retained in the sparse scene. Increasing this value keeps points supported across
+  more views, improving multi-view reliability while reducing point count.
+    - Default (int): 3
+- update_intrinsics: Whether the camera intrinsics stored in CameraData should be updated
+  using the intrinsics predicted by MapAnything. Set to False to preserve known calibrated
+  intrinsics. Enable when calibration is unavailable or the existing intrinsics are
+  considered unreliable.
+    - Default (bool): False
+
+Function Call Parameters - Handled Internally by SfMScene:
+- cam_poses (CameraPose): Optional camera poses used to condition MapAnything. These may
+  come from any compatible CameraPoseEstimator module and are not restricted to VGGT.
+- tracked_features (PointsMatched): Optional feature tracks used to select or associate
+  predicted 3D points. MapAnything itself does not require classical feature tracks to
+  infer scene geometry.
+
+Module Input - Handled Internally by SfMScene:
+    CameraData:
+        images: Input image set used for reconstruction.
+        calibration: Optional camera intrinsics supplied to MapAnything.
+        image_size: Image dimensions represented as [width, height].
+        image_scale: Scale factors applied when images are resized.
+
+    CameraPose:
+        camera_pose: list[np.ndarray]       Camera poses represented as [R | t].
+        rotations: list[np.ndarray]         Camera rotation matrices.
+        translations: list[np.ndarray]      Camera translation vectors.
+
+    PointsMatched:
+        data_matrix: np.ndarray             Multi-view feature observations, when available.
+        track_map: dict                     Mapping between tracks and image observations.
+        image_size: np.ndarray              Original image dimensions.
+        image_scale: list[float]            Image resizing scale factors.
+
+Module Output - Handled Internally by SfMScene:
+    Scene:
+        points3D: Points3D
+            points3D: np.ndarray            Predicted 3D point positions [x, y, z].
+            color: np.ndarray               RGB color associated with each 3D point.
+        cam_poses: list[np.ndarray]          Input or MapAnything-predicted camera poses.
+        observations: np.ndarray             Retained image observations associated with
+                                             sparse 3D points.
+        depth_maps: list[np.ndarray]         Predicted depth map for each input view.
+        sparse: bool                         Set to True for the returned sparse scene.
+"""
+
+        example = f"""
+Initialization:
+from modules.camerapose import CamPoseEstimatorVGGTModel
+from modules.scenereconstruction import {module_name}
+from modules.baseclass import SfMScene
+
+Function Use:
+# Step 1: Load image and optional calibration data.
+reconstructed_scene = SfMScene(
+    image_path=image_path,
+    calibration_path=calibration_path
+)
+# Step 2: Detect Features Prior to Step 5 (Data filled in SfMScene)
+
+# Step 3: Optionally estimate camera poses before reconstruction.
+# MapAnything can also operate without externally estimated poses.
+reconstructed_scene.CamPoseEstimatorVGGTModel()
+
+# Step 4: Detect Feature Tracks Prior to Step 5 (Data filled in SfMScene)
+
+# Step 3: Reconstruct the sparse scene using MapAnything.
+reconstructed_scene.{module_name}(
+    min_observe=3,
+    update_intrinsics=False
+)
+"""
+        super().__init__(cam_data = cam_data,
+                         module_name=module_name,
+                         description=description,
+                         example=example)
 
         dtype = (
         torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
@@ -63,7 +153,7 @@ class Sparse3DReconstructionMapAnything(SparseSceneEstimation):
         self.model.eval()        
 
         data_norm_type = self.model.encoder.data_norm_type
-        print(data_norm_type)
+
         if data_norm_type is None:
             # No normalization, just convert to tensor
             img_transform = TF.ToTensor()
@@ -78,8 +168,6 @@ class Sparse3DReconstructionMapAnything(SparseSceneEstimation):
         self.minimum_observation = min_observe
         self.update_intrinsics = update_intrinsics
 
-        print(self.height)
-        print(self.width)
         tensor_img_list = []
         for ind in range(len(self.image_list)):
             tensor_img_list.append(img_transform(self.image_list[ind]))
@@ -104,13 +192,11 @@ class Sparse3DReconstructionMapAnything(SparseSceneEstimation):
                 }
                 views.append(view)
         elif cam_poses is None:
-            print("Old INTRINSICS", self.K_mat)
             int_torch = torch.from_numpy(np.array(self.K_mat.astype(np.float32))).to(self.device)
             int_torch[:2, :] *= (518/self.width)
-            print("INTRISNICS SHAPE:", int_torch.shape)
+
             views = []
             for view_idx in range(images.shape[0]):
-                print("IMAGE SHAPE:", images[view_idx][None].shape)
                 view = {
                     "img": images[view_idx][None],  # Add batch dimension
                     "intrinsics": int_torch[None],
@@ -118,7 +204,6 @@ class Sparse3DReconstructionMapAnything(SparseSceneEstimation):
                 }
                 views.append(view)
         else:
-            print("USING CAL AND POSES")
             int_torch = torch.from_numpy(np.array(self.K_mat.astype(np.float32))).to(self.device)
             int_torch[:2, :] *= (518/self.width)
             camera_poses = cam_poses.camera_pose
@@ -181,20 +266,13 @@ class Sparse3DReconstructionMapAnything(SparseSceneEstimation):
 
 
             # Collect results
-            print("OLD VERSION EXT", extrinsic)
             all_extrinsics.append(extrinsic[:3, :])
             all_intrinsics.append(intrinsic)
             all_depth_maps.append(depth_map)
             all_depth_confs.append(depth_conf)
             all_pts3d.append(pts3d)
 
-        print("Previous Intrinsics", int_torch)
-        print("INTRINSICS", all_intrinsics[:2])
-        # print("PREVIOUS EXTRINISICS:", cam_poses.camera_pose[:2])
-        print("CURRENT EXT:", all_extrinsics[:2])
         # Stack results into arrays
-        # all_extrinsics = np.stack(all_extrinsics)
-        # all_intrinsics = np.stack(all_intrinsics)
         all_depth_maps = np.stack(all_depth_maps)
         all_depth_confs = np.stack(all_depth_confs)
         all_pts3d = np.stack(all_pts3d)
@@ -231,213 +309,6 @@ class Sparse3DReconstructionMapAnything(SparseSceneEstimation):
         
         return scene
 
-class Sparse3DReconstructionVGGTNoFeatures(SparseSceneEstimation):
-    def __init__(self,
-                cam_data: CameraData,
-                ):
-        
-        module_name = "Sparse3DReconstructionVGGTNoFeatures"
-        description = f"""
-Sparsely reconstructs a 3D scene utilizing pre-processed information of camera poses and
-images of the scene. Camera Poses are estimated prior to thie module through the camera pose estimation 
-module, specifically from VGGT pose estimation. This moduls is specifically the case where features detected 
-are too sparsely estimated or inaccurate for feature tracking, so this is no-feature-detection module to estimate the 
-point maps of VGGT.
-
-This module can reconstruct sparse 3D scenes specifically using a monocular camera. 
-This module can reconstruct sparse 3D scenes either through single view or multi-view scenes.
-This is determined by the how many images exist in the scene and how many poses were estimated from the previous
-module using the VGGT pose estimation tool specifically.
-
-Use this module when specified for ONLY SPARSE reconstruction and the scene doesn't allow for ANY features to be detected
-from any of the supported Feature Detections (SIFT, ORB, SuperPoitn). Utilize this module in conjuction with the VGGT pose 
-estimation module in these cases where feature detection too low or innacurate for good feature tracks to be detected! 
-This module is for reconstructing the scene using the deep learning approach. 
-Computation time should not matter when invoking this tool, but keep in mind of system constraints such as GPU memory.
-
-Use this module for cases where feature detection is too unrelieable for bundle adjustment, leaving for large reprojection
-errors in the scene, so we build the scene with no detectors as a prior, and estimate the feature tracks after points are 
-estimated with VGGT!
-
-Initialization/Function Parameters:
-- No Initial Parameterization
-    - Reasoning: we detect the features in this module using a deep learning feature tracking with 3D points as a prior, which we 
-      estimate with VGGT in this module.
-
-Function Call Parameters - Handled Internally from SfMScene in the common API Workflow:
-- cam_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
-specifically from the CameraPoseEstimationVGGT module. 
-- tracked_features (PointsMatched): Feature points are NOT tracked prior to this module!
-    - Input: None
-
-Module Input - Handled Internally from SfMScene in the common API Workflow:
-    CameraPose:
-        camera_pose: list[np.ndarray]   [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
-        rotations: list[np.ndarray]     [3 x 3] (np.float) Rotation matrices for each corresponding frame (Derived from camera_pose)
-        translations: list[np.ndarray]  [3 x 1] (np.float) Translation matrices for each corresponding frame (Derived from camera_pose)
-
-Module Output - Handled Internally from SfMScene in the common API Workflow:
-    Scene:
-        points3D: Points3D 
-            Points3D
-                - points3D: np.ndarray      [N x 3] Point position in 3D space [x, y, z]
-                - color: np.ndarray         [N x 3] Point Color [r, g, b]               
-        cam_poses: list[np.ndarray]         [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
-        recon: Pycolmap.Reconstruction      We estimate the Pycolmap.Reconstruction structure in this module with the esitmated 3D points and Feature Tracks
-        sparse: bool                        Used to determine if current scene is sparse or dense
-"""
-        example = f"""
-Initialization:
-from modules.features import ...
-from modules.featurematching import ...
-from modules.camerapose import CamPoseEstimatorVGGTModel
-from modules.scenereconstruction import {module_name}
-from modules.baseclass import SfMScene
-
-Function Use:
-# Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
-                               calibration_path = calibration_path)
-
-# Step 2: Feature Detection is skipped at this stage
-
-# Step 3: Detect Cam Poses (Must use VGGT prior to this step!)
-reconstructed_scene.CamPoseEstimatorVGGTModel() 
-
-# Step 4: Feature Tracking is Skipped at this stage
-
-# Step 5: Estimate Sparse Reconstruction using VGGT Module -> 3D Points and Feature Tracks are estimated in this module for Global Optimization!
-reconstructed_scene.{module_name}()
-"""
-        super().__init__(cam_data = cam_data,
-                         module_name=module_name,
-                         description=description,
-                         example=example)
-        
-        # Initialize Model
-        if os.name == 'nt':
-            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "\\models\\sfm_models\\vggt\\weights\\model.pt"
-        elif os.name == 'posix':
-            WEIGHT_MODULE = str(os.path.dirname(__file__)) + "/models/sfm_models/vggt/weights/model.pt"
-
-        # WEIGHT_MODULE = "/workspace/model_weights/model.pt"
-            
-        self.device = f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu"
-
-        if self.device == f"cuda:{self.cam_data.gpu_num}":
-            # bfloat16 is supported on Ampere GPUs (Compute Capability 8.0+) 
-            self.dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
-        else:
-            self.dtype = torch.float32
-
-        self.model = VGGT().to(self.device)
-        self.model.load_state_dict(torch.load(WEIGHT_MODULE, weights_only=True))
-        self.model.eval()
-
-        self.width, self.height = self.image_list[0].size
-         # Load Images in correct format for VGGT inference
-        to_tensor = TF.ToTensor()
-        tensor_img_list = [to_tensor(img) for img in self.image_list]
-
-        self.images = torch.stack(tensor_img_list).to(self.device) 
-        self.frame_nums = len(cam_data.image_names)
-        self.detector_free_modules.append(module_name)
-
-    def build_reconstruction(self, 
-                             tracked_features: PointsMatched | None, 
-                             cam_poses: CameraPose) -> Scene:
-        torch.cuda.empty_cache() #Empty GPU cache
-
-        ext_torch = torch.from_numpy(np.array(cam_poses.camera_pose)).to(self.device)
-        int_torch = torch.from_numpy(np.array(self.K_mat)).to(self.device)
-        int_torch[:, :2, :] *= (518/self.width) # Bring back to fixed VGGT Resolution
-
-        # VGGT Fixed Resolution to 518 for Inference
-        images = F.interpolate(self.images, size=(518, 518), mode="bilinear", align_corners=False)
-        
-        with torch.no_grad():
-            with torch.amp.autocast('cuda', dtype=self.dtype):
-                images = images[None]  # add batch dimension
-                aggregated_tokens_list, ps_idx = self.model.aggregator(images)
-
-            # Predict Depth Maps
-            depth_map, depth_conf = self.model.depth_head(aggregated_tokens_list, images, ps_idx)
-
-            point_map = unproject_depth_map_to_point_map(depth_map.squeeze(0), 
-                                                                ext_torch, 
-                                                                int_torch)
-        
-        num_cameras = len(cam_poses.camera_pose)
-
-        depth_conf_np = depth_conf.squeeze(0).detach().cpu().numpy()
-        depth_map_np = depth_map.squeeze(0).detach().cpu().numpy() 
-        extrinsics_np = np.array(cam_poses.camera_pose)
-        intrinsics_np = np.array(self.K_mat)
-        image_size = np.array(self.images.shape[-2:])
-
-        # Here we use the ext, int, depth_map, and point_map (points3D) to initialize the sparse reconstruction with tracked feature points
-        # scene = self.match_tracks_to_point_maps(tracked_features=tracked_features,
-        #                                         point_maps = point_map,
-        #                                         conf_maps = depth_conf,
-        #                                         minimum_observation = self.minimum_observation,
-        #                                         img_width = self.width,
-        #                                         num_cameras = num_cameras,
-        #                                         camera_poses=cam_poses)
-        print()
-        print("IMAGESIZE", image_size)
-        print("IMAGESHAPE", self.images.shape)
-        with torch.no_grad():
-            with torch.cuda.amp.autocast(dtype=self.dtype):
-                # Predicting Tracks
-                # Using VGGSfM tracker instead of VGGT tracker for efficiency
-                # VGGT tracker requires multiple backbone runs to query different frames (this is a problem caused by the training process)
-                # Will be fixed in VGGT v2
-
-                # You can also change the pred_tracks to tracks from any other methods
-                # e.g., from COLMAP, from CoTracker, or by chaining 2D matches from Lightglue/LoFTR.
-                pred_tracks, pred_vis_scores, pred_confs, points_3d, points_rgb = predict_tracks(
-                    self.images,
-                    conf=depth_conf_np,
-                    points_3d=point_map,
-                    masks=None,
-                    max_query_pts=4096,
-                    query_frame_num=self.frame_nums,
-                    keypoint_extractor="sp",
-                    fine_tracking=True,
-                )
-
-            # torch.cuda.empty_cache()
-        torch.cuda.empty_cache() #Empty GPU cache
-
-        track_mask = pred_vis_scores > 0.1
-
-        reconstruction, valid_track_mask = batch_np_matrix_to_pycolmap(
-            points_3d,
-            extrinsics_np,
-            intrinsics_np,
-            pred_tracks,
-            image_size,
-            masks=track_mask,
-            max_reproj_error=8.0,
-            shared_camera=True,
-            camera_type="SIMPLE_PINHOLE",
-            points_rgb=points_rgb,
-            image_names=self.cam_data.image_names
-        )
-
-        points3D = Points3D()
-        points3D.set_all_points(points_3d, points_rgb)
-
-        scene = Scene(points3D = points3D,
-                      cam_poses = cam_poses.camera_pose,
-                    #   observations= np.vstack(observations_pix),
-                      representation = "point cloud",
-                    #   bal_data=ba_data,
-                      sparse=True,
-                      recon=reconstruction)
-        
-        return scene
-
 class Sparse3DReconstructionVGGT(SparseSceneEstimation):
     def __init__(self,
                  cam_data: CameraData,
@@ -453,9 +324,12 @@ This module can reconstruct sparse 3D scenes specifically using a monocular came
 This module can reconstruct sparse 3D scenes either through single view or multi-view scenes.
 This is determined by the how many images exist in the scene and how many poses were estimated from the previous
 module using the VGGT pose estimation tool specifically.
-Use this module when specified for ONLY SPARSE reconstruction and the scene doesn't allow for many features to be detected
-from classical feature detectors (SIFT or ORB). Utilize this module in conjuction with the VGGT pose estimation module in these cases
-where feature detection is low. This module is for reconstructing the scene using the deep learning approach. 
+
+USE THIS MODULE when sparse features are insufficient, viewpoint or illumination changes weaken classical matching, 
+or rapid reconstruction is needed without a complete feature-to-pose pipeline. It is a strong fallback for weakly 
+textured or casually captured scenes, but classical reconstruction with bundle adjustment may be preferable when 
+precise geometric consistency is required.
+
 Computation time should not matter when invoking this tool, but keep in mind of system constraints such as GPU memory.
 
 Initialization/Function Parameters:
@@ -601,9 +475,6 @@ class SparseSceneEstimationCOLMAPGlobal(SparseSceneEstimation):
         "SparseSceneEstimationCOLMAPGlobal",
     ]
 
-    # Hard code work_dir
-    # Remove use_gpu/gpu_index
-
     def __init__(
         self,
         cam_data: CameraData,
@@ -624,6 +495,125 @@ class SparseSceneEstimationCOLMAPGlobal(SparseSceneEstimation):
         max_normalized_reproj_error: float = 0.01,
         ba_num_iterations: int = 3
     ):
+
+        module_name = "SparseSceneEstimationCOLMAPGlobal"
+        description = f"""
+Globally estimates camera poses and sparse 3D structure from feature correspondences using view-graph calibration, 
+global camera positioning, triangulation, and bundle adjustment. Camera poses should not be estimated before this 
+module, because pose estimation is an internal part of the reconstruction process.
+
+USE THIS MODULE for large, unordered, or wide-baseline image collections with sufficient texture, reliable pairwise 
+matches, and a well-connected view graph. It is especially useful when incremental reconstruction would be too slow 
+or sensitive to its initialization order. Avoid it when feature matching is sparse or unreliable, image groups are 
+disconnected, or scenes contain severe texturelessness, repeated patterns, dynamic objects, or poor illumination. 
+GLOMAP provides accuracy competitive with incremental COLMAP while offering substantially better scalability.
+
+This can apply for scenes with enough point correspondences between image pairs (minimum should be at least 30 matches)
+in image pairs. Scene does not need to be perfect for detected features, but enough to properly conduct feature tracks and 
+camera poses with 30 feature matches between image pairs.
+
+Initialization/Function Parameters:
+- min_track_len: The minimum number of image observations required for a feature track to be used during global reconstruction and bundle adjustment.
+    - Default (int): 3
+- min_num_matches: The minimum number of feature matches required between two images for the image pair to be included in the global view graph.
+    - Default (int): 30
+- max_epipolar_error: The maximum epipolar error allowed for a feature correspondence to be considered an inlier during two-view geometric verification.
+    - Default (float): 1.0 pixels
+- min_inlier_ratio: The minimum percentage of feature matches that must pass geometric verification for an image pair to be accepted.
+    - Default (float): 0.25
+    - Default Meaning: At least 25% of matches must be inliers.
+- verification_confidence: The confidence level used by RANSAC during two-view geometric verification. Higher values increase verification reliability but may require more iterations.
+    - Default (float): 0.999
+- keep_work_dir: Determines whether the temporary COLMAP database, staged images, and reconstruction files are kept after processing.
+    - Default (bool): False
+- calibrate_view_graph: Determines whether COLMAP should refine camera calibration using the verified image-pair graph before global reconstruction.
+    - Default (bool): False
+    - Note: Usually disabled when accurate camera intrinsics are already provided.
+- num_threads: The number of CPU threads used during global reconstruction and optimization.
+    - Default (int): -1
+    - Default Meaning: Automatically use the available CPU threads.
+- random_seed: The random seed used by RANSAC and other randomized reconstruction processes.
+    - Default (int): -1
+    - Default Meaning: Use a non-fixed or automatically selected seed.
+- refine_focal_length: Determines whether the camera focal length is refined during bundle adjustment.
+    - Default (bool): False
+- refine_principal_point: Determines whether the camera principal point is refined during bundle adjustment.
+    - Default (bool): False
+- refine_extra_params: Determines whether additional camera distortion parameters are refined during bundle adjustment.
+    - Default (bool): False
+- min_tri_angle_deg: The minimum triangulation angle required between camera observations to accept a reconstructed 3D point. Larger angles generally produce more stable depth estimates.
+    - Default (float): 1.0 degree
+- max_angular_reproj_error_deg: The maximum angular reprojection error allowed when validating and filtering reconstructed 3D points.
+    - Default (float): 1.0 degree
+- max_normalized_reproj_error: The maximum reprojection error allowed after image coordinates are normalized by the camera intrinsics.
+    - Default (float): 0.01
+- ba_num_iterations: The number of global bundle-adjustment refinement rounds performed during the reconstruction pipeline.
+    - Default (int): 3
+
+Function Call Inputs - Handled Internally from SfMScene in the common API Workflow:
+- cam_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
+specifically from the CameraPoseEstimation modules. 
+    - Required: Set to (None)
+- tracked_features (PointsMatched): Feature points tracked across multiple frames to allow Multi-View 3D point estimation. Feature Tracks are 
+estimated from the FeatureTracking modules. (Feature Matches also exist in this datatype)
+
+Module Input - Handled Internally from SfMScene in the common API Workflow:
+    PointsMatched (Matched Features across image pairs)
+        # General Data Information for Feature Matches
+        image_size: np.ndarray              [1 x 2] [np.int64] (Simply Image Shape: (W, H))
+        image_scale: list[float]            [W_scale, H_scale] if image is resized
+        multi_view: bool                    Determine if Pairwise/Feature Matching
+        stereo_cam: bool                    Deterine if the camera utilized is a stereo camera for feature matching/tracking
+
+        # Tracked Data Features
+        data_matrix: np.ndarray             [N x 4] Data Structure to store corresponding points. In the form of Nx4 -> [track_id, frame_num, x, y]
+        track_map: dict                     Used to aid in the feature matching process.
+        point_count: int                    Based on track_id max count -> tells us how many 3D points exist
+    
+    CameraPose:
+        camera_pose: list[np.ndarray]   [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
+        rotations: list[np.ndarray]     [3 x 3] (np.float) Rotation matrices for each corresponding frame (Derived from camera_pose)
+        translations: list[np.ndarray]  [3 x 1] (np.float) Translation matrices for each corresponding frame (Derived from camera_pose)
+
+Module Output - Handled Internally from SfMScene in the common API Workflow:
+    Scene:
+        points3D: Points3D 
+            Points3D
+                - points3D: np.ndarray      [N x 3] Point position in 3D space [x, y, z]
+                - color: np.ndarray         [N x 3] Point Color [r, g, b]               
+        cam_poses: list[np.ndarray]         [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
+        observations: np.ndarray            [M x 4] matrix for each point observation where M=num_of_observations, and each row = [frame, 3d_point_ind, pix_x, pix_y]
+        depth_maps: list[np.ndarray]        List[[H x W]] List of Depth Maps per frame, formated as HeightxWidth of image shape
+        sparse: bool                        Used to determine if current scene is sparse or dense
+"""
+
+        example = f"""
+Initialization:
+from modules.features import ...
+from modules.featurematching import ... (Pair Module), ... (Tracking Module)
+from modules.camerapose import ...
+from modules.scenereconstruction import {module_name}
+from modules.baseclass import SfMScene
+
+Function Use:
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(image_path = image_path, 
+                               calibration_path = calibration_path)
+
+# Step 2: Detect Features Prior to Step 3 (Data filled in SfMScene)
+
+# Step 3: Detect Feature Pairwise Matches Prior to Step 4 (Data filled in SfMScene)
+
+# Step 4 (IGNORE): Detect Cam Poses (Not Needed - Will be set to None)
+
+# Step 5: Detect Feature Tracks Prior to Step 6 (Data filled in SfMScene)
+
+# Step 6: Estimate Sparse Reconstruction using VGGT Module
+reconstructed_scene.{module_name}(
+    min_observe=3
+)
+"""
+
         super().__init__(
             cam_data=cam_data,
             module_name="SparseSceneEstimationCOLMAPGlobal",
@@ -1542,29 +1532,46 @@ through the feature matching/tracking module.
 
 This module can reconstruct sparse 3D scenes specifically using a monocular camera as primary sensor. 
 This module can reconstruct sparse 3D scenes either through multi-view or two-view triangulation.
-This is determined by the method used to find matching features.
-Features that are Tracked (Hence a FeatureTracking module is called prior to this step), set multi-view
-to True. If Features are Matched (a FeatureMatching module is called prior with no tracking module called), 
-set multi_view to False.
+This is determined internally bby the method used to find matching features.
+If features are tracked, the multi-view triangulation algorithm will be utilized. 
+If features are only matched for corresponding pairs, the two-view triangulation algorithm will be used.
 
-Use this module when specified for sparse reconstruction and calibration data is provided,
-with the camera being used is a monocular camera, and when enough features are detected in the scene. 
+USE THIS MODULE when images have sufficient texture, reliable feature matches, accurate camera calibration, 
+strong overlap, and enough parallax for geometric triangulation. It is best for well-lit, mostly static 
+scenes where geometric accuracy, bundle-adjustment refinement, and explainable failure checks are more 
+important than runtime. Avoid it when feature detection, tracking, or pose registration is unreliable.
+
 This can apply for scenes with high textured with good lighting, but also scenes that do not apply if 
 the prerequisite for enough features detected are met. The module is for reconstructing the 
 scene using the direct mathematical (Classical) approach.
 
 Initialization/Function Parameters:
-- view: Method used to trace feature points across frames (Two-View [Corresponding Pairs] or Multi-View [Tracking])
+- max_reproj_error: The maximum reprojection error allowed for a triangulated 3D point to remain in the reconstructed point cloud. Error is measured in pixel coordinates.
+    - Default (float): 3.0 pixels
+- reproj_threshold: The reprojection error threshold used to determine whether an individual 2D observation is an inlier during triangulation and point refinement.
+    - Default (float): 1.5 pixels
+- min_observe: The minimum number of tracked 2D observations required to estimate a 3D point.
+    - Default (int): 3
+    - Note: Must be at least 2.
+- min_angle: The minimum angle required between two camera bearing rays to accept a triangulated 3D point. Larger angles generally produce more accurate depth estimates.
+    - Default (float): 1.0 degree
+    - Typical Range: 1.0–3.0 degrees
+- min_inlier_ratio: The minimum percentage of observations that must agree with the estimated 3D point for it to be accepted.
+    - Default (float): 0.60
+    - Default Meaning: At least 60% of observations must be inliers.
+- max_filter_iterations: The maximum number of iterations used to remove outlier observations and refine the estimated 3D point.
+    - Default (int): 5
+- use_ransac_fallback: Determines whether RANSAC triangulation is attempted when the primary triangulation method fails.
     - Default (bool): True
-- min_observe: The minimum number of observations (number of tracked feature points) needed to conduct a 3D 
-point estimation. Note: this must be greater than 2
-    - Default (int): 3 
-- min_angle: The minimum angle required between bearing rays from paired 2D feature point to accept a 3D point 
-estimation from the set of corresponding 2D feature points. Used for the Triangulation Angle Test. The larger the angle
-the more accurate the 3D point (Maximum of 4.0)
-    - Default (float): 1.0 (Typically 1.0 - 3.0 [Number represents angle degree])
-- reproj_error: Maximum reprojection error accepted for a potential 3D point estimation to keep in a point cloud. Error is measured in pixel coordinates.
-    - Default (float): 3.0
+- max_pair_hypotheses: The maximum number of observation pairs evaluated as possible triangulation hypotheses for a feature track.
+    - Default (int): 100
+- robust_loss: The robust loss function used during 3D point refinement to reduce the effect of inaccurate observations.
+    - Default (str): "huber"
+- loss_scale: Controls how strongly the robust loss function reduces the influence of large reprojection errors.
+    - Default (float): 1.0
+- landmark_distance_threshold: The maximum accepted distance of a reconstructed 3D point from the expected scene or camera region. Used to reject unstable or extremely distant points.
+    - Default (float): 10.0
+    - Note: Uses the same scale as the camera poses and reconstructed scene.
 
 Function Call Inputs - Handled Internally from SfMScene in the common API Workflow:
 - cam_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
@@ -1625,7 +1632,11 @@ reconstructed_scene = SfMScene(image_path = image_path,
 
 # Step 6: Estimate Sparse Reconstruction using VGGT Module
 reconstructed_scene.{module_name}(
-    min_observe=3
+    min_observe=3,
+    min_angle=2.0,
+    max_reproj_error=1.5,
+    reproj_threshold=1.0,
+    max_filter_iterations=5
 )
 """
         super().__init__(
@@ -1694,44 +1705,6 @@ reconstructed_scene.{module_name}(
     # ------------------------------------------------------------------
     # Triangulation and projection error
     # ------------------------------------------------------------------
-    def _triangulate_linear(
-        self,
-        views: np.ndarray,
-        camera_poses: list[np.ndarray],
-    ) -> tuple[Optional[np.ndarray], float]:
-        num_views = views.shape[0]
-        if num_views < 2:
-            return None, np.inf
-
-        A = np.zeros((2 * num_views, 4), dtype=np.float64)
-
-        for row_idx, view in enumerate(views):
-            camera_id = int(view[0])
-            pose = camera_poses[camera_id]
-            x, y = self._normalized_point(view[1:3], camera_id)
-            A[2 * row_idx] = x * pose[2] - pose[0]
-            A[2 * row_idx + 1] = y * pose[2] - pose[1]
-
-        row_norms = np.linalg.norm(A, axis=1, keepdims=True)
-        valid_rows = row_norms[:, 0] > 1e-12
-        if np.count_nonzero(valid_rows) < 4:
-            return None, np.inf
-        A[valid_rows] /= row_norms[valid_rows]
-
-        try:
-            _, singular_values, Vt = np.linalg.svd(A)
-        except np.linalg.LinAlgError:
-            return None, np.inf
-
-        X_h = Vt[-1]
-        if not np.all(np.isfinite(X_h)) or abs(X_h[3]) < 1e-12:
-            return None, np.inf
-
-        xyz = X_h[:3] / X_h[3]
-        if not np.all(np.isfinite(xyz)):
-            return None, np.inf
-
-        return xyz
 
     # Helpers for LOST Implementation 
     def _check_landmark_distance(
@@ -1823,13 +1796,7 @@ reconstructed_scene.{module_name}(
                     )
                 )
 
-            # --------------------------------------------------------
-            # Project convention:
-            #
-            #     X_cam = R_cw @ X_world + t_cw
-            #
             # Convert world->camera to camera->world for GTSAM.
-            # --------------------------------------------------------
             pose_cw = np.asarray(
                 camera_poses[camera_id],
                 dtype=np.float64,
@@ -1844,11 +1811,6 @@ reconstructed_scene.{module_name}(
                 t_cw = pose_cw[:, 3]
 
             # Invert world -> camera:
-            #
-            # R_wc = R_cw.T
-            #
-            # t_wc = -R_cw.T @ t_cw
-            #
             R_wc = R_cw.T
             t_wc = -R_cw.T @ t_cw
 
@@ -1897,9 +1859,6 @@ reconstructed_scene.{module_name}(
 
                 measurement_xy = normalized_xy
 
-            # --------------------------------------------------------
-            # Construct GTSAM pinhole camera.
-            # --------------------------------------------------------
             camera = gtsam.PinholeCameraCal3_S2(
                 gtsam_pose,
                 calibration,
@@ -1914,25 +1873,9 @@ reconstructed_scene.{module_name}(
                 )
             )
 
-        # ------------------------------------------------------------
-        # Measurement uncertainty
-        #
-        # LOST uses the measurement-noise model in its weighting.
-        # Optimization also requires the noise model.
-        # ------------------------------------------------------------
-        # noise_model = gtsam.noiseModel.Isotropic.Sigma(
-        #     2,
-        #     float(measurement_sigma),
-        # )
         if dist is None:
             sigma = float(measurement_sigma)
         else:
-            # Convert an approximate pixel-domain sigma to normalized units.
-            #
-            # This uses the average focal length. For multi-camera tracks,
-            # cameras may have different focal lengths, so this is only an
-            # approximation because triangulatePoint3 accepts a single noise
-            # model for the measurement set.
             focal_lengths = []
 
             for view in views:
@@ -1991,7 +1934,7 @@ reconstructed_scene.{module_name}(
         if not np.all(np.isfinite(xyz)):
             return None 
 
-        return xyz #, condition
+        return xyz 
         
 
     def _reprojection_errors_per_view(
@@ -2111,7 +2054,6 @@ reconstructed_scene.{module_name}(
 
         for idx_a, idx_b in combinations(range(views.shape[0]), 2):
             pair_views = views[[idx_a, idx_b]]
-            #xyz = self._triangulate_linear(pair_views, camera_poses)
             xyz = self._triangulate_lost(pair_views, camera_poses)
             if xyz is None:
                 continue
@@ -2152,11 +2094,10 @@ reconstructed_scene.{module_name}(
 
         best_xyz = None
         best_mask = None
-        # best_condition = np.inf
         best_score = None
 
         for idx_a, idx_b, angle in candidates:
-            xyz = self._triangulate_lost( #self._triangulate_linear(
+            xyz = self._triangulate_lost( 
                 views[[idx_a, idx_b]], camera_poses
             )
             if xyz is None:
@@ -2182,9 +2123,8 @@ reconstructed_scene.{module_name}(
                 best_score = score
                 best_xyz = xyz
                 best_mask = mask
-                # best_condition = condition
 
-        return best_xyz, best_mask#, best_condition
+        return best_xyz, best_mask
 
     # ------------------------------------------------------------------
     # COLMAP/GLOMAP-style track triangulation and observation filtering
@@ -2222,7 +2162,7 @@ reconstructed_scene.{module_name}(
         initialization = "n_view"
 
         # 1. Direct N-view initialization: preferred path.
-        xyz = self._triangulate_lost(views, camera_poses) #self._triangulate_linear(views, camera_poses)
+        xyz = self._triangulate_lost(views, camera_poses) 
         direct_valid = xyz is not None
 
         # print("ORIGINAL POINT EST.", xyz)
@@ -2262,9 +2202,7 @@ reconstructed_scene.{module_name}(
                 return None
 
             active_views = views[active_mask]
-            xyz_linear = self._triangulate_lost(#self._triangulate_linear(
-                active_views, camera_poses
-            )
+            xyz_linear = self._triangulate_lost(active_views, camera_poses)
             if xyz_linear is None:
                 return None
 
@@ -2294,9 +2232,8 @@ reconstructed_scene.{module_name}(
 
         # 4. Final refinement with stabilized observations.
         final_views = views[active_mask]
-        xyz_linear = self._triangulate_lost(#self._triangulate_linear(
-            final_views, camera_poses
-        )
+        xyz_linear = self._triangulate_lost(final_views, camera_poses)
+
         if xyz_linear is None:
             return None
 
@@ -2333,7 +2270,7 @@ reconstructed_scene.{module_name}(
         final_views = views[final_mask]
 
         # Re-optimize after the final observation removal.
-        xyz_linear = self._triangulate_lost(#self._triangulate_linear(
+        xyz_linear = self._triangulate_lost(
             final_views, camera_poses
         )
         if xyz_linear is None:
@@ -2375,17 +2312,6 @@ reconstructed_scene.{module_name}(
             return None
 
         return (xyz, final_views, final_mask)
-        # return TrackTriangulationResult(
-        #     xyz=xyz,
-        #     inlier_views=final_views,
-        #     inlier_mask=final_mask,
-        #     reprojection_errors=final_errors,
-        #     median_error=float(np.median(inlier_errors)),
-        #     max_error=float(np.max(inlier_errors)),
-        #     max_tri_angle_deg=max_tri_angle,
-        #     condition_number=condition_number,
-        #     initialization=initialization,
-        # )
 
     # ------------------------------------------------------------------
     # Scene construction
@@ -2410,13 +2336,6 @@ reconstructed_scene.{module_name}(
         observations_pixel = []
         accepted_track_ids = []
         track_quality = []
-
-        # rejection_counts = {
-        #     "too_short": 0,
-        #     "triangulation_failed": 0,
-        #     "accepted": 0,
-        #     "ransac_fallback": 0,
-        # }
 
         point_index = 0
         for track_id in tqdm(range(points.point_count)):
@@ -2452,26 +2371,6 @@ reconstructed_scene.{module_name}(
             points_3d.update_points(final_xyz)
             accepted_track_ids.append(track_id)
 
-            # track_quality.append(
-            #     {
-            #         "track_id": track_id,
-            #         "point_index": point_index,
-            #         "initial_track_length": int(views.shape[0]),
-            #         "inlier_track_length": int(result.inlier_views.shape[0]),
-            #         "inlier_ratio": float(
-            #             result.inlier_views.shape[0] / views.shape[0]
-            #         ),
-            #         "median_reprojection_error": result.median_error,
-            #         "max_reprojection_error": result.max_error,
-            #         "max_triangulation_angle_deg": result.max_tri_angle_deg,
-            #         "condition_number": result.condition_number,
-            #         "initialization": result.initialization,
-            #     }
-            # )
-
-            # rejection_counts["accepted"] += 1
-            # if result.initialization == "pair_consensus_fallback":
-            #     rejection_counts["ransac_fallback"] += 1
             point_index += 1
 
         if point_index == 0:
@@ -2480,7 +2379,7 @@ reconstructed_scene.{module_name}(
                 "intrinsics, tracks, reprojection thresholds, and triangulation angles."
             )
 
-        print("NUMBer OF POINTS")
+        print("NumBer OF POINTS")
         print(points_3d.points3D.shape)
         scene = Scene(
             points3D=points_3d,
@@ -2490,300 +2389,7 @@ reconstructed_scene.{module_name}(
             sparse=True,
         )
 
-        # Retain these only if Scene permits dynamic metadata attributes.
-        # scene.accepted_track_ids = np.asarray(accepted_track_ids, dtype=np.int64)
-        # scene.track_quality = track_quality
-        # scene.reconstruction_stats = rejection_counts
-
         return scene
-
-# Mono Camera Reconstruction
-class Sparse3DReconstructionMono(SparseSceneEstimation):
-    def __init__(self, cam_data: CameraData, 
-                 multi_view: bool = True,
-                 reproj_error: float = 3.0,
-                 min_observe: int = 3,
-                 min_angle: float = 1.0):
-
-        module_name = "Sparse3DReconstructionMono"
-        description = f"""
-Sparsely reconstructs a 3D scene utilizing pre-processed information of camera poses and
-detected features tracked across the scene. Camera Poses are estimated prior to this module
-through the camera pose estimation module. Features are matched, or tracked, prior to this module 
-through the feature matching/tracking module. 
-
-This module can reconstruct sparse 3D scenes specifically using a monocular camera as primary sensor. 
-This module can reconstruct sparse 3D scenes either through multi-view or two-view triangulation.
-This is determined by the method used to find matching features.
-Features that are Tracked (Hence a FeatureTracking module is called prior to this step), set multi-view
-to True. If Features are Matched (a FeatureMatching module is called prior with no tracking module called), 
-set multi_view to False.
-
-Use this module when specified for sparse reconstruction and calibration data is provided,
-with the camera being used is a monocular camera, and when enough features are detected in the scene. 
-This can apply for scenes with high textured with good lighting, but also scenes that do not apply if 
-the prerequisite for enough features detected are met. The module is for reconstructing the 
-scene using the direct mathematical (Classical) approach.
-
-Initialization/Function Parameters:
-- view: Method used to trace feature points across frames (Two-View [Corresponding Pairs] or Multi-View [Tracking])
-    - Default (bool): True
-- min_observe: The minimum number of observations (number of tracked feature points) needed to conduct a 3D 
-point estimation. Note: this must be greater than 2
-    - Default (int): 3 
-- min_angle: The minimum angle required between bearing rays from paired 2D feature point to accept a 3D point 
-estimation from the set of corresponding 2D feature points. Used for the Triangulation Angle Test. The larger the angle
-the more accurate the 3D point (Maximum of 4.0)
-    - Default (float): 1.0 (Typically 1.0 - 3.0 [Number represents angle degree])
-- reproj_error: Maximum reprojection error accepted for a potential 3D point estimation to keep in a point cloud. Error is measured in pixel coordinates.
-    - Default (float): 3.0
-
-Function Call Inputs - Handled Internally from SfMScene in the common API Workflow:
-- cam_poses (CameraPose): Estimated camera poses for the given scene. Poses are estimated prior to this function call, 
-specifically from the CameraPoseEstimation modules. 
-- tracked_features (PointsMatched): Feature points tracked across multiple frames to allow Multi-View 3D point estimation. Feature Tracks are 
-estimated from the FeatureTracking modules.
-
-Module Input - Handled Internally from SfMScene in the common API Workflow:
-    PointsMatched (Matched Features across image pairs)
-        # General Data Information for Feature Matches
-        image_size: np.ndarray              [1 x 2] [np.int64] (Simply Image Shape: (W, H))
-        image_scale: list[float]            [W_scale, H_scale] if image is resized
-        multi_view: bool                    Determine if Pairwise/Feature Matching
-        stereo_cam: bool                    Deterine if the camera utilized is a stereo camera for feature matching/tracking
-
-        # Tracked Data Features
-        data_matrix: np.ndarray             [N x 4] Data Structure to store corresponding points. In the form of Nx4 -> [track_id, frame_num, x, y]
-        track_map: dict                     Used to aid in the feature matching process.
-        point_count: int                    Based on track_id max count -> tells us how many 3D points exist
-    
-    CameraPose:
-        camera_pose: list[np.ndarray]   [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
-        rotations: list[np.ndarray]     [3 x 3] (np.float) Rotation matrices for each corresponding frame (Derived from camera_pose)
-        translations: list[np.ndarray]  [3 x 1] (np.float) Translation matrices for each corresponding frame (Derived from camera_pose)
-
-Module Output - Handled Internally from SfMScene in the common API Workflow:
-    Scene:
-        points3D: Points3D 
-            Points3D
-                - points3D: np.ndarray      [N x 3] Point position in 3D space [x, y, z]
-                - color: np.ndarray         [N x 3] Point Color [r, g, b]               
-        cam_poses: list[np.ndarray]         [3 x 4] (np.float) Camera pose for each corresponding frame. Each pose is 3x4 (R, T)
-        observations: np.ndarray            [M x 4] matrix for each point observation where M=num_of_observations, and each row = [frame, 3d_point_ind, pix_x, pix_y]
-        depth_maps: list[np.ndarray]        List[[H x W]] List of Depth Maps per frame, formated as HeightxWidth of image shape
-        sparse: bool                        Used to determine if current scene is sparse or dense
-"""
-
-        example = f"""
-Initialization:
-from modules.features import ...
-from modules.featurematching import ... (Pair Module), ... (Tracking Module)
-from modules.camerapose import ...
-from modules.scenereconstruction import {module_name}
-from modules.baseclass import SfMScene
-
-Function Use:
-# Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(image_path = image_path, 
-                               calibration_path = calibration_path)
-
-# Step 2: Detect Features Prior to Step 3 (Data filled in SfMScene)
-
-# Step 3: Detect Feature Pairwise Matches Prior to Step 4 (Data filled in SfMScene)
-
-# Step 4: Detect Cam Poses Prior to Step 5 Using a Pose Modules
-
-# Step 5: Detect Feature Tracks Prior to Step 6 (Data filled in SfMScene)
-
-# Step 6: Estimate Sparse Reconstruction using VGGT Module
-reconstructed_scene.{module_name}(
-    min_observe=3
-)
-"""
-        
-        super().__init__(cam_data = cam_data,
-                         module_name=module_name,
-                         description=description,
-                         example=example)
-        
-        self.multi_view = multi_view
-        self.minimum_observation = min_observe # N-view functionality only
-        self.min_angle = min_angle
-        self.reproj_error_min = reproj_error
-
-
-    def build_reconstruction(self, 
-                 points: PointsMatched, 
-                 camera_poses: CameraPose) -> Scene:
-        
-        points_3d = Points3D()
-
-        # BAL File for Optimization Module
-        num_observations = 0 
-        observations = []
-        observations_pix = []
-
-        if self.multi_view: # Multi-view
-            if not points.multi_view:
-                message = 'Error: features are not tracked. Use set multi_view to FALSE instead to use this Reconstruction Module for pairwise feature matching.'
-                raise Exception(message)
-            
-            point_index = 0
-            for i in tqdm(range(points.point_count)):
-                views = points.access_point3D(i)
-
-                if views.shape[0] < self.minimum_observation: # Below minimum observation for accurate 3D triangulation
-                    continue 
-                # Check triangulation angle of points
-                min_angle, max_angle = self.angle_check(views, 
-                                                        camera_poses.camera_pose,
-                                                        minimum_angle=self.min_angle)
-                if not min_angle:
-                    continue
-
-                # # BAL Data Construction
-                # point_ind = np.array([point_index for _ in range(views.shape[0])]).reshape((views.shape[0],1))
-                # norm_pts = self._normalize_points_for_BAL(views)#views[:, 1:])
-                # observation = np.hstack((np.vstack(views[:,0]), point_ind, norm_pts))#views[:,1:]))
-                # observations.append(observation)
-                # num_observations += views.shape[0] # Number of observations
-
-                # Estimate 3D point
-                point = self.triangulate_nView_points_Mono(views, camera_poses.camera_pose)
-                
-                reproj_error = self._reprojection_error(point, views, camera_poses.camera_pose)
-                if reproj_error <= self.reproj_error_min:
-                    # BAL Data Construction
-                    point_ind = np.array([point_index for _ in range(views.shape[0])]).reshape((views.shape[0],1))
-                    norm_pts = self._normalize_points(views)#views[:, 1:])
-                    observation = np.hstack((np.vstack(views[:,0]), point_ind, norm_pts))#views[:,1:]))
-                    observation_pix = np.hstack((np.vstack(views[:,0]), point_ind, views[:, 1:]))
-                    observations_pix.append(observation_pix)
-                    observations.append(observation)
-                    num_observations += views.shape[0] # Number of observations
-
-                    # Keep 3D point here
-                    points_3d.update_points(point)
-
-                    point_index += 1 # Successfully Estimated Point
-
-            # # Build BAL data
-            # ba_data = BundleAdjustmentData(num_cameras=num_cameras, 
-            #                                num_points=points_3d.points3D.shape[0],
-            #                                num_observations=num_observations,
-            #                                observations=observations,
-            #                                cameras=camera_poses,
-            #                                points=points_3d.points3D,
-            #                                dist=[self.dist],
-            #                                mono=True)
-            try:
-                count_of_points = points_3d.points3D.shape[0]
-            except:
-                message = 'Error: no 3D points are calculated. Try reducing min_observe to 3 (Default). If its already set to 3, set min_angle to 1.0. If its already set to 1.0, use VGGT pipeline for robustness.'
-                raise Exception(message)
-
-            scene = Scene(points3D = points_3d,
-                          cam_poses = camera_poses.camera_pose, 
-                          observations = np.vstack(observations_pix),
-                          representation = "point cloud",
-                        #   bal_data=ba_data,
-                          sparse=True)
-            print(np.vstack(observations_pix).shape)
-            print(points.data_matrix.shape)
-            print(point_index)
-            return scene
-        else: # Two-View
-            if points.multi_view:
-                message = 'Error: features are tracked. Use the setting ' + str(self.VIEWS[0]) + ' instead to use this Reconstruction Module for feature tracking.'
-                raise Exception(message)
-            
-            points_3d = Points3D()
-
-            for i in tqdm(range(len(points.pairwise_matches))):
-                pts1, pts2 = points.access_matching_pair(i) # frame_i and frame_i+1
-                pose1 = camera_poses.camera_pose[i]         # frame_i
-                pose2 = camera_poses.camera_pose[i + 1]     # frame_i+1
-
-                points3d = self.triangulate_points_mono(pts1, pts2, [pose1, pose2])
-
-                points_3d.update_points(points3d)
-
-            scene = Scene(points3D = points_3d,cam_poses = camera_poses, representation = "point cloud") 
-            return scene
-
-    # Triangulation of points (Monocular Camera) - 2View
-    def triangulate_points_mono(self, pts1: np.ndarray, pts2: np.ndarray, camera_pose: list[np.ndarray]) -> np.ndarray:
-        if self.dist1 is not None:
-            pt1 = cv2.undistortPoints(pts1, self.K_mat, self.dist)
-            pt2 = cv2.undistortPoints(pts2, self.K_mat, self.dist)
-            
-            P1mtx = np.eye(3) @ camera_pose[0]
-            P2mtx = np.eye(3) @ camera_pose[1]
-        else:
-            pt1, pt2 = pts1.T, pts2.T
-
-            P1mtx = self.K_mat @ camera_pose[0]
-            P2mtx = self.K_mat @ camera_pose[1]
-
-        X = cv2.triangulatePoints(P1mtx, P2mtx, pt1, pt2)
-        X = (X[:-1]/X[-1]).T 
-
-        return X    
-
-    def triangulate_nView_points_Mono(self, views: np.ndarray, cam_poses: list[np.ndarray]) -> np.ndarray:
-
-        # total_cameras = len(self.scene_point_2d_map[pt_index])
-        total_cameras = views.shape[0]
-        A = np.zeros((2*total_cameras, 4))
-
-        # Read Hartley and Zisserman to see if we need the normalization factor??
-        # if self.dist is None: # Keep Points in Pixel Coordinates
-        #     for i in range(views.shape[0]):
-        #         cam, pt = views[i, 0], views[i, 1:]
-        #         cam = int(cam)
-        #         Pmat = self.K1 @ cam_poses[cam]
-
-        #         row1 = pt[0]*Pmat[2, :] - Pmat[0, :]
-        #         row2 = pt[1]*Pmat[2, :] - Pmat[1, :]
-
-        #         A[2*i, :] = row1
-        #         A[2*i + 1, :] = row2
-        # else: 
-        if self.multi_cam:
-            for i in range(views.shape[0]):
-                cam, pt = views[i, 0], views[i, 1:]
-                cam = int(cam)
-                Pmat = np.eye(3) @ cam_poses[cam]
-                K = self.K_mat[cam]
-                dist = self.dist[cam]
-
-                xUnd = cv2.undistortPoints(pt, K, dist) # Undistort and Normalize Points
-
-                row1 = xUnd[0, 0, 0]*Pmat[2, :] - Pmat[0, :]
-                row2 = xUnd[0, 0, 1]*Pmat[2, :] - Pmat[1, :]
-
-                A[2*i, :] = row1
-                A[2*i + 1, :] = row2
-        else:
-            for i in range(views.shape[0]):
-                cam, pt = views[i, 0], views[i, 1:]
-                cam = int(cam)
-                Pmat = np.eye(3) @ cam_poses[cam]
-                xUnd = cv2.undistortPoints(pt, self.K_mat, self.dist) # Undistort and Normalize Points
-
-                row1 = xUnd[0, 0, 0]*Pmat[2, :] - Pmat[0, :]
-                row2 = xUnd[0, 0, 1]*Pmat[2, :] - Pmat[1, :]
-
-                A[2*i, :] = row1
-                A[2*i + 1, :] = row2
-
-        U, S, V = np.linalg.svd(A)
-        X = V[-1, :]
-
-        X = (X[:-1]/X[-1]).T
-
-        return X
-    
 
 ###########################################################################################################
 ###################################### DENSE RECONSTRUCTION MODULES #######################################
@@ -2801,16 +2407,21 @@ images of the scene (SKIP THE SPARSE RECONSTRUCTION STEP - DO NOT USE SPARSE VGG
 Camera Poses are estimated prior to thie module through the camera pose estimation  module, specifically from VGGT 
 pose estimation. Features do NOT need to be tracked or matched between frames.
 
-This module can reconstruct dense 3D scenes specifically using a monocular camera. 
-This module can reconstruct dense 3D scenes either through single view or multi-view scenes.
-This is determined by the how many images exist in the scene and how many poses were estimated from the previous
-module using the VGGT pose estimation tool specifically.
+Directly predicts dense point maps and depth from one or more images using a learned feed-forward geometry model. 
+USE THIS MODULE when rapid reconstruction is required, sparse features are insufficient, classical pose estimation 
+fails, or the scene contains weakly textured regions and challenging viewpoint changes.
 
-Use this module when specified for dense reconstruction and the scene doesn't allow for many features to be detected
-from classical feature detectors (SIFT or ORB), or ML Detectors. Utilize this module in conjuction with the VGGT pose 
-estimation module in these cases where feature detection is low. This module is for reconstructing the scene using 
-the deep learning approach. 
-This is especially useful for cases where feature tracking fails, even with robust matchers/trackers and feature detectors.
+VGGT does not require a successful sparse feature-matching pipeline and can estimate camera parameters and dense 
+geometry jointly. It is therefore a strong fallback for difficult or casually captured image sets. Prefer 
+COLMAP MVS when highly accurate, explicitly geometry-optimized reconstruction is required, because learned 
+feed-forward predictions may contain greater local or global geometric inconsistency.
+
+Note: 
+- Utilize this module in conjuction with the VGGT pose estimation module in these cases where feature detection 
+  is low. 
+- This is especially useful for cases where feature tracking fails, even with robust matchers/trackers and 
+  feature detectors.
+
 Opt for this module in those cases!
 
 Initialization Parameters:
@@ -3064,7 +2675,7 @@ reconstructed_scene.{module_name}()
 
         return np.mean(np.concatenate(diffs))
     
-class Dense3DReconstructionMono(DenseSceneEstimation):
+class Dense3DReconstructionMVS(DenseSceneEstimation):
     def __init__(self, 
                  cam_data: CameraData,
                  use_gpu: bool = True,
@@ -3073,16 +2684,23 @@ class Dense3DReconstructionMono(DenseSceneEstimation):
                  num_samples: int = 15,
                  num_iterations: int = 5):
 
-        module_name = "Dense3DReconstructionMono"
+        module_name = "Dense3DReconstructionMVS"
         description = f"""
-Densely reconstructs a 3D scene utilizing pre-processed information of the sparsely reconstructed scene
-(Depends on Sparse Reconstruction Module). Camera Poses are estimated prior to thie module through the camera 
-pose estimation  module. The sparse scene is reconstructed using the Sparse Reconstruction Modules, with the inclusion
-of Feature Tracking and Pose estimation data being processed prior to full scene reconstruction.
-Use this module when specified for dense reconstruction. Utilize this module in conjuction with the Camera Pose estimation
-module, feature tracking module, and sparse scene reconstruction modules.
-Computation time should partially matter when invoking this tool, KEEP IN MIND of system constraints such as GPU memory prior
-to USING THIS TOOL (Less GPU memory is not a constraint here, but it is a longer runtime). 
+Densely reconstructs a scene using COLMAPs PatchMatch Stereo and depth-map fusion. Camera Poses are 
+estimated prior to thie module through the camera pose estimation module. The sparse scene is 
+reconstructed using the Sparse Reconstruction Modules, with the inclusion of Feature Tracking and Pose 
+estimation data being processed prior to full scene reconstruction.
+
+USE THIS MODULE when the images have accurate geometrically estimated camera poses, strong multi-view 
+overlap, sufficient parallax, and consistent visual texture. It is best for well-lit, mostly static 
+scenes where fine geometric accuracy is more important than runtime.
+
+Avoid it when sparse matching cannot register enough images, poses have high reprojection error, or the 
+scene contains large textureless, reflective, transparent, dynamic, or strongly illumination-varying regions. 
+These conditions weaken the photometric and geometric consistency required by classical MVS. Local or global 
+bundle adjustment should be applied before dense reconstruction when pose accuracy is uncertain.
+Again, computation time should partially matter when invoking this tool, KEEP IN MIND of system constraints 
+such as GPU memory prior to USING THIS TOOL (Less GPU memory is not a constraint here, but it is a longer runtime). 
 
 Use this module if utilizing the classical approach for scene reconstruction as the methodology. 
 

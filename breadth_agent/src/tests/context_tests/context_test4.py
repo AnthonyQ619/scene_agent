@@ -86,15 +86,18 @@ image_path = "/home/anthonyq/datasets/co3d_v2/apple/189_20393_38136/images" #"D:
 calibration_path = "/home/anthonyq/datasets/co3d_v2/apple/calibration_new_189_20393_38136.npz" #"D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\apple\\calibration_new_189_20393_38136.npz"
 
 from modules.features import FeatureDetectionSP
-from modules.featurematching import FeatureMatchSuperGluePair, FeatureMatchLightGlueTracking
+from modules.featurematching import FeatureMatchSuperGluePair
+from modules.featuretracking import FeatureTrackFromPairsUnionFind
 from modules.camerapose import CamPoseEstimatorEssentialToPnP
 from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.scenereconstruction import Sparse3DReconstructionMono
+from modules.scenereconstruction import Sparse3DReconstructionIncremental
 from modules.optimization import BundleAdjustmentOptimizerGlobal, BundleAdjustmentOptimizerLocal
 from modules.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(id=4,
+                              gpu_num="5",
+                              log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/DTU/",
                                 image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
@@ -121,16 +124,15 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 )
 
 # Step 5: Detect Feature Tracks
-reconstructed_scene.FeatureMatchLightGlueTracking(
-    detector="superpoint",
-    RANSAC_threshold=2.5
-)
+reconstructed_scene.FeatureTrackFromPairsUnionFind()
 
 # Step 6: Estimate Sparse Reconstruction
-reconstructed_scene.Sparse3DReconstructionMono(
+reconstructed_scene.Sparse3DReconstructionIncremental(
     min_observe=4,
-    min_angle=0.1,
-    multi_view=True
+    min_angle=1.0,
+    max_reproj_error=1.5,
+    reproj_threshold=1.0,
+    max_filter_iterations=5
 )
 
 # Step 7: Run Optimization

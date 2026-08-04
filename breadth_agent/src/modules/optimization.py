@@ -7,7 +7,6 @@ import time
 from typing import Dict, List, Type
 from pathlib import Path
 
-# import hydra
 import omegaconf
 import numpy as np
 import cv2
@@ -16,27 +15,14 @@ import copy
 import torch
 import re
 
-# import theseus as th
-# import theseus.utils.examples as theg
-
-# Hide Warnings
-# os.environ["GLOG_log_dir"] = r"C:\Users\Anthony\Documents\Projects\scene_agent\breadth_agent\results"
-# os.environ["GLOG_logtostderr"] = "0"
-# os.environ["GLOG_alsologtostderr"] = "0"
-
-# os.environ["GLOG_minloglevel"] = "0"        # keep INFO/WARNING in files
-# os.environ["GLOG_stderrthreshold"] = "2"    # NOTHING below FATAL goes to terminal
-
-# os.add_dll_directory(r"C:\\Users\\Anthony\\Desktop\\VCPKG\\vcpkg\\installed\\x64-windows\\bin")
-# os.add_dll_directory(r"C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.4\\bin")
-# os.add_dll_directory(r"C:\\Program Files\\NVIDIA cuDSS\\v0.7\\bin\\12")
-
 import sys
-print(sys.executable)
 
-# import pycolmap
+from modules.DataTypes.pointDT import Points3D
+from modules.DataTypes.cameraposeDT import CameraPose
+from modules.DataTypes.featmatchDT import PointsMatched
+from modules.DataTypes.cameraDT import CameraData
+from modules.DataTypes.sceneDT import Scene, IncrementalSfMState
 
-from modules.DataTypes.datatype import Scene, CameraData, PointsMatched, Points3D, CameraPose, Calibration, IncrementalSfMState
 from modules.baseclass import OptimizationClass,  module_metric
 
 class BundleAdjustmentOptimizerLocal(OptimizationClass):
@@ -49,8 +35,6 @@ class BundleAdjustmentOptimizerLocal(OptimizationClass):
         refine_principal_point: bool = False,
         refine_extra_params: bool = False,
         max_num_iterations: int = 50,
-        # use_gpu: bool = True,
-        # gpu_index: int = 0,
         robust_loss: bool = True,
     ):
 
@@ -89,11 +73,6 @@ Function Calls:
 - Function: Module call (Python __call__ function)
    - Default: NOT used for this module.
 """
-# To use GPU Context now removed.
-# - use_gpu: Whether to use Ceres CUDA linear algebra library, if available. 
-#     - default (bool): True
-# - gpu_index: Which GPU to use for solving the problem.
-#     - default (int): 0 
 
         example = f"""
 Initialization modules
@@ -133,8 +112,6 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
         self.refine_principal_point = refine_principal_point
         self.refine_extra_params = refine_extra_params
         self.max_num_iterations = max_num_iterations
-        # self.use_gpu = use_gpu
-        # self.gpu_index = gpu_index
         self.robust_loss = robust_loss
 
         # Set up window size and min_track_length 
@@ -148,7 +125,7 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     def _optimize_scene(self, 
                         state: IncrementalSfMState, 
                         new_image_id: int) -> IncrementalSfMState:
-        # return super()._optimize_scene(current_scene) 
+
         # --- Step 1 - Build Reconstruction ---
         result = self._build_reconstruction(state, new_image_id)
 
@@ -166,8 +143,6 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
         ba_opts, config = self._build_adjuster(recon, window)
 
         # --- Step 3: Build and Run Solver with Options/Config/Reconstruction ---
-        # bundle_adjuster = pycolmap.create_default_bundle_adjuster(ba_opts, config, recon)
-        # summary = bundle_adjuster.solve()
         new_state = self._solve_poses(state, ba_opts, config, recon, window)
 
         return new_state
@@ -204,11 +179,6 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
         ba_opts.refine_principal_point = self.refine_principal_point
         ba_opts.refine_extra_params = self.refine_extra_params
 
-        # GPU knobs (only used when supported in your build)
-        # if self.use_gpu:
-        #     ba_opts.use_gpu = bool(self.use_gpu)
-        #     ba_opts.gpu_index = str(self.gpu_index)
-
         # Ceres solver options (requires PyCeres installed in your environment)
         # was ba_opts.solver_options.max_num_iterations = int(self.max_num_iterations) 
         ba_opts.ceres.solver_options.max_num_iterations = int(self.max_num_iterations) 
@@ -219,54 +189,6 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
             ba_opts.ceres.loss_function_type = pycolmap.LossFunctionType.CAUCHY
 
         return ba_opts, config
-    
-    # def optimize(self, 
-    #              state: IncrementalSfMState, 
-    #              new_image_id: int):
-
-    #     recon, window = self._build_reconstruction(state, new_image_id)
-
-    #     # --- BA config: include all registered images ---
-    #     config = pycolmap.BundleAdjustmentConfig()
-    #     for image_id in recon.reg_image_ids():  # registered images
-    #         config.add_image(image_id)
-    #     # --- BA config: Fix the first camera for stability
-    #     config.set_constant_rig_from_world_pose(int(window[0]))
-
-
-    #     # --- BA options ---
-    #     ba_opts = pycolmap.BundleAdjustmentOptions()
-    #     ba_opts.refine_focal_length = self.refine_focal_length
-    #     ba_opts.refine_principal_point = self.refine_principal_point
-    #     ba_opts.refine_extra_params = self.refine_extra_params
-
-    #     # GPU knobs (only used when supported in your build)
-    #     if self.use_gpu:
-    #         ba_opts.use_gpu = bool(self.use_gpu)
-    #         ba_opts.gpu_index = str(self.gpu_index)
-
-    #     # Ceres solver options (requires PyCeres installed in your environment)
-    #     # was ba_opts.solver_options.max_num_iterations = int(self.max_num_iterations) 
-    #     ba_opts.ceres.solver_options.max_num_iterations = int(self.max_num_iterations) 
-
-    #     # Optional robust loss
-    #     if self.robust_loss:
-    #         # Was: ba_opts.loss_function_type = pycolmap.LossFunctionType.CAUCHY
-    #         ba_opts.ceres.loss_function_type = pycolmap.LossFunctionType.CAUCHY
-
-    #     bundle_adjuster = pycolmap.create_default_bundle_adjuster(ba_opts, config, recon)
-    #     _ = bundle_adjuster.solve()
-
-    #     # --- Export optimized results back into your Scene ---
-    #     # Write refined poses back into state
-    #     for img_id in window:
-    #         img = recon.image(int(img_id))
-    #         T = img.cam_from_world()
-    #         R = T.rotation.matrix()
-    #         t = np.asarray(T.translation).reshape(3, 1)
-    #         state.poses[img_id] = np.hstack([R, t])
-
-    #     return state
 
     def _build_reconstruction(self, 
                               state: IncrementalSfMState, 
@@ -325,18 +247,11 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
             # Create frame + set pose from your initial estimate
             frame = pycolmap.Frame(frame_id = img_id,
                                    rig_id = rig.rig_id)
-            # frame.frame_id = camera_id
-            # frame.rig_id = rig.rig_id
 
-            # print("Proposed Pose", scene.cam_poses[f])
             # Get Camera Rotation
             cam_from_world = pycolmap.Rigid3d(
                 np.asarray(state.poses[img_id], dtype=np.float64)
             )
-            # print("CFW", cam_from_world)
-            # frame.set_cam_from_world(camera_id, cam_from_world)
-            # recon.add_frame(frame)
-            # recon.register_frame(frame_id)
 
             # image keypoints: keypoints (Nx2)
             kps = np.asarray(state.keypoints[img_id], dtype=np.float64)
@@ -356,7 +271,6 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
             )
             frame.add_data_id(img.data_id)
             recon.add_frame(frame)
-            # recon.register_frame(frame_id)
             recon.frame(frame.frame_id).set_cam_from_world(camera_id=camera_id, 
                                                            cam_from_world=cam_from_world)
             recon.register_frame(frame.frame_id)
@@ -365,17 +279,6 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
         # ---- 3) Add 3D points with tracks (observations) ----
         # Using your state.points3D keyed by track_id, and state.tracks for observations
         for track_id, obs in state.tracks.items():
-            # keep only observations that are in the window
-            # obs_w = [(im, kp) for (im, kp) in obs if im in window]
-            # if len(obs_w) < self.min_track_len:
-            #     continue
-            # if track_id not in state.points3D:
-            #     continue
-            # print(obs_w)
-            # track_elems = [pycolmap.TrackElement(int(im), int(kp)) for im, kp in obs_w]
-            # track = pycolmap.Track(track_elems)
-            # xyz = np.asarray(state.points3D[track_id], dtype=np.float64).reshape(3, 1)
-            # recon.add_point3D(xyz, track)
             track_id = int(track_id)
 
             # Keep only observations in the current window
@@ -425,49 +328,6 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
             return None
 
         return recon, window
-        #     # Check whether any observation is already assigned to a point3D
-        #     existing_pids = set()
-        #     for im, kp in obs_w:
-        #         pid = recon.image(im).points2D[kp].point3D_id
-        #         if pid != pycolmap.INVALID_POINT3D_ID:
-        #             existing_pids.add(pid)
-
-        #     # ---- Case 1: conflicting assignments → skip track ----
-        #     if len(existing_pids) > 1:
-        #         # Multiple different point3D IDs → inconsistent track
-        #         continue
-
-        #     # ---- Case 2: exactly one existing point3D → extend it ----
-        #     if len(existing_pids) == 1:
-        #         pid = existing_pids.pop()
-        #         p3d = recon.point3D(pid)
-
-        #         for im, kp in obs_w:
-        #             img = recon.image(im)
-        #             if img.points2D[kp].point3D_id == pycolmap.INVALID_POINT3D_ID:
-        #                 recon.add_observation(pid, pycolmap.TrackElement(im, kp))
-
-        #         continue  # do NOT create a new point3D
-
-        #     # ---- Case 3: no existing assignments → create a new point3D ----
-        #     track_elems = [
-        #         pycolmap.TrackElement(im, kp)
-        #         for im, kp in obs_w
-        #         if recon.image(im).points2D[kp].point3D_id == pycolmap.INVALID_POINT3D_ID
-        #     ]
-
-        #     if len(track_elems) < self.min_track_len:
-        #         continue
-
-        #     xyz = np.asarray(state.points3D[track_id], dtype=np.float64).reshape(3, 1)
-        #     track = pycolmap.Track(track_elems)
-        #     recon.add_point3D(xyz, track)
-
-        # # If no points, skip
-        # if len(recon.points3D) == 0:
-        #     return
-
-        # return recon, window
 
 class BundleAdjustmentOptimizerGlobal(OptimizationClass):
     def __init__(
@@ -478,19 +338,9 @@ class BundleAdjustmentOptimizerGlobal(OptimizationClass):
         refine_principal_point: bool = False,
         refine_extra_params: bool = False,
         max_num_iterations: int = 50,
-        # use_gpu: bool = True,
-        # gpu_index: int = 0,
         robust_loss: bool = True,
     ):
-        # super().__init__(cam_data=cam_data,
-        #                  refine_focal_length=refine_focal_length,
-        #                  refine_principal_point=refine_principal_point,
-        #                  refine_extra_params=refine_extra_params,
-        #                  max_num_iterations=max_num_iterations,
-        #                  use_gpu=use_gpu,
-        #                  gpu_index=gpu_index,
-        #                  robust_loss=robust_loss)
-
+ 
         module_name = "BundleAdjustmentOptimizerGlobal"
         description = f"""
 Global Optimization tool using the bundle adjustment optimization algorithm to optimize the reconstructed sparse 
@@ -565,16 +415,12 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         self.refine_principal_point = refine_principal_point
         self.refine_extra_params = refine_extra_params
         self.max_num_iterations = max_num_iterations
-        # self.use_gpu = use_gpu
-        # self.gpu_index = gpu_index
         self.robust_loss = robust_loss
 
         # Define workspace location
         self.output_dir = output_dir
 
         # Define the workspace for Sparse Reconstruction
-        # self.dir_path = Path(__file__).resolve().parents[2]
-        # self.directory_path = str(self.dir_path / "results" / "workspace" / "sparse") #C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\results\\workspace\\sparse"
         self.directory_path = self.cam_data.logging_dir + f"/{self.cam_data.script_id}/workspace/sparse"
         if os.path.exists(self.directory_path):
             # Delete the directory and all its contents
@@ -595,50 +441,35 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         ba_opts, config = self._build_adjuster(recon)
 
         # --- Step 3: Build and Run Solver with Options/Config/Reconstruction ---
-        # bundle_adjuster = pycolmap.create_default_bundle_adjuster(ba_opts, config, recon)
-        # summary = bundle_adjuster.solve()
         # Get initial Cost
         recon.update_point_3d_errors()
         self.initial_mean_error = recon.compute_mean_reprojection_error()
         # Run Optimizer
         summary = self._solve(ba_opts, config, recon)
-
-        # print("After BA:")
-        # for image_id, image in recon.images.items():
-        #     print(image_id, image.name)
-
-        # print("SUMMARY", summary)
         self.summary = summary
+
         # --- Step 4: Export optimized results back into the Scene ---
         self._write_back_to_scene(current_scene, recon, trackid_to_point3Did)
 
-
-        # print("After Writing to Scene:")
-        # for image_id, image in recon.images.items():
-        #     print(image_id, image.name)
-
         # Write reconstructed scene to workspace (Sparse Scene Currently)
         recon.write(self.directory_path)
-        # recon.export_PLY(str(self.dir_path / "results" / "workspace" / "sparse.ply"))
         sparse_path = os.path.join(self.cam_data.logging_dir, str(self.cam_data.script_id), f"sparse.ply")
         recon.export_PLY(str(sparse_path))
 
         # Get final Metric (reprojection errors)
         recon.update_point_3d_errors()
+        
         # Mean reprojection error in pixels (final cost)
         self.mean_error = float(recon.compute_mean_reprojection_error())
         if self.mean_error > 300.0:
             self.mean_error = "Reprojection Error is too large to evaluate. Consider improve sparse reconstruction with improved SfM pipeline."
+        
         #Record Camera Poses
         self._store_extrinsics_information(recon)
 
         return current_scene #, summary
     
     def _solve(self, ba_opts, config, recon):
-        # print("Before BA:")
-        # for image_id, image in recon.images.items():
-        #     print(image_id, image.name)
-
         bundle_adjuster = pycolmap.create_default_bundle_adjuster(ba_opts, config, recon)
         return bundle_adjuster.solve()
 
@@ -659,11 +490,6 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         ba_opts.refine_focal_length = self.refine_focal_length
         ba_opts.refine_principal_point = self.refine_principal_point
         ba_opts.refine_extra_params = self.refine_extra_params
-
-        # GPU knobs (only used when supported in your build)
-        # if self.use_gpu:
-        #     ba_opts.use_gpu = bool(self.use_gpu)
-        #     ba_opts.gpu_index = str(self.gpu_index)
 
         # Ceres solver options (requires PyCeres installed in your environment)
         ba_opts.ceres.solver_options.max_num_iterations = int(self.max_num_iterations) 
@@ -746,12 +572,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
             # Create Camera rig for single camera
             rig = pycolmap.Rig()
             rig.rig_id = 1
-
-            # for cam_id in camera_map.values():
-            #     sensor = pycolmap.sensor_t()
-            #     sensor.type = pycolmap.SensorType.CAMERA
-            #     sensor.id = cam_id
-            #     rig.add_sensor(sensor)
+            
             cam_ids = list(camera_map.values())
 
             for i, cam_id in enumerate(cam_ids):
@@ -768,12 +589,6 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
                 else:
                     # Additional sensors need an explicit pose wrt rig
                     rig.add_sensor(sensor, pycolmap.Rigid3d())
-
-            # choose a reference sensor (first camera)
-            # ref = pycolmap.sensor_t()
-            # ref.type = pycolmap.SensorType.CAMERA
-            # ref.id = list(camera_map.values())[0]
-            # rig.add_ref_sensor(ref)
 
             recon.add_rig(rig)
         else:
@@ -833,9 +648,9 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
                 camera_id = frame_to_camera[f]
             else:
                 camera_id = 1
-            # print(self.cam_data.image_names[f])
+
             image_file_name = self.cam_data.image_names[f].split(".")[0]
-            # print(image_file_name)
+
             # Create frame + set pose from your initial estimate
             frame = pycolmap.Frame(frame_id = frame_id,
                                    rig_id = rig.rig_id)
@@ -855,7 +670,6 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
                 )
                 frame.add_data_id(img.data_id)
                 recon.add_frame(frame)
-                # recon.register_frame(frame_id)
                 recon.frame(frame.frame_id).set_cam_from_world(camera_id=camera_id, 
                                                             cam_from_world=cam_from_world)
                 recon.register_frame(frame_id)
@@ -883,7 +697,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
             )
             frame.add_data_id(img.data_id)
             recon.add_frame(frame)
-            # recon.register_frame(frame_id)
+
             recon.frame(frame.frame_id).set_cam_from_world(camera_id=camera_id, 
                                                            cam_from_world=cam_from_world)
             recon.register_frame(frame_id)
@@ -1033,8 +847,6 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
             scene.cam_poses[f] = img.cam_from_world().matrix()
 
         if trackid_to_point3Did is None:
-            # temp_recon = pycolmap.Reconstruction(self.directory_path)
-            # print("HERE")
             # Obtain 3D Points from Dense Reconstruction
             points = np.array([p.xyz for p in recon.points3D.values()])
             colors = np.array([p.color / 255.0 for p in recon.points3D.values()])
@@ -1158,67 +970,4 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
         params = np.asarray(camera.params, dtype=np.float64)
 
         return K, params
-
-    # def optimize(self, 
-    #              scene: Scene):
-    #             #  points: PointsMatched, 
-    #             #  camera_poses: CameraPose, 
-    #             #  cam_data: CameraData):
-    #     """
-    #     scene.points3D.points3D: (N,3) float
-    #     camera_poses.camera_pose[i]: (3,4) cam_from_world for frame i
-    #     points.data_matrix: (M,4) [track_id, frame_num, x, y]  (pixels)
-    #     """
-    #     # if not points.multi_view:
-    #     #     raise ValueError("BA requires multi-view tracks (points.multi_view=True).")
-
-    #     recon, trackid_to_point3Did = self._build_reconstruction(scene)
-
-    #     # --- BA config: include all registered images ---
-    #     config = pycolmap.BundleAdjustmentConfig()
-    #     for image_id in recon.reg_image_ids():  # registered images
-    #         config.add_image(image_id)
-    #     # --- BA config: Fix the first camera for stability
-    #     config.set_constant_rig_from_world_pose(recon.reg_image_ids()[0])
-
-
-    #     # --- BA options ---
-    #     ba_opts = pycolmap.BundleAdjustmentOptions()
-    #     ba_opts.refine_focal_length = self.refine_focal_length
-    #     ba_opts.refine_principal_point = self.refine_principal_point
-    #     ba_opts.refine_extra_params = self.refine_extra_params
-
-    #     # GPU knobs (only used when supported in your build)
-    #     # ba_opts.use_gpu = bool(self.use_gpu)
-    #     # ba_opts.gpu_index = str(self.gpu_index)
-
-    #     # # Ceres solver options (requires PyCeres installed in your environment)
-    #     # ba_opts.solver_options.max_num_iterations = int(self.max_num_iterations)
-
-    #     # # Optional robust loss
-    #     # if self.robust_loss:
-    #     #     ba_opts.loss_function_type = pycolmap.LossFunctionType.CAUCHY
-
-    #     # GPU knobs (only used when supported in your build)
-    #     if self.use_gpu:
-    #         ba_opts.use_gpu = bool(self.use_gpu)
-    #         ba_opts.gpu_index = str(self.gpu_index)
-
-    #     # Ceres solver options (requires PyCeres installed in your environment)
-    #     ba_opts.ceres.solver_options.max_num_iterations = int(self.max_num_iterations) 
-
-    #     # Optional robust loss
-    #     if self.robust_loss:
-    #         ba_opts.ceres.loss_function_type = pycolmap.LossFunctionType.CAUCHY
-
-    #     bundle_adjuster = pycolmap.create_default_bundle_adjuster(ba_opts, config, recon)
-    #     summary = bundle_adjuster.solve()
-
-    #     # --- Export optimized results back into your Scene ---
-    #     self._write_back_to_scene(scene, recon, trackid_to_point3Did)
-
-    #     # Write reconstructed scene to workspace (Sparse Scene!)
-    #     recon.write(self.directory_path)
-
-    #     return scene #, summary
     

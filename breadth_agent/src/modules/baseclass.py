@@ -10,16 +10,13 @@ import numpy as np
 from scipy.spatial import cKDTree
 import cv2
 from modules.cameramanager import CameraDataManager
-from modules.DataTypes.datatype import (Scene, 
-                                CameraData, 
-                                Calibration, 
-                                Points2D, 
-                                PointsMatched, 
-                                CameraPose, 
-                                Points3D,
-                                BundleAdjustmentData,
-                                IncrementalSfMState,
-                                SceneState)
+
+from modules.DataTypes.pointDT import Points2D, Points3D
+from modules.DataTypes.cameraDT import CameraData
+from modules.DataTypes.cameraposeDT import CameraPose
+from modules.DataTypes.featmatchDT import PointsMatched
+from modules.DataTypes.sceneDT import Scene, SceneState, IncrementalSfMState
+
 import glob
 from collections.abc import Callable
 import torch

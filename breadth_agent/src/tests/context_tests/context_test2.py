@@ -93,10 +93,10 @@ image_path = "/home/anthonyq/datasets/DTU/DTU/scan21" #"C:\\Users\\Anthony\\Docu
 calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
 
 from modules.features import FeatureDetectionORB
-from modules.featurematching import FeatureMatchBFPair, FeatureMatchBFTracking
+from modules.featurematching import FeatureMatchBFPair
+from modules.featuretracking import FeatureTrackFromPairsUnionFind
 from modules.camerapose import CamPoseEstimatorEssentialToPnP
-from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.scenereconstruction import Sparse3DReconstructionMono
+from modules.scenereconstruction import Sparse3DReconstructionIncremental
 from modules.optimization import BundleAdjustmentOptimizerGlobal, BundleAdjustmentOptimizerLocal
 from modules.baseclass import SfMScene
 
@@ -133,18 +133,15 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 )
 
 # Step 5: Detect Feature Tracks
-reconstructed_scene.FeatureMatchBFTracking(
-    detector="orb",
-    RANSAC_threshold=3.0,
-    lowes_thresh=0.8,
-    cross_check=False
-)
+reconstructed_scene.FeatureTrackFromPairsUnionFind()
 
 # Step 6: Estimate Sparse Reconstruction
-reconstructed_scene.Sparse3DReconstructionMono(
+reconstructed_scene.Sparse3DReconstructionIncremental(
     min_observe=3,
     min_angle=3.0,
-    multi_view=True
+    max_reproj_error=1.5,
+    reproj_threshold=1.0,
+    max_filter_iterations=5
 )
 
 # Step 7: Run Optimization

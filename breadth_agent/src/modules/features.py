@@ -7,7 +7,10 @@ import sys
 
 from tqdm import tqdm
 from lightglue import ALIKED 
-from modules.DataTypes.datatype import Points2D, Calibration, CameraData
+
+from modules.DataTypes.pointDT import Points2D
+from modules.DataTypes.cameraDT import CameraData
+
 from modules.baseclass import FeatureClass
 from modules.models.features import SuperPoint, load_image, numpy_image_to_torch 
 import torch
@@ -207,28 +210,14 @@ reconstructed_scene.{module_name}(
                                         edgeThreshold =edge_threshold,
                                         sigma = sigma)
 
-        # Verifying Images are read accordingly
-        print("Number of Images", len(self.image_list))
-        print("New Image Scale", self.image_scale)
-
 
     def _detect_features(self) -> list[Points2D]:
-
-        # New Version
-        # if self.image_reshape is not None:
-        #     self.features = self._detect_resize()
-        # else: 
-        #     self.features = self._detect_base()
-        # return self.features
-
         eps=1e-7
 
-        # for i in tqdm(range(len(self.image_path))): # len(self.image_path)
-        for i in tqdm(range(len(self.image_list)),
-                      desc="Detecting Features"):
+        for i in tqdm(range(len(self.image_list)), desc="Detecting Features"):
 
-            img = np.asarray(self.image_list[i]) #self.image_path[i]
-            im_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) #cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2GRAY)
+            img = np.asarray(self.image_list[i]) 
+            im_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) 
 
             kp, des = self.detector.detectAndCompute(im_gray, None)
             pts = np.array([kp[i].pt for i in range(len(kp))], np.float32)
@@ -281,10 +270,11 @@ class FeatureDetectionORB(FeatureClass):
 
         description = f"""
 Detects existing keypoints(features) and descriptors in images using the feature detector 
-ORB. This Feature Detector is used when efficiency is the priority as ORB utilizes faster feature detection
-and description generation based algorithms. USE THIS MODULE when the image contains well textured objects with 
-many corners or edges, and we want a faster detectors. When specified directly for ORB or when quick/efficient 
-feature detection is necessary, and called for, utilize the ORB feature detector module. 
+ORB. Detects oriented FAST keypoints and computes efficient binary descriptors. 
+USE THIS DETECTOR in well-lit, highly textured environments with consistent image overlap and 
+limited changes in scale or viewpoint. It is best suited to real-time visual odometry, SLAM, 
+CPU-only systems, and embedded devices where speed is more important than maximum matching 
+accuracy. Avoid it for severe illumination changes, weak texture, or large viewpoint differences.
 
 Initialization/Function Parameters: 
 - cam_data: Data container to hold images and calibration data, read from the CameraDataManager.
@@ -416,23 +406,18 @@ class FeatureDetectionALIKED(FeatureClass):
 
         description = f"""
     Detects existing keypoints(features) and descriptors in images using a Deep Learning Model Feature
-    Detector denoted as SuperPoint.
-    This Feature Detector is utilized in cases where diffuse lighting materials exist in scenes, images of 
-    environments that lack texture or not well-lit for traditional detectors, or extreme view changes exist 
-    in scene video or images.
-    WHEN TO USE THIS MODULE: where the environment is well-lit AND Mixed-textured or Moderately Textured, even
-    if it contains consistent lighting through the set of images, most classical detectors WILL NOT work like SIFT. 
-    If scene is Moderately or Mixed textured use this feature detector!
-
-    Use in cases where SIFT and ORB may struggle in due to not well-lit settings, and cases where there is
-    diffuse lighting in the object and we need a feature detector more robust to these environments.
-    When specified directly to use the SuperPoint algorithm, mentioning to use a feature detector 
-    to handle view changes or material that lack texture in a given scene, or accurate dense features 
-    are necessary, use the SuperPoint detection Module.
+    Detector denoted as ALIKED. Detects accurate subpixel keypoints and learned descriptors using a 
+    lightweight neural architecture. USE THIS DETECTOR when scenes contain moderate or irregular texture 
+    and strong localization accuracy is needed without the computational cost of a heavier learned detector. 
+    It is suitable for real-time SfM, visual odometry, and localization in changing indoor or outdoor 
+    environments, particularly when paired with LightGlue. Like other appearance-based detectors, performance 
+    can degrade in extremely dark or nearly textureless regions.
 
     Initialization/Function Parameters: 
     - max_keypoints: Maximum number of Keypoints to detect per image from the feature detector
         - Default (int): 1024
+    - det_thresh: Threshold for feature detection. Higher the number, more features are detected but
+      less confident in point accuracy.
 
     Module Output - Handled with SfMScene Object: 
         list[Points2D]:
@@ -455,8 +440,7 @@ class FeatureDetectionALIKED(FeatureClass):
     # Step 2: Detect Features
     reconstructed_scene.{module_name}(
         max_keypoints=9000,
-        contrast_threshold=0.02,
-        edge_threshold=20,
+        det_thresh=0.005
         )
     """     
 
@@ -473,8 +457,7 @@ class FeatureDetectionALIKED(FeatureClass):
 
     def _detect_features(self) -> list[Points2D]:
         
-        for i in tqdm(range(len(self.image_list)),
-                      desc="Detecting Features"): # len(self.image_path)
+        for i in tqdm(range(len(self.image_list)), desc="Detecting Features"): 
             
             img = np.asarray(self.image_list[i])
             img_torch = numpy_image_to_torch(img)
@@ -522,12 +505,11 @@ class FeatureDetectionSP(FeatureClass):
         description = f"""
 Detects existing keypoints(features) and descriptors in images using a Deep Learning Model Feature
 Detector denoted as SuperPoint.
-This Feature Detector is utilized in cases where diffuse lighting materials exist in scenes, images of 
-environments that lack texture or not well-lit for traditional detectors, or extreme view changes exist 
-in scene video or images.
-WHEN TO USE THIS MODULE: where the environment is well-lit AND Mixed-textured or Moderately Textured, even
-if it contains consistent lighting through the set of images, most classical detectors WILL NOT work like SIFT. 
-If scene is Moderately or Mixed textured use this feature detector!
+Jointly detects learned keypoints and descriptors in a single neural-network pass. USE THIS DETECTOR 
+for indoor or outdoor scenes with moderate texture, repeated patterns, illumination changes, or viewpoints 
+where traditional corner detectors are unreliable. It is especially suitable for SfM and visual localization 
+when paired with SuperGlue or LightGlue and GPU inference is available. Extremely dark, blurred, or 
+domain-specific imagery may still require preprocessing or model adaptation.
 
 Use in cases where SIFT and ORB may struggle in due to not well-lit settings, and cases where there is
 diffuse lighting in the object and we need a feature detector more robust to these environments.
@@ -560,8 +542,6 @@ reconstructed_scene = SfMScene(image_path = image_path,
 # Step 2: Detect Features
 reconstructed_scene.{module_name}(
     max_keypoints=9000,
-    contrast_threshold=0.02,
-    edge_threshold=20,
     )
 """     
 
@@ -571,14 +551,13 @@ reconstructed_scene.{module_name}(
                          description=description,
                          example=example)
 
-        self.device = torch.device(f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu")  # 'mps', 'cpu'
+        self.device = torch.device(f"cuda:{self.cam_data.gpu_num}" if torch.cuda.is_available() else "cpu") 
 
         self.detector = SuperPoint(max_num_keypoints=max_keypoints).eval().to(self.device) 
 
     def _detect_features(self) -> list[Points2D]:
         
-        for i in tqdm(range(len(self.image_list)),
-                      desc="Detecting Features"): # len(self.image_path)
+        for i in tqdm(range(len(self.image_list)), desc="Detecting Features"): 
             
             img = np.asarray(self.image_list[i])
             img_torch = numpy_image_to_torch(img)

@@ -3,21 +3,14 @@ import cv2
 from typing import List, Optional, Tuple, Union
 from PIL import Image, ImageOps
 # from models.sfm_models.vggt.utils.load_fn import load_and_preprocess_images, load_and_preprocess_images_square
-from modules.DataTypes.datatype import (CameraData,
-                                 Points2D, 
-                                 Calibration, 
-                                 Points3D, 
-                                 CameraPose, 
-                                 Scene, 
-                                 PointsMatched,
-                                 BundleAdjustmentData)
+
+from modules.DataTypes.cameraDT import CameraData
 import glob
 import random
 from tqdm import tqdm
 import os
 import shutil
 from pathlib import Path
-# from baseclass import ImageProcessorClass
 
 def uniform_image_subset(image_files, num_samples):
     if num_samples <= 0:
