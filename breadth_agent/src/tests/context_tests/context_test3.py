@@ -54,13 +54,13 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 # Construct Modules with Initialized Arguments
 image_path = "/home/anthonyq/datasets/DTU/scan6_illumination_change" #"/home/anthonyq/datasets/DTU/scan6_illumination_change" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan6_illumination_change"
 
-from modules.features import FeatureDetectionSP
-from modules.featurematching import FeatureMatchLightGluePair
-from modules.featuretracking import FeatureTrackFromPairsUnionFind
-from modules.camerapose import CamPoseEstimatorVGGTModel
-from modules.scenereconstruction import Sparse3DReconstructionVGGT, Dense3DReconstructionVGGT
-from modules.optimization import BundleAdjustmentOptimizerGlobal
-from modules.baseclass import SfMScene
+from sfmcore.features import FeatureDetectionSP
+from sfmcore.featurematching import FeatureMatchLightGluePair
+from sfmcore.featuretracking import FeatureTrackFromPairsUnionFind
+from sfmcore.camerapose import CamPoseEstimatorVGGTModel
+from sfmcore.scenereconstruction import Sparse3DReconstructionVGGT, Dense3DReconstructionVGGT
+from sfmcore.optimization import BundleAdjustmentOptimizerGlobal
+from sfmcore.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(id=3,

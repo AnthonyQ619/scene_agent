@@ -1,5 +1,5 @@
-from modules.features import FeatureDetectionSIFT, FeatureDetectionSP, FeatureDetectionORB, FeatureDetectionALIKED
-from modules.featurematching import (FeatureMatchFlannTracking, 
+from sfmcore.features import FeatureDetectionSIFT, FeatureDetectionSP, FeatureDetectionORB, FeatureDetectionALIKED
+from sfmcore.featurematching import (FeatureMatchFlannTracking, 
                                      FeatureMatchBFTracking,
                                      FeatureMatchFlannPair,
                                      FeatureMatchBFPair,
@@ -10,12 +10,12 @@ from modules.featurematching import (FeatureMatchFlannTracking,
                                      FeatureMatchSuperGluePair,
                                      FeatureMatchRoMAPair,)
                                      
-from modules.featuretracking import FeatureTrackFromPairsUnionFind
-from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.camerapose import CamPoseEstimatorEssentialToPnP
-from modules.scenereconstruction import Sparse3DReconstructionMono
-from modules.visualize import VisualizeScene, visualize_camera_poses_plotly
-from modules.baseclass import SfMScene
+from sfmcore.featuretracking import FeatureTrackFromPairsUnionFind
+from sfmcore.optimization import BundleAdjustmentOptimizerLocal
+from sfmcore.camerapose import CamPoseEstimatorEssentialToPnP
+from sfmcore.scenereconstruction import Sparse3DReconstructionMono
+from sfmcore.visualize import VisualizeScene, visualize_camera_poses_plotly
+from sfmcore.baseclass import SfMScene
 
 import glob
 import cv2
@@ -102,37 +102,3 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 )
 
 visualize_camera_poses_plotly(reconstructed_scene.camera_poses)
-# print(cam_poses.camera_pose)
-# print(calibration_data.K_cams)
-
-# new_point_cloud = []
-# for i in range(len(cam_poses.camera_pose)):
-#     new_point_cloud.append(cam_poses.camera_pose[i][:,3:])
-
-# new_point_cloud = np.array(new_point_cloud).squeeze()
-# print(new_point_cloud.shape)
-# print(new_point_cloud)
-# pcd = o3d.geometry.PointCloud()
-# pcd.points = o3d.utility.Vector3dVector(new_point_cloud)
-
-# gui.Application.instance.initialize()
-
-# window = gui.Application.instance.create_window("Mesh-Viewer", 1024, 750)
-
-# scene = gui.SceneWidget()
-# scene.scene = rendering.Open3DScene(window.renderer)
-
-# window.add_child(scene)
-
-# matGT = rendering.MaterialRecord()
-# matGT.shader = 'defaultUnlit'
-# matGT.point_size = 7.0
-# matGT.base_color = np.ndarray(shape=(4,1), buffer=np.array([0.0, 0.0, 1.0, 1.0]), dtype=float)
-
-# scene.scene.add_geometry("mesh_name2", pcd, matGT)
-# scene.scene.add_geometry("mesh_name3", o3d.geometry.TriangleMesh.create_coordinate_frame(), rendering.MaterialRecord())
-
-# bounds = pcd.get_axis_aligned_bounding_box()
-# scene.setup_camera(60, bounds, bounds.get_center())
-
-# gui.Application.instance.run()  # Run until user closes window

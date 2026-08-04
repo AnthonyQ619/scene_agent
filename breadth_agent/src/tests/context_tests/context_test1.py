@@ -98,14 +98,14 @@ calibration_path = "/home/anthonyq/datasets/DTU/calibration_DTU_new.npz"
 # image_path = "/home/anthonyq/datasets/co3d_v2/apple/110_13051_23361/vggt_random_10"#"/home/anthonyq/datasets/DTU/scan23" 
 # calibration_path = "/home/anthonyq/datasets/co3d_v2/apple/calibration_new_110_13051_23361.npz" #"/home/anthonyq/datasets/DTU/calibration_DTU_new.npz" 
 
-from modules.features import FeatureDetectionSIFT
-from modules.featurematching import FeatureMatchFlannPair
-from modules.featuretracking import FeatureTrackFromPairsUnionFind
-from modules.camerapose import CamPoseEstimatorEssentialToPnP
-from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.scenereconstruction import Sparse3DReconstructionIncremental, Dense3DReconstructionMono
-from modules.optimization import BundleAdjustmentOptimizerGlobal
-from modules.baseclass import SfMScene
+from sfmcore.features import FeatureDetectionSIFT
+from sfmcore.featurematching import FeatureMatchFlannPair
+from sfmcore.featuretracking import FeatureTrackFromPairsUnionFind
+from sfmcore.camerapose import CamPoseEstimatorEssentialToPnP
+from sfmcore.optimization import BundleAdjustmentOptimizerLocal
+from sfmcore.scenereconstruction import Sparse3DReconstructionIncremental, Dense3DReconstructionMono
+from sfmcore.optimization import BundleAdjustmentOptimizerGlobal
+from sfmcore.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(id=2,

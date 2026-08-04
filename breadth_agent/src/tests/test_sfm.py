@@ -1,12 +1,12 @@
-from modules.features import FeatureDetectionSP
-from modules.featurematching import FeatureMatchSuperGluePair
+from sfmcore.features import FeatureDetectionSP
+from sfmcore.featurematching import FeatureMatchSuperGluePair
 # from modules.camerapose import CamPoseEstimatorEssentialToPnP
-from modules.featuretracking import FeatureTrackFromPairsUnionFind
-from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.scenereconstruction import Sparse3DReconstructionIncremental, SparseSceneEstimationCOLMAPGlobal, Sparse3DReconstructionMapAnything
-from modules.visualize import VisualizeScene, visualize_camera_poses_plotly, visualize_3d_points
+from sfmcore.featuretracking import FeatureTrackFromPairsUnionFind
+from sfmcore.optimization import BundleAdjustmentOptimizerLocal
+from sfmcore.scenereconstruction import Sparse3DReconstructionIncremental, SparseSceneEstimationCOLMAPGlobal, Sparse3DReconstructionMapAnything
+from sfmcore.visualize import VisualizeScene, visualize_camera_poses_plotly, visualize_3d_points
 import os
-from modules.baseclass import SfMScene
+from sfmcore.baseclass import SfMScene
 
 ID = "1"
 log_dir = "/home/anthonyq/projects/scene_agent/breadth_agent/results/co3d/apple_110_13051_23361_vggt_random_10"
@@ -32,7 +32,7 @@ reconstructed_scene.FeatureDetectionSIFT(
     contrast_threshold=0.009,
     edge_threshold=20,
 )
-from modules.camerapose import CamPoseEstimatorEssentialToPnP
+from sfmcore.camerapose import CamPoseEstimatorEssentialToPnP
 # Step 3: Detect Feature Pairs
 reconstructed_scene.FeatureMatchFlannPair(detector="sift",
                                         k=2,

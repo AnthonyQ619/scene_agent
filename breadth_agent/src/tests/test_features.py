@@ -1,10 +1,10 @@
 # from modules.utilities.utilities import CalibrationReader
-from modules.camerapose import (CamPoseEstimatorEssentialToPnP, CamPoseEstimatorVGGTModel)
-from modules.scenereconstruction import (Sparse3DReconstructionMono, Sparse3DReconstructionVGGT, Dense3DReconstructionVGGT, Dense3DReconstructionMono)
-from modules.optimization import (BundleAdjustmentOptimizerLocal, BundleAdjustmentOptimizerGlobal)
-from modules.baseclass import SfMScene
-from modules.features import FeatureDetectionSIFT, FeatureDetectionSP, FeatureDetectionORB, FeatureDetectionALIKED
-from modules.featurematching import (FeatureMatchFlannTracking, 
+from sfmcore.camerapose import (CamPoseEstimatorEssentialToPnP, CamPoseEstimatorVGGTModel)
+from sfmcore.scenereconstruction import (Sparse3DReconstructionMono, Sparse3DReconstructionVGGT, Dense3DReconstructionVGGT, Dense3DReconstructionMono)
+from sfmcore.optimization import (BundleAdjustmentOptimizerLocal, BundleAdjustmentOptimizerGlobal)
+from sfmcore.baseclass import SfMScene
+from sfmcore.features import FeatureDetectionSIFT, FeatureDetectionSP, FeatureDetectionORB, FeatureDetectionALIKED
+from sfmcore.featurematching import (FeatureMatchFlannTracking, 
                                      FeatureMatchBFTracking,
                                      FeatureMatchFlannPair,
                                      FeatureMatchBFPair,
@@ -15,10 +15,10 @@ from modules.featurematching import (FeatureMatchFlannTracking,
                                      FeatureMatchSuperGluePair,
                                      FeatureMatchRoMAPair,)
                                      
-from modules.featuretracking import FeatureTrackFromPairsUnionFind, FeatureTrackingVGGSfM, FeatureTrackingTapir
+from sfmcore.featuretracking import FeatureTrackFromPairsUnionFind, FeatureTrackingVGGSfM, FeatureTrackingTapir
     
-from modules.visualize import VisualizeScene
-from modules.cameramanager import CameraDataManager
+from sfmcore.visualize import VisualizeScene
+from sfmcore.cameramanager import CameraDataManager
 import glob
 import cv2
 import os

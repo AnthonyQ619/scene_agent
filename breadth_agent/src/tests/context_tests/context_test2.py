@@ -92,13 +92,13 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 image_path = "/home/anthonyq/datasets/DTU/DTU/scan21" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan21_normal_lighting"
 calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
 
-from modules.features import FeatureDetectionORB
-from modules.featurematching import FeatureMatchBFPair
-from modules.featuretracking import FeatureTrackFromPairsUnionFind
-from modules.camerapose import CamPoseEstimatorEssentialToPnP
-from modules.scenereconstruction import Sparse3DReconstructionIncremental
-from modules.optimization import BundleAdjustmentOptimizerGlobal, BundleAdjustmentOptimizerLocal
-from modules.baseclass import SfMScene
+from sfmcore.features import FeatureDetectionORB
+from sfmcore.featurematching import FeatureMatchBFPair
+from sfmcore.featuretracking import FeatureTrackFromPairsUnionFind
+from sfmcore.camerapose import CamPoseEstimatorEssentialToPnP
+from sfmcore.scenereconstruction import Sparse3DReconstructionIncremental
+from sfmcore.optimization import BundleAdjustmentOptimizerGlobal, BundleAdjustmentOptimizerLocal
+from sfmcore.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(id=2,
