@@ -4,11 +4,11 @@ GOAL RECONSTRUCTION: Sparse Reconstruction
 STEP 1: Initialize the scene through the object SfMScene and read in Camera data
 - Initialize the scene as SfMScene(...)
 - Set the image path to the provided directory of images to be read, resize, and pre-process images for reconstruction
-  - image_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\Family
+  - image_path = /work/dataset/Tanks_and_Temples/Family
 - Set max_images=20 (Never above 40), we want to only use the first 20 images when evaluating the feasibility of the workflow.
 - Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
   activate the parameter
-  - calibration_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\calibration_new_2048.npz
+  - calibration_path = /work/dataset/Tanks_and_Temples/calibration_new_2048.npz
 
 STEP 2: Detect Features
 - Primary object is High-textured primary object with stone paving with scene having consistent lighting. USE SIFT FEATURES.
@@ -27,7 +27,7 @@ STEP 3: Detect Feature Matches
 - Select the Brute-Force feature matcher to utilize a nearest neighbor matcher, since it's more accurate and robust to trickling outliers. This is 
 important in this case since we use corresponding points to estimate camera poses, which are not robust to outliers, and in the outside setting, detected 
 features are much less accurate, so having a robust matcher is necessary.
-    - Set RANSAC_threshold = 0.02 (Default 0.3, Points are normalized, so we base reprojection threshold on normalized coordinates)
+    - Set RANSAC_threshold = 1.0 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
       - Reasoning: Scene has consistent lighting, and we want to be aggressive in outlier removal since PnP algorithms are not as robust to outliers, 
         but keep enough points in total for PnP to work accurately with enough points across the entire image.
     - Set lowes_threshold to 0.70 (Default 0.75) 
@@ -50,8 +50,6 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
               Setting the number to 60 iterations ensures poses are optimized close to, or at convergence, of the bundle adjustment algorithm for the first poses
               estimated, ensuring compounding errors of pose estimation is kept to a minimum.
           - Set window_size = 8 (Default is 8)
-          - Set GPU = False,
-            - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
     - Set reprojection_error = 3.0 (Pixel Coordinates)
       - Reasoning: since we have inherently less accurate key points due to scene environment, we leave slightly larger error in pose estimation that will be handled 
         in bundle adjustment both global and local optimization.
@@ -62,28 +60,28 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
       - Reasoning: Since we are applying local optimization, the proposed frame we estimate we have higher confidence to be correct.
 
 STEP 5: Track Features across multiple images to create feature tracks for 3D point estimation
--  For sparse reconstruction, we want as many 3D points as possible with as long possible track lengths. The more accurate matcher here is the Brute-Force 
-   Tracking tool, so use the BFTracking module since it's more accurate and robust to trickling outliers.
-    - Set RANSAC_threshold = 0.02 (Default 3.0, Points are normalized, so we base reprojection threshold on normalized coordinates)
-      - Reasoning: Although the scene is well-lit and good for SIFT features, we want to be extremely aggressive in outlier removal since we are completing
-        feature tracks, thus we opt for the same threshold as step 3 of the 0.02 we did for pairwise matching 
-    - Set lowes_thresh = 0.75 (Default 0.75)
-      
-TEP 6: Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
-- We are usng the Sparse Reconstruction module, specifically the classical approach with a monocular camera, so opt for the Sparse3DReconstruction module
+- For sparse reconstruction, we want as many 3D points as possible with as long possible track lengths. Since are features are accurate due to high
+  textures along with many pair correspondences, we utilize a direct union find on the feature correspondences. Thus use the module
+  FeatureTrackFromPairsUnionFind.
+  
+STEP 6: Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
+- We are usng the Incremental Sparse Reconstruction module, specifically the classical approach with a monocular camera, so opt for the 
+  Sparse3DReconstructionIncremental module
     - Set min_observe = 3 (Default 3)
     - Set min_angle = 2.0 (Default 1.0) 
       - Reasoning: utilize a larger minimum angle to ensure 3D point estimates are more acccurate, and since we have longer tracks, this is very feasible for this scene.
-    - Set multi_view = True (Default True)
-      - Reasoning: we are tracking features, so the estimation method is multi-view (Which is most, if not all, cases for reconstruction)
+    - max_reproj_error = 1.5
+      - Reasoning: The maximum reprojection error allowed for a triangulated 3D point, we set to 1.5 since we have many features and tracks to be aggresive.
+    - reproj_threshold = 1.0
+      - Reasoning: The reprojection error threshold used to determine whether an individual 2D observation is an inlier, slightly more aggresive than default (1.5)
+    - max_filter_iterations = 5
+      - Reasoning: The maximum number of iterations used to remove outlier observations, which we keep to the default 5.
 
 STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 - To ensure scene is geometrically correct, we want to set 
     - Set max_num_iterations=250, 
       - Reasoning: Since initial 2D points will not be as accurate due to inaccuracy of certain matches and tracks in previous methods despite
         optimal scene lighting and texture being for SIFT features, we have to set interations to 250 to ensure convergence of scene for optimal reconstruction.
-    - Set GPU = False,
-      - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
 """
 
 # ==#$#==

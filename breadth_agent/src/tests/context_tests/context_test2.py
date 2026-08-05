@@ -4,11 +4,11 @@ GOAL RECONSTRUCTION: Sparse Reconstruction
 STEP 1: Initialize the scene through the object SfMScene and read in Camera data
 - Initialize the scene as SfMScene(...)
 - Set the image path to the provided directory of images to be read, resize, and pre-process images for reconstruction
-  - image_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan21_normal_lighting
+  - image_path = "/work/dataset/DTU/scan21_normal_lighting"
 - Set max_images=20 (Never above 40), we want to only use the first 20 images when evaluating the feasibility of the workflow.
 - Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
   activate the parameter
-  - calibration_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz
+  - calibration_path = "/work/dataset/DTU/calibration_DTU_new.npz"
 
 STEP 2: Detect Features in the scene
 - Select the ORB module since the scene featuring the object is well lit, in an indoor setting, and the object is of a brick house that
@@ -26,7 +26,7 @@ STEP 2: Detect Features in the scene
 STEP 3: Detect Feature Matches
 - Select the Brute Force feature matcher to utilize as a robust matcher for ORB, since we don't have complex descriptors, we must utilize a stronger
   matcher for more accurate matches across the corresponding points.
-    - Set RANSAC_threshold to 0.01
+    - Set RANSAC_threshold to 1.0
       - Reasoning: Even though the scene is captured is well suited for ORB, detected features are still noisy, so we need a much more strict outlier rejection 
         since we have an abundance of points.
     - Set lowes_threshold to 0.6 (Default 0.75) 
@@ -39,8 +39,6 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
     - Initialize the Local Optimization module "BundleAdjustmentOptimizerLocal"
         - Set iteration count for Bundle Adjustment to only 20
         - Set window size to 8 (Default) since camera movement is minimal and better pose correction.
-        - Set GPU = False,
-            - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
         - Set robust_lost = True,
             - Reasoniong: Since we are using less accurate features, we need a robust loss function to be resistent to outlier if they are left.
         - Reasoning: We don't need to converge here, just reduce pose error to below 0.5 pixel reprojection error to ensure inital build allows 
@@ -56,34 +54,30 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
       - Reasoning: Since the scene is ORB points are inherently noisy, we leave the default setting here. 
 
 STEP 5: Track Features across multiple images to create feature tracks for 3D point estimation
--  For sparse reconstruction, we want as many 3D points as possible with as long possible track lengths. The more accurate matcher here is the Brute-Force 
-   Tracking tool, so use the BFTracking module since it's more accurate and robust to trickling outliers.
-    - Set RANSAC_threshold = 0.02 (Default 3.0, Points are normalized, so we base reprojection threshold on normalized coordinates)
-      - Reasoning: Although the scene is well-lit and good for ORB features, we want to be aggressive in outlier removal since we are completing
-        feature tracks, thus we opt for a 0.02 ransac threshold, but more relaxed than pairwise matching. 
-    - Set lowes_thresh = 0.8 (Default 0.75)
-      - Reasoning: We want to be more strict on the feature tracks for more accurate estimate of 3D points in the scene
-        we are more aggressive in lowes threshold to ensure the removal of most outliers, even if we remove inliers in the process.
-    - Set cross_check = False (Default True)
-      - Reasoning: Since we are applying false, this will apply default BFMatcher behaviour when it finds the k nearest neighbors for each query descriptor,
-        which will be more exhaustive, but ensure we find the most accurate matches/tracks across multiple images.
-
+- For sparse reconstruction, we want as many 3D points as possible with as long possible track lengths. Since are features are accurate due to high
+  textures along with many pair correspondences, we utilize a direct union find on the feature correspondences. Thus use the module
+  FeatureTrackFromPairsUnionFind.
+  
 STEP 6: Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
-- We are usng the Sparse Reconstruction module, specifically the classical approach with a monocular camera, so opt for the Sparse3DReconstruction module
+- We are usng the Incremental Sparse Reconstruction module, specifically the classical approach with a monocular camera, so opt for the 
+  Sparse3DReconstructionIncremental module
     - Set min_observe=3 (Default 3)
-      - Reasoning: ORB will naturally make it more difficult for longer tracks, even if they are accurate, we will default for the minimum for this case.
+      - Reasoning: Since we are using the Brute Force Matcher for tracking features, we will have longer features to use for 3D point estimation, since this scene has 
+        minimal camera movement, we need a wider baseline as well, so we use 4 2D points minimum to estimate an acceptable 3D point for sparse reconstruction. 
     - Set min_angle=3.0 (Default 1.0) 
       - Reasoning: utilize a larger minimum angle to ensure 3D point estimates are more acccurate, and since we have longer tracks, this is very feasible for this scene.
-    - Set multi_view = True (Default True)
-      - Reasoning: we are tracking features, so the estimation method is multi-view (Which is most, if not all, cases for reconstruction)
+    - max_reproj_error = 1.5
+      - Reasoning: The maximum reprojection error allowed for a triangulated 3D point, we set to 1.5 since we have many features and tracks to be aggresive.
+    - reproj_threshold = 1.0
+      - Reasoning: The reprojection error threshold used to determine whether an individual 2D observation is an inlier, slightly more aggresive than default (1.5)
+    - max_filter_iterations = 5
+      - Reasoning: The maximum number of iterations used to remove outlier observations, which we keep to the default 5.
 
 STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 - To ensure scene is geometrically correct, we want to set 
-    - Set max_num_iterations=200, 
+    - Set max_num_iterations=400, 
       - Reasoning: Since initial 2D points will not be as accurate due to inaccuracy of certain matches and tracks in previous methods despite
         optimal scene lighting and texture being for ORB features, we have to set interations to 200 to ensure convergence of scene for optimal reconstruction.
-    - Set GPU = False,
-      - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
 """
 
 # ==#$#==

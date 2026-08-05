@@ -593,22 +593,24 @@ Initialization/Function Parameters:
 - detector (str): Name of Feature Detector that was used to estimate the features provided.
     - default (str): superpoint
 - sinkhorn_iterations: number iterations for running the Sinkhorn Algorithm in the model for optimal
-partial assignment of detected feature matches
+  partial assignment of detected feature matches
     - default (int): 20
-- match_threshold: confidence threshold (we choose 0.2) to retain some matches from the soft assignment
-stage
+- match_threshold: confidence threshold (we choose 0.2) to retain some matches from the soft assignment stage
     - default (float): 0.2
 - descriptor_dim: the dimensions for the estimated desciptor generated from the detector used
     - default (int): 256
 - setting: the string to determine if the images are "indoor" or "outdoor"
     - default (str): indoor
-- RANSAC_homography: Determines whether to use the Homography or Fundamental model for outlier rejection in matching point correspondences. Homography is fit as a model
-  in scenes where the major focus is of a planar object, whereas fundamental matrix is a better model otherwise (Scenes that lack structure of planar objects).
+- RANSAC_homography: Determines whether to use the Homography or Fundamental model for outlier rejection in 
+  matching point correspondences. Homography is fit as a model in scenes where the major focus is of a planar 
+  object, whereas fundamental matrix is a better model otherwise (Scenes that lack structure of planar objects).
     - Default (bool): False (True runs Homography model, False uses Fundamental model)
-- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
-     is considered an outlier and is not used for computing the final fundamental/homography matrix.
+- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line 
+  in normalized pixel coordinates, beyond which the point is considered an outlier and is not used for computing 
+  the final fundamental/homography matrix.
     - Default (float): 3.0
-- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
+- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence 
+  (probability) that the estimated matrix is correct.
     - Default (float): 0.99
 
 Function Call Parameters - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IN USE:
@@ -759,10 +761,10 @@ Initialization/Function Parameters:
 - detector (str): Name of Feature Detector that was used to estimate the features provided.
     - Default (str): SIFT
 - n_layers: Number of stacked self+cross attention layers. Reduce this value for faster inference 
-at the cost of accuracy (continuous red line in the plot above). 
+  at the cost of accuracy (continuous red line in the plot above). 
     - Default (int): 9 (all layers).
 - flash: Enable FlashAttention. Significantly increases the speed and reduces the memory consumption 
-without any impact on accuracy. 
+  without any impact on accuracy. 
     - Default (bool): True (LightGlue automatically detects if FlashAttention is available).
 - mp: Enable mixed precision inference. 
     - Default (bool): False (off)
@@ -772,13 +774,16 @@ without any impact on accuracy.
     - Default (float): 0.99, disable with -1.
 - filter_threshold: Match confidence. Increase this value to obtain less, but stronger matches. 
     - Default (float): 0.1
-- RANSAC_homography: Determines whether to use the Homography or Fundamental model for outlier rejection in matching point correspondences. Homography is fit as a model
-  in scenes where the major focus is of a planar object, whereas fundamental matrix is a better model otherwise (Scenes that lack structure of planar objects).
+- RANSAC_homography: Determines whether to use the Homography or Fundamental model for outlier rejection in 
+  matching point correspondences. Homography is fit as a model in scenes where the major focus is of a planar 
+  object, whereas fundamental matrix is a better model otherwise (Scenes that lack structure of planar objects).
     - Default (bool): False (True runs Homography model, False uses Fundamental model)
-- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
+- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line 
+  in normalized pixel coordinates, beyond which the point 
      is considered an outlier and is not used for computing the final fundamental/homography matrix.
     - Default (float): 3.0
-- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
+- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence 
+  (probability) that the estimated matrix is correct.
     - Default (float): 0.99
 
 Function Call Parameters - HANDLED INTERNALLY, DO NOT USE IF SFMCORE IN USE:
@@ -915,34 +920,41 @@ class FeatureMatchFlannPair(FeatureMatching):
 
         module_name = "FeatureMatchFlannPair"
         description = f"""
-Detects point correspondance between two sequential frames at once to detect matching 
-features across a set of images. The feature matching algorithm used is the Flann feature 
-detector. Use this feature matcher for when a Nearest Neighbor algorithm is called for 
-and speed is a necessary requirement. Unless specified directly, assume the features 
-are detected using the SIFT algorithm and initialize through the detector parameter. 
+Uses approximate nearest-neighbor search to efficiently match large collections of local descriptors. USE THIS MODULE 
+when images contain many detected features, the scene is sufficiently textured, and faster matching is needed across 
+a large image set. It is particularly suitable for SIFT descriptors in offline SfM pipelines with strong image 
+overlap and moderate lighting or viewpoint changes.
+
+Choose FLANN over Brute Force or ML matchers when CPU scalability and low memory overhead are priorities, while 
+classical descriptors remain reliable. Because its search is approximate, it may return less accurate matches than 
+Brute Force and should be combined with ratio filtering and geometric verification. It is less suitable for dark, 
+textureless, repetitive, or strongly appearance-changing environments where the underlying descriptors are already 
+unreliable. FLANN is specifically designed for fast approximate nearest-neighbor search and can outperform 
+exhaustive matching for large descriptor collections.
+
 Other supported detectors are: SIFT, ORB, and SuperPoint.
 
 SuperPoint and Sift share the same parameters, whereas ORB contains different parameters.
 
-Use this module in the case a faster feature matcher is needed for feature pair correspondences, 
-in which this module utilizes a nearest neighbor method for fast matching. Faster than BruteForce, but 
-slower than ML based matchers. This matcher is less accurate than Brute-Force, but can sometimes be more 
-accurate than ML detectors in certain conditions. 
-
 Initialization/Function Parameters: 
 - detector: String representing the name of the feature detector used for the features provided.
     - Default (str): SIFT
-- k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing with lowes threshold.
+- k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing 
+  with lowes threshold.
     - Default (int): 2
-- RANSAC_homography: Determines whether to use the Homography or Fundamental model for outlier rejection in matching point correspondences. Homography is fit as a model
-  in scenes where the major focus is of a planar object, whereas fundamental matrix is a better model otherwise (Scenes that lack structure of planar objects).
+- RANSAC_homography: Determines whether to use the Homography or Fundamental model for outlier rejection in matching 
+  point correspondences. Homography is fit as a model in scenes where the major focus is of a planar object, whereas 
+  fundamental matrix is a better model otherwise (Scenes that lack structure of planar objects).
     - Default (bool): False (True runs Homography model, False uses Fundamental model)
-- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
+- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in 
+  normalized pixel coordinates, beyond which the point 
      is considered an outlier and is not used for computing the final fundamental/homography matrix.
     - Default (float): 3.0
-- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
+- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence 
+  (probability) that the estimated matrix is correct.
     - Default (float): 0.99
-- lowes_thresh: Threshold for Lowe's Ratio Test, accepting a match only if the ratio of the distance to the best match to the distance of the second-best match is 
+- lowes_thresh: Threshold for Lowe's Ratio Test, accepting a match only if the ratio of the distance to the best 
+  match to the distance of the second-best match is 
      below a specific threshold
     - Default (float): 0.75
 
@@ -1064,36 +1076,41 @@ class FeatureMatchBFPair(FeatureMatching):
 
         module_name = "FeatureMatchBFPair"
         description = f"""
-Detects point correspondance between two sequential frames at a time to detect matching 
-features across a set of images. The feature matching algorithm used is the Brute-Force 
-feature detector. Unless specified directly, assume the features are detected using the SIFT 
-algorithm and initialize through the detector parameter. 
-Other supported detectors are: SIFT, ORB, SuperPoint, and FAST. 
+Compares every descriptor in one image against all descriptors in the paired image to find the closest matches. 
+USE THIS MODULE for small-to-moderate feature sets when matching accuracy (especially with this 1-1 exhaustive 
+matching method), deterministic behavior, and simple CPU execution are more important than speed. It works well 
+with SIFT in well-lit, textured scenes and with ORB for high-overlap sequential images.
 
-Use this Feature Matching Module when you need highly accurate matches as this an exhaustive 
-matcher to check 1-1 for every other match to find the closest matches. This is slower than
-Flann and Other ML matchers, but more accurate than flann and can be more accurate than ML 
-matchers in certain conditions.
+Choose Brute Force over ML matchers when GPU resources are unavailable, the image domain differs greatly from 
+learned training data, or a lightweight and explainable classical SfM pipeline is preferred. Avoid it for very 
+large feature sets or difficult scenes with severe lighting, viewpoint, or appearance changes, where learned 
+matchers may reject ambiguous correspondences more effectively.
 
 Initalization/Function Parameters:
 - detector: String representing the name of the feature detector used for the features provided.
     - Default (str): SIFT
-- k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing with lowes threshold.
+- k: Integer Number for consideration of nearest neighbor count of potential feature matchers before post-processing 
+  with lowes threshold.
     - Default (int): 2
-- cross_check: If it is false, this is will be default BFMatcher behaviour when it finds the k nearest neighbors for each query descriptor. If True
-     then the nearest neighbor method with k=1 will only return pairs (i,j) such that for i-th query descriptor the j-th descriptor in the matcher's 
-     collection is the nearest and vice versa, i.e. the BFMatcher will only return consistent pairs. Such technique usually produces best results with 
-     minimal number of outliers when there are enough matches. i.e only use when there's are lot of feature points
+- cross_check: If it is false, this is will be default BFMatcher behaviour when it finds the k nearest neighbors for 
+  each query descriptor. If True then the nearest neighbor method with k=1 will only return pairs (i,j) such that 
+  for i-th query descriptor the j-th descriptor in the matcher's collection is the nearest and vice versa, i.e. the 
+  BFMatcher will only return consistent pairs. Such technique usually produces best results with minimal number of 
+  outliers when there are enough matches. i.e only use when there's are lot of feature points
     - Default (bool): False
-- RANSAC_homography: Determines whether to use the Homography or Fundamental model for outlier rejection in matching point correspondences. Homography is fit as a model
-  in scenes where the major focus is of a planar object, whereas fundamental matrix is a better model otherwise (Scenes that lack structure of planar objects).
+- RANSAC_homography: Determines whether to use the Homography or Fundamental model for outlier rejection in matching 
+  point correspondences. Homography is fit as a model in scenes where the major focus is of a planar object, 
+  whereas fundamental matrix is a better model otherwise (Scenes that lack structure of planar objects).
     - Default (bool): False (True runs Homography model, False uses Fundamental model)
-- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in normalized pixel coordinates, beyond which the point 
+- RANSAC_threshold: Parameter used only for RANSAC. It is the maximum distance from a point to an epipolar line in 
+  normalized pixel coordinates, beyond which the point 
   is considered an outlier and is not used for computing the final fundamental/homography matrix.
     - Default (float): 3.0
-- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence (probability) that the estimated matrix is correct.
+- RANSAC_conf: Parameter used for the RANSAC and LMedS methods only. It specifies a desirable level of confidence 
+  (probability) that the estimated matrix is correct.
     - Default (float): 0.99
-- lowes_thresh: Threshold for Lowe's Ratio Test, accepting a match only if the ratio of the distance to the best match to the distance of the second-best match is 
+- lowes_thresh: Threshold for Lowe's Ratio Test, accepting a match only if the ratio of the distance to the best 
+  match to the distance of the second-best match is 
      below a specific threshold
     - Default (float): 0.75
 
