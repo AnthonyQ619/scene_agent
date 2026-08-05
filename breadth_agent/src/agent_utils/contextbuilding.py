@@ -3,31 +3,30 @@ from tqdm import tqdm
 import os
 import sys
 # from openai import OpenAI
-from modules.cameramanager import CameraDataManager
-from modules.utilities.utilities import CalibrationReader
-from modules.features import (FeatureDetectionSIFT, 
+from sfmcore.cameramanager import CameraDataManager
+from sfmcore.utilities.utilities import CalibrationReader
+from sfmcore.features import (FeatureDetectionSIFT, 
                               FeatureDetectionSP, 
                               FeatureDetectionORB, 
-                              FeatureDetectionFAST)
-from modules.featurematching import (FeatureMatchFlannTracking, 
-                                     FeatureMatchBFPair,
+                              FeatureDetectionALIKED)
+from sfmcore.featurematching import (FeatureMatchBFPair,
                                      FeatureMatchFlannPair,
-                                     FeatureMatchBFTracking,
                                      FeatureMatchLoftrPair,
-                                     FeatureMatchLightGlueTracking, 
-                                     FeatureMatchSuperGlueTracking, 
                                      FeatureMatchLightGluePair, 
                                      FeatureMatchSuperGluePair,
                                      FeatureMatchRoMAPair)
-from modules.camerapose import (CamPoseEstimatorEssentialToPnP, 
+from sfmcore.featuretracking import (FeatureTrackFromPairsUnionFind, 
+                                     FeatureTrackingVGGSfM, 
+                                     FeatureTrackingTapir)
+from sfmcore.camerapose import (CamPoseEstimatorEssentialToPnP, 
                                 CamPoseEstimatorVGGTModel)
-from modules.scenereconstruction import (Sparse3DReconstructionMono, 
+from sfmcore.scenereconstruction import (Sparse3DReconstructionIncremental, 
                                          Sparse3DReconstructionVGGT,
                                          Dense3DReconstructionVGGT,
-                                         Dense3DReconstructionMono)
-from modules.optimization import (BundleAdjustmentOptimizerLocal, 
+                                         Dense3DReconstructionMVS)
+from sfmcore.optimization import (BundleAdjustmentOptimizerLocal, 
                                   BundleAdjustmentOptimizerGlobal)
-from modules.visualize import VisualizeScene
+from sfmcore.visualize import VisualizeScene
 import numpy as np
 from pathlib import Path
 
@@ -172,14 +171,15 @@ def build_full_length_context_files(context_file_path: str, num = 1):
 #     file_to_read.close()
 
 def tool_building():
-    image_path = "/home/anthonyq/datasets/DTU/DTU/scan14"
-    calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
+    image_path = "/home/anthonyq/datasets/DTU/scan8_normal_lighting"
+    calibration_path = "/home/anthonyq/datasets/DTU/calibration_DTU_new.npz"
     # calibration_data = CalibrationReader(calibration_path).get_calibration()
     # STEP 1: Read in Camera Data
 
     CDM = CameraDataManager(image_path=image_path,
                             calibration_path=calibration_path,
-                            max_images=5)
+                            max_images=5,
+                            colmap_workspace="/home/anthonyq/projects/scene_agent/breadth_agent/results/co3d/apple_110_13051_23361_vggt_random_10")
     # Any image pre-processing steps are ran here
     # ...
     # Get Camera Data
@@ -188,24 +188,26 @@ def tool_building():
 
     features = [FeatureDetectionSIFT(cam_data=camera_data), 
                 FeatureDetectionORB(cam_data=camera_data),
-                FeatureDetectionSP(cam_data=camera_data)]
+                FeatureDetectionSP(cam_data=camera_data),
+                FeatureDetectionALIKED(cam_data=camera_data)]
     
-    trackers = [FeatureMatchFlannTracking(cam_data=camera_data),
-                FeatureMatchLightGlueTracking(cam_data=camera_data),
-                FeatureMatchBFTracking(cam_data=camera_data), 
-                FeatureMatchSuperGlueTracking(cam_data=camera_data)]
+    trackers = [FeatureTrackFromPairsUnionFind(cam_data=camera_data), 
+                FeatureTrackingVGGSfM(cam_data=camera_data), 
+                FeatureTrackingTapir(cam_data=camera_data)]
     matchers = [
                 FeatureMatchLightGluePair(cam_data=camera_data), 
                 FeatureMatchSuperGluePair(cam_data=camera_data),
                 FeatureMatchFlannPair(cam_data=camera_data),
-                FeatureMatchBFPair(cam_data=camera_data),]
+                FeatureMatchBFPair(cam_data=camera_data),
+                FeatureMatchRoMAPair(cam_data=camera_data),
+                FeatureMatchLoftrPair(cam_data=camera_data)]
     
     camera_pose_est = [CamPoseEstimatorEssentialToPnP(cam_data=camera_data),
                        CamPoseEstimatorVGGTModel(cam_data=camera_data)]
     
-    scene_estimators = [Sparse3DReconstructionMono(cam_data=camera_data),
+    scene_estimators = [Sparse3DReconstructionIncremental(cam_data=camera_data),
                         Sparse3DReconstructionVGGT(cam_data=camera_data),
-                        Dense3DReconstructionMono(cam_data=camera_data),
+                        Dense3DReconstructionMVS(cam_data=camera_data),
                         Dense3DReconstructionVGGT(cam_data=camera_data)
                         ]
     optimizers = [BundleAdjustmentOptimizerLocal(cam_data = camera_data), 
@@ -232,7 +234,7 @@ if __name__ == "__main__":
     #     build_embedded_description_db(path_to_file)
     elif arg == "full_script":
         path_to_files = "/home/anthonyq/projects/scene_agent/breadth_agent/src/tests/context_tests"
-        build_full_length_context_files(path_to_files, num=8)
+        build_full_length_context_files(path_to_files, num=10)
     elif arg == "test" or arg == "t":
         path_to_file = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\agent_utils\\script_context\\embed_description_list.txt"
 

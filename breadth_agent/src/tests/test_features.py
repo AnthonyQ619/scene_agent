@@ -1,6 +1,10 @@
 # from modules.utilities.utilities import CalibrationReader
-from modules.features import FeatureDetectionSIFT, FeatureDetectionSP, FeatureDetectionORB, FeatureDetectionFAST
-from modules.featurematching import (FeatureMatchFlannTracking, 
+from sfmcore.camerapose import (CamPoseEstimatorEssentialToPnP, CamPoseEstimatorVGGTModel)
+from sfmcore.scenereconstruction import (Sparse3DReconstructionMono, Sparse3DReconstructionVGGT, Dense3DReconstructionVGGT, Dense3DReconstructionMono)
+from sfmcore.optimization import (BundleAdjustmentOptimizerLocal, BundleAdjustmentOptimizerGlobal)
+from sfmcore.baseclass import SfMScene
+from sfmcore.features import FeatureDetectionSIFT, FeatureDetectionSP, FeatureDetectionORB, FeatureDetectionALIKED
+from sfmcore.featurematching import (FeatureMatchFlannTracking, 
                                      FeatureMatchBFTracking,
                                      FeatureMatchFlannPair,
                                      FeatureMatchBFPair,
@@ -9,9 +13,12 @@ from modules.featurematching import (FeatureMatchFlannTracking,
                                      FeatureMatchSuperGlueTracking, 
                                      FeatureMatchLightGluePair, 
                                      FeatureMatchSuperGluePair,
-                                     FeatureMatchRoMAPair)
-from modules.visualize import VisualizeScene
-from modules.cameramanager import CameraDataManager
+                                     FeatureMatchRoMAPair,)
+                                     
+from sfmcore.featuretracking import FeatureTrackFromPairsUnionFind, FeatureTrackingVGGSfM, FeatureTrackingTapir
+    
+from sfmcore.visualize import VisualizeScene
+from sfmcore.cameramanager import CameraDataManager
 import glob
 import cv2
 import os
@@ -47,96 +54,59 @@ def plot_features(img_path: str, pts:np.ndarray, image_size):
 # image_path = "/home/anthonyq/datasets/tanks_and_temples/Francis"
 # calibration_path = "/home/anthonyq/datasets/tanks_and_temples/calibration_new_1920.npz"
 
-image_path = "/home/anthonyq/datasets/DTU/DTU/scan22"
-calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
+image_path = "/home/anthonyq/datasets/DTU/scan24"
+calibration_path = "/home/anthonyq/datasets/DTU/calibration_DTU_new.npz"
 
-camera_data = CameraDataManager(image_path=image_path,
-                                max_images = 15,
-                                calibration_path=calibration_path).get_camera_data()
-# Feature Module Initialization
-# calibration_data = CalibrationReader(calibration_path).get_calibration()
-feature_detector = FeatureDetectionSIFT(cam_data=camera_data,
-                                        max_keypoints=10000,
-                                        contrast_threshold=0.009,
-                                        edge_threshold=20)
-# feature_detector = FeatureDetectionORB(cam_data=camera_data, 
-#                                         max_keypoints=20000,
-#                                         fast_threshold=20,
-#                                         # set_nms=True,
-#                                         # set_nms_allowed_points=12000,
-#                                         # set_nms_tolerance = 0.2
-#                                         )
-
-# feature_detector = FeatureDetectionSP(cam_data=camera_data, 
-#                                         max_keypoints=5000)
-# feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
-#                                             detector="superpoint",
-#                                             RANSAC_homography=True,
-#                                             RANSAC_threshold=0.015,
-#                                             RANSAC_conf=0.999)
-# feature_matcher = FeatureMatchSuperGluePair(cam_data=camera_data,
-#                                             detector='superpoint', 
-#                                             setting='indoor',
-#                                             RANSAC_homography = True,
-#                                             RANSAC_threshold=0.015,
-#                                             RANSAC_conf=0.999)
-# feature_tracker = FeatureMatchLightGlueTracking(cam_data=camera_data, 
-#                                                 detector="superpoint",
-#                                                 RANSAC_homography = False,
-#                                                 RANSAC_threshold=0.015,
-#                                                 RANSAC_conf=0.999)
-# feature_tracker = FeatureMatchFlannTracking(cam_data=camera_data, 
-#                                             detector="superpoint",
-#                                             lowes_thresh=0.70,
-#                                             RANSAC_homography = True,
-#                                             RANSAC_threshold=0.015,
-#                                             RANSAC_conf=0.999)
-# feature_tracker = FeatureMatchBFTracking(cam_data=camera_data,
-#                                          detector="superpoint",
-#                                          k=2,
-#                                          cross_check=False,
-#                                          lowes_thresh=0.70,
-#                                          RANSAC_homography = True,
-#                                          RANSAC_threshold=0.015,
-#                                          RANSAC_conf=0.999)
-
-# feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
-#                                             detector="superpoint",
-#                                             RANSAC_homography = False,
-#                                             RANSAC_threshold=0.02,
-#                                             RANSAC_conf=0.999)
-
-# feature_matcher = FeatureMatchSuperGluePair(cam_data=camera_data,
-#                                             detector="superpoint",
-#                                             RANSAC_threshold=0.02,
-#                                             RANSAC_conf=0.999)
-# feature_matcher = FeatureMatchBFPair(detector="sift", 
-#                                      cam_data=camera_data,
-#                                      cross_check=False,
-#                                      RANSAC_homography=False,
-#                                      RANSAC_threshold=0.01,
-#                                      lowes_thresh=0.750)
-
-feature_matcher = FeatureMatchFlannPair(cam_data=camera_data,
-                                        detector="sift",
-                                        k=2,
-                                        lowes_thresh=0.78,
-                                        RANSAC_homography=False,
-                                        RANSAC_threshold=0.02,
-                                        RANSAC_conf=0.999)
-# feature_matcher = FeatureMatchRoMAPair(img_path=image_path, setting="outdoor")
-feature_tracker = FeatureMatchSuperGlueTracking(cam_data=camera_data,
-                                                detector='superpoint', 
-                                                setting='indoor',
-                                                RANSAC_homography=True,
-                                                RANSAC_threshold=0.01)
+ID = "1"
+log_dir = "/home/anthonyq/projects/scene_agent/breadth_agent/results/co3d/apple_110_13051_23361_vggt_random_10"
+gpu_num = "3"
+reconstructed_scene = SfMScene(ID,
+                               image_path = image_path, 
+                               log_dir=log_dir,
+                               gpu_num=gpu_num,
+                               max_images = 15,
+                               calibration_path = calibration_path)
 
 # Solution Pipeline 
-detected_features = feature_detector()
-# print(detected_features)
+# Step 2: Detect Features
+# reconstructed_scene.FeatureDetectionSIFT(
+#     max_keypoints=3000,
+#     contrast_threshold=0.009,
+#     edge_threshold=20,
+# )
+reconstructed_scene.FeatureDetectionALIKED(max_keypoints=3000)
 
+# # Step 3: Detect Feature Pairs
+reconstructed_scene.FeatureMatchLightGluePair(detector="aliked",
+                                        # k=2,
+                                        # lowes_thresh=0.75,
+                                        RANSAC_homography=False,
+                                        RANSAC_threshold=0.5,
+                                        RANSAC_conf=0.999)
 
-tracks = False
+# reconstructed_scene.FeatureMatchLoftrPair(setting="indoor",
+#                                          RANSAC_homography=False,
+#                                          RANSAC_threshold=1.5,
+#                                          RANSAC_conf=0.999,
+#                                          coarse_thr = 0.008,
+#                                          border_rm = 0,
+#                                          pseudo_merge_eps_px=1.10
+#                                          )
+# reconstructed_scene.FeatureTrackFromPairsUnionFind()
+# reconstructed_scene.FeatureTrackingVGGSfM()
+reconstructed_scene.FeatureTrackingTapir()
+
+# Step 5: Detect Feature Tracks
+# reconstructed_scene.FeatureMatchBFTracking(
+#     detector = "sift",
+#     k=2,
+#     cross_check=False,
+#     lowes_thresh=0.70,
+#     RANSAC_threshold=0.5,
+#     RANSAC_conf=0.999
+# )
+
+tracks = True
 vis = True
 server = True
 pair = True
@@ -145,31 +115,39 @@ pair = True
 # Read Images
 image_path = sorted(glob.glob(image_path + "/*"))
 
-plot_features(image_path[0], detected_features[0].points2D, detected_features[0].image_size)
+# plot_features(image_path[0], reconstructed_scene.features[0].points2D, reconstructed_scene.features[0].image_size)
 
 if tracks and vis: 
     print("here")
-    tracked_features = feature_tracker(detected_features)
-    # image_path = sorted(glob.glob(image_path + "/*"))
+    # tracked_features = reconstructed_scene.feature_pairs
+    tracked_features = reconstructed_scene.tracked_features
+    # matched_features = reconstructed_scene.feature_pairs
 
-    j = 0
+    print(tracked_features.access_point3D(0))
+    # j = 0
+    count = 0
     for i in range(1000):
-        if (tracked_features.access_point3D(i).shape[0] > 4):
-            if j < 3: 
-                j += 1
+        if (tracked_features.access_point3D(i).shape[0] >= 3):
+            if count < 3: 
+                count += 1
                 continue
-            print(f"Point {i}:", tracked_features.access_point3D(i))
+            # print(matched_features.image_size)
+            print(tracked_features.image_size)
+            print(f"Point {i}:")
+            print(tracked_features.access_point3D(i))
+
             print()
             fig,ax = plt.subplots(1, tracked_features.access_point3D(i).shape[0], figsize=(30, 15))
 
             for j in range(tracked_features.access_point3D(i).shape[0]):
-                img = cv2.resize(cv2.imread(image_path[j]), tracked_features.image_size, interpolation=cv2.INTER_AREA)
+                index = int(tracked_features.access_point3D(i)[j,0])
+                img = cv2.resize(cv2.imread(image_path[index]),  tracked_features.image_size, interpolation=cv2.INTER_AREA)
                 #img = cv2.resize(img, (640, 480), interpolation=cv2.INTER_AREA)
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                 ax[j].imshow(img)
                 xx = tracked_features.access_point3D(i)[j, 1]
                 yy = tracked_features.access_point3D(i)[j, 2]
-                circ = Circle((xx,yy),80, color='r')
+                circ = Circle((xx,yy),20, color='r')
                 ax[j].add_patch(circ)
                 ax[j].axis('off')
             plt.tight_layout()
@@ -180,10 +158,8 @@ if tracks and vis:
             break
 
 elif vis: 
-    pair = 0
-
-    matched_features = feature_matcher(detected_features)
-
+    pair = 1
+    matched_features = reconstructed_scene.feature_pairs
     def plot_matches(img1, img2, feat1, feat2):
     
         # Stack images horizontally

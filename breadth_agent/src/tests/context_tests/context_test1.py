@@ -4,11 +4,11 @@ GOAL RECONSTRUCTION: Dense Reconstruction
 STEP 1: Initialize the scene through the object SfMScene and read in Camera data
 - Initialize the scene as SfMScene(...)
 - Set the image path to the provided directory of images to be read, resize, and pre-process images for reconstruction
-  - image_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan14_normal_lighting
+  - image_path = "/work/dataset/DTU/scan14_normal_lighting"
 - Set max_images=20 (Never above 40), we want to only use the first 20 images when evaluating the feasibility of the workflow.
 - Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
   activate the parameter
-  - calibration_path = C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz
+  - calibration_path = "/work/dataset/DTU/calibration_DTU_new.npz"
 
 STEP 2: Detect Features
 - Select the SIFT module since the scene featuring the object is well lit, in an indoor setting, and the object is of a brick house that is 
@@ -27,7 +27,7 @@ STEP 2: Detect Features
 
 STEP 3: Detect Feature Matches
 - Select the Flann feature matcher to utilize a nearest neighbor matcher, as we only need approximate matches here that are sparse for PnP
-    - Set RANSAC_threshold = 0.02 (Default 0.3, Points are normalized, so we base reprojection threshold on normalized coordinates)
+    - Set RANSAC_threshold = 2.0 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
       - Reasoning: Scene has consistent lighting, and we want to be aggressive in outlier removal since PnP algorithms are not as robust to outliers, 
         but keep enough points in total for PnP to work accurately with enough points across the entire image.
     - Set lowes_threshold = 0.8 (Default is 0.75)
@@ -48,35 +48,33 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
       - Reasoning: Since the scene is well-lit and textured, we have a higher confidence of the proposed solutions to be accurate
 
 STEP 5: Track Features across multiple images to create feature tracks for 3D point estimation
--  For sparse reconstruction, we want as many 3D points as possible with as long possible track lengths. The more accurate matcher here is the Brute-Force 
-   Tracking tool, so use the BFTracking module since it's more accurate and robust to trickling outliers.
-    - Set RANSAC_threshold = 0.008 (Default 3.0, Points are normalized, so we base reprojection threshold on normalized coordinates)
-      - Reasoning: Although the scene is well-lit and good for SIFT features, we want to be extremely aggressive in outlier removal since we are completing
-        feature tracks, thus we opt for a 0.008 ransac threshold instead of the 0.02 we did for pairwise matching 
-    - Set lowes_thresh = 0.65 (Default 0.75)
-      - Reasoning: as we want to be more strict on the feature tracks for more accurate estimate of 3D points in the scene
-        we are more aggressive in lowes threshold to ensure the removal of most outliers, even if we remove inliers in the process.
+- For sparse reconstruction, we want as many 3D points as possible with as long possible track lengths. Since are features are accurate due to high
+  textures along with many pair correspondences, we utilize a direct union find on the feature correspondences. Thus use the module
+  FeatureTrackFromPairsUnionFind.
 
 STEP 6: Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
-- We are usng the Sparse Reconstruction module, specifically the classical approach with a monocular camera, so opt for the Sparse3DReconstruction module
+- We are usng the Incremental Sparse Reconstruction module, specifically the classical approach with a monocular camera, so opt for the 
+  Sparse3DReconstructionIncremental module
     - Set min_observe=4 (Default 3)
       - Reasoning: Since we are using the Brute Force Matcher for tracking features, we will have longer features to use for 3D point estimation, since this scene has 
         minimal camera movement, we need a wider baseline as well, so we use 4 2D points minimum to estimate an acceptable 3D point for sparse reconstruction. 
     - Set min_angle=2.0 (Default 1.0) 
       - Reasoning: utilize a larger minimum angle to ensure 3D point estimates are more acccurate, and since we have longer tracks, this is very feasible for this scene.
-    - Set multi_view = True (Default True)
-      - Reasoning: we are tracking features, so the estimation method is multi-view (Which is most, if not all, cases for reconstruction)
+    - max_reproj_error = 1.5
+      - Reasoning: The maximum reprojection error allowed for a triangulated 3D point, we set to 1.5 since we have many features and tracks to be aggresive.
+    - reproj_threshold = 1.0
+      - Reasoning: The reprojection error threshold used to determine whether an individual 2D observation is an inlier, slightly more aggresive than default (1.5)
+    - max_filter_iterations = 5
+      - Reasoning: The maximum number of iterations used to remove outlier observations, which we keep to the default 5.
 
 STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 - To ensure scene is geometrically correct, we want to set 
     - Set max_num_iterations=200, 
       - Reasoning: Since initial 2D points will not be as accurate due to inaccuracy of certain matches and tracks in previous methods despite
         optimal scene lighting and texture being for SIFT features, we have to set interations to 200 to ensure convergence of scene for optimal reconstruction.
-    - Set GPU = False,
-      - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
-
+    
 STEP 8: Apply Dense Reconstruction Module for dense scene reconstruction. 
-- Since we have a Mono camera, and not using VGGT, we opt for the traditonal approach. Use Dense3DReconstructionMono module.
+- Since we have a Mono camera, and not using VGGT, we opt for the traditonal approach. Use Dense3DReconstructionMVS module.
     - Set reproj_error= 3.0 (Default 3.0, in Pixel Coordinates)
       - Reasoning: Default setting to ensure the maximum reprojection error of a given 3D point is only 3.0 pixels
     - Set min_triangulation_angle = 1.0 (Default )
@@ -93,24 +91,28 @@ STEP 8: Apply Dense Reconstruction Module for dense scene reconstruction.
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path ="/home/anthonyq/datasets/DTU/scan23" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\scan14_normal_lighting"
-calibration_path = "/home/anthonyq/datasets/DTU/calibration_DTU_new.npz" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\DTU\\calibration_DTU_new.npz"
+image_path = "/home/anthonyq/datasets/DTU/scan23" 
+calibration_path = "/home/anthonyq/datasets/DTU/calibration_DTU_new.npz"
+# image_path = "/home/anthonyq/datasets/co3d_v2/apple/110_13051_23361/vggt_random_10"#"/home/anthonyq/datasets/DTU/scan23" 
+# calibration_path = "/home/anthonyq/datasets/co3d_v2/apple/calibration_new_110_13051_23361.npz" #"/home/anthonyq/datasets/DTU/calibration_DTU_new.npz" 
 
-from modules.features import FeatureDetectionSIFT
-from modules.featurematching import FeatureMatchFlannPair, FeatureMatchBFTracking
-from modules.camerapose import CamPoseEstimatorEssentialToPnP
-from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.scenereconstruction import Sparse3DReconstructionMono, Dense3DReconstructionMono
-from modules.optimization import BundleAdjustmentOptimizerGlobal
-from modules.baseclass import SfMScene
+from sfmcore.features import FeatureDetectionSIFT
+from sfmcore.featurematching import FeatureMatchFlannPair
+from sfmcore.featuretracking import FeatureTrackFromPairsUnionFind
+from sfmcore.camerapose import CamPoseEstimatorEssentialToPnP
+from sfmcore.optimization import BundleAdjustmentOptimizerLocal
+from sfmcore.scenereconstruction import Sparse3DReconstructionIncremental, Dense3DReconstructionMVS
+from sfmcore.optimization import BundleAdjustmentOptimizerGlobal
+from sfmcore.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(id=2,
-                                gpu_num="3",
+                                gpu_num="5",
                                 log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/ETH/test",
                                 image_path = image_path, 
-                                max_images = 5,
+                                max_images = 10,
                                 calibration_path = calibration_path)
+
 
 # Step 2: Detect Features
 reconstructed_scene.FeatureDetectionSIFT(
@@ -129,23 +131,24 @@ reconstructed_scene.FeatureMatchFlannPair(
 
 # Step 4: Detect/Estimate Camera Poses
 reconstructed_scene.CamPoseEstimatorEssentialToPnP(
-    reprojection_error=3.0,
-    iteration_count=200,
-    confidence=0.995
+    iteration_count=150,
+    reprojection_error = 3.0,
+    optimizer = ("BundleAdjustmentOptimizerLocal", {
+        "max_num_iterations": 25,
+        "robust_loss": True
+    }),
 )
 
 # Step 5: Detect Feature Tracks
-reconstructed_scene.FeatureMatchBFTracking(
-    detector="sift",
-    RANSAC_threshold=1.0,
-    lowes_thresh=0.65
-)
+reconstructed_scene.FeatureTrackFromPairsUnionFind()
 
 # Step 6: Estimate Sparse Reconstruction
-reconstructed_scene.Sparse3DReconstructionMono(
+reconstructed_scene.Sparse3DReconstructionIncremental(
     min_observe=3,
     min_angle=2.0,
-    multi_view=True
+    max_reproj_error=1.5,
+    reproj_threshold=1.0,
+    max_filter_iterations=5
 )
 
 # Step 7: Run Optimization
@@ -154,7 +157,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
 )
 
 # STEP 8: Run Rense Reconstruction Algorithm
-# reconstructed_scene.Dense3DReconstructionMono(
+# reconstructed_scene.Dense3DReconstructionMVS(
 #     reproj_error=3.0,
 #     min_triangulation_angle=1.0,
 #     num_samples=15,

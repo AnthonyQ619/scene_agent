@@ -25,10 +25,10 @@ from PIL import Image
 from torchvision import transforms as tvf
 
 from mapanything.models import MapAnything
-from modules.models.sfm_models.vggt.dependency.np_to_pycolmap import batch_np_matrix_to_pycolmap, batch_np_matrix_to_pycolmap_wo_track, calculate_reproj_error
-from modules.visualize import VisualizeScene
+from sfmcore.models.sfm_models.vggt.dependency.np_to_pycolmap import batch_np_matrix_to_pycolmap, batch_np_matrix_to_pycolmap_wo_track, calculate_reproj_error
+from sfmcore.visualize import VisualizeScene
 
-from modules.models.sfm_models.vggt.dependency.track_predict import predict_tracks
+from sfmcore.models.sfm_models.vggt.dependency.track_predict import predict_tracks
 from mapanything.utils.geometry import closed_form_pose_inverse, depthmap_to_world_frame
 from mapanything.utils.image import rgb
 from mapanything.utils.misc import seed_everything

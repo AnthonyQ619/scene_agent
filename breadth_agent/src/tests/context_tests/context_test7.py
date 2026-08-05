@@ -4,11 +4,11 @@ GOAL RECONSTRUCTION: Camera Pose Reconstruction
 STEP 1: Read in Camera data
 - Initialize the scene as SfMScene(...)
 - Set the image path to the provided directory of images to be read, resize, and pre-process images for reconstruction
-  - image_path = D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\167_18184_34441\\images
+  - image_path = /work/dataset/CO3Dv2_DATASET/hydrant/167_18184_34441/images
 - Set max_images=20 (Never above 40), we want to only use the first 20 images when evaluating the feasibility of the workflow.
 - Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
   activate the parameter
-  - calibration_path = D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\calibration_new_167_18184_34441.npz
+  - calibration_path = /work/dataset/CO3Dv2_DATASET/hydrant/calibration_new_167_18184_34441.npz
 
 STEP 2: Detect Features
 - Select the SIFT module since the scene featuring an outdoor setting, and the object is of a fire hydrant that had consistent lighting and
@@ -28,22 +28,15 @@ STEP 2: Detect Features
 
 STEP 3: Detect Feature Matches
 - Select the Flann feature matcher to utilize a nearest neighbor matcher, as we only need approximate matches here that are sparse for PnP
-    - Set RANSAC_threshold = 0.02 (Default 0.3, Points are normalized, so we base reprojection threshold on normalized coordinates)
+    - Set RANSAC_threshold = 1.0 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
       - Reasoning: Scene has consistent lighting, and we want to be aggressive in outlier removal since PnP algorithms are not as robust to outliers, 
         but keep enough points in total for PnP to work accurately with enough points across the entire image.
     - Set lowes_threshold = 0.8 (Default is 0.75)
       - Reasoning: to enable more matching pairs to pass since any higher threshold will remove usable inliers for matches, that will be more clustered 
         in high textured/accurate areas. 
 
-STEP 4:
-- Estimate the camera pose using matching feature pairs of the scene
-    - Set reprojection_error=3.0, since we are including corner points as well to ensure as many 3D points are included as possible for a 
-      and more accurate bundle adjustment
-    - Set iteration_count=200, default setting for iteration count of the Levenberg-Marquardt algorithm during pose estimation. Enough for 
-      a well-lit and textured scene for optimal initial pose estimation
-    - Set confidence=0.995, Since the scene is well-lit and textured, we have a higher confidence of the proposed solutions 
-
 STEP 4:Estimate the camera pose using detected matching feature pairs.
+- Note, for feature based pose estimation, we still need to do global optimization to store camera poses at the end so we can utilize them for our needs!
 - Estimate the camera pose using matching feature pairs of the scene
     - Since we are using SIFT feature detector in a more difficult and less ideal setting (Outdoor but highly textured), we need further refinment
       in pose estimation for more accurate scene reconsturction
@@ -56,8 +49,6 @@ STEP 4:Estimate the camera pose using detected matching feature pairs.
         - Set window_size = 5 (Default is 8)
           - Reasoning: Since camera movement is non-trivial or minimal, slightly jerky, we opt for a smaller window size since the baseline between frames is slightly larger. 
             We also do not want Bundle adjustment to not over correct, so a larger window size ensures enough data is collected for optimization and limits over correction.
-        - Set GPU = False,
-          - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.    
     - Set reprojection_error=3.0 (Pixel Coordinates)
       - Reasoning: since we have inherently less accurate key points due to scene environment, we leave slightly larger error in pose estimation that will be handled 
         in bundle adjustment both global and local optimization.
@@ -66,25 +57,52 @@ STEP 4:Estimate the camera pose using detected matching feature pairs.
         the scene being outdoors with less consistent lighting, the increased iteration count for optimization will improve initial pose estimates for scene reconstruction.
     - Set confidence=0.995
       - Reasoning: Since we are applying local optimization, the proposed frame we estimate we have higher confidence to be correct.
+
+STEP 5: Track Features across multiple images to create feature tracks for 3D point estimation
+- For sparse reconstruction, we want as many 3D points as possible with as long possible track lengths. Since are features are accurate due to high
+  textures along with many pair correspondences, we utilize a direct union find on the feature correspondences. Thus use the module
+  FeatureTrackFromPairsUnionFind.
+      
+STEP 6: Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
+- We are usng the Incremental Sparse Reconstruction module, specifically the classical approach with a monocular camera, so opt for the 
+  Sparse3DReconstructionIncremental module
+    - Set min_observe = 3 (Default 3)
+    - Set min_angle = 1.0 (Default 1.0) 
+      - Reasoning: utilize the default minimum angle to ensure 3D point estimates are possible since we have longer tracks and some points in the tracks will
+        manipulate the minimum angle score, so safest possibility of reconstruction here is taking the default minimum angle to reconstruct 3D points.
+    - max_reproj_error = 1.5
+      - Reasoning: The maximum reprojection error allowed for a triangulated 3D point, we set to 1.5 since we have many features and tracks to be aggresive.
+    - reproj_threshold = 1.0
+      - Reasoning: The reprojection error threshold used to determine whether an individual 2D observation is an inlier, slightly more aggresive than default (1.5)
+    - max_filter_iterations = 5
+      - Reasoning: The maximum number of iterations used to remove outlier observations, which we keep to the default 5.
+
+STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction/Pose Estimation
+- To ensure scene is geometrically correct, we want to set 
+    - Set max_num_iterations=250, 
+      - Reasoning: Since initial 2D points will not be as accurate due to inaccuracy of certain matches and tracks in previous methods despite
+        optimal scene lighting and texture being for SIFT features, we have to set interations to 250 to ensure convergence of scene for optimal reconstruction.
 """
 
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path = "/home/anthonyq/datasets/co3d_v2/hydrant/167_18184_34441/images" #"D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\167_18184_34441\\images"
-calibration_path = "/home/anthonyq/datasets/co3d_v2/hydrant/calibration_new_167_18184_34441.npz" #"D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\calibration_new_167_18184_34441.npz"
+image_path = "/home/anthonyq/datasets/context_images/hydrant/167_18184_34441/images" #"D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\167_18184_34441\\images"
+calibration_path = "/home/anthonyq/datasets/context_images/hydrant/calibration_new_167_18184_34441.npz" #"D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\calibration_new_167_18184_34441.npz"
 
-from modules.features import FeatureDetectionSIFT
-from modules.featurematching import FeatureMatchFlannPair
-from modules.camerapose import CamPoseEstimatorEssentialToPnP
-from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.scenereconstruction import Sparse3DReconstructionMono
-from modules.optimization import BundleAdjustmentOptimizerGlobal
-from modules.baseclass import SfMScene
+from sfmcore.features import FeatureDetectionSIFT
+from sfmcore.featurematching import FeatureMatchFlannPair
+from sfmcore.camerapose import CamPoseEstimatorEssentialToPnP
+from sfmcore.featuretracking import FeatureTrackFromPairsUnionFind
+from sfmcore.optimization import BundleAdjustmentOptimizerLocal
+from sfmcore.scenereconstruction import Sparse3DReconstructionIncremental
+from sfmcore.optimization import BundleAdjustmentOptimizerGlobal
+from sfmcore.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(id=7, 
-                                log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/ETH/eth_living_room",
+                                gpu_num="5",
+                                log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/DTU/",
                                 image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
@@ -115,17 +133,15 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 )
 
 # Step 5: Detect Feature Tracks
-reconstructed_scene.FeatureMatchBFTracking(
-    detector="sift",
-    RANSAC_threshold=1.0,
-    lowes_thresh=0.75
-)
+reconstructed_scene.FeatureTrackFromPairsUnionFind()
 
 # Step 6: Estimate Sparse Reconstruction
-reconstructed_scene.Sparse3DReconstructionMono(
+reconstructed_scene.Sparse3DReconstructionIncremental(
     min_observe=3,
     min_angle=1.0,
-    multi_view=True
+    max_reproj_error=1.5,
+    reproj_threshold=1.0,
+    max_filter_iterations=5
 )
 
 # Step 7: Run Optimization

@@ -1,14 +1,14 @@
 [project]
 authors = [{name = "Anthony Quiroga", email = "aquiroga@ucsd.edu"}]
 dependencies = [
-    "numpy>=2.1.3",
+    "numpy==1.26.4",
     "Pillow",
     "huggingface_hub",
     "einops",
     "safetensors",
     "opencv-python",
 ]
-name = "modules"
+name = "sfmcore"
 requires-python = ">= 3.10"
 version = "0.0.1"
 
@@ -23,4 +23,4 @@ build-backend = "setuptools.build_meta"
 # setuptools configuration
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["modules*"]
+include = ["sfmcore*"]

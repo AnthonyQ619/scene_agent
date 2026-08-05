@@ -344,7 +344,7 @@ def demo_fn(gpu_num: str, image_dir:str, log_dir:str, log_file:str):
             max_query_pts=4096,
             query_frame_num=frame_nums,
             keypoint_extractor="sp",
-            fine_tracking=False,
+            fine_tracking=True,
         )
 
         torch.cuda.empty_cache()
@@ -456,8 +456,8 @@ gpu_num = "6"
 
 
 # Co3Dv2 Test Run!
-# img_postfix = "vggt_random_10" # Swap to Sequential String when ready
-img_postfix = "middle_sequential_10"
+img_postfix = "vggt_random_10" # Swap to Sequential String when ready
+# img_postfix = "middle_sequential_10"
 co3d_images = ["mouse/107_12753_23606", "mouse/377_43416_86289", 
                "orange/374_42196_84367", "orange/385_45386_90752", 
                "plant/247_26441_50907", "plant/374_42005_84358",

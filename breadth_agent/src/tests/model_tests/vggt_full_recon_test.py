@@ -11,7 +11,7 @@ import os
 import copy
 import torch
 import torch.nn.functional as F
-from modules.models.sfm_models.vggt.dependency.projection import project_3D_points_np
+from sfmcore.models.sfm_models.vggt.dependency.projection import project_3D_points_np
 
 # Configure CUDA settings
 torch.backends.cudnn.enabled = True
@@ -29,15 +29,15 @@ os.add_dll_directory(r"C:\\Program Files\\NVIDIA cuDSS\\v0.7\\bin\\12")
 import pycolmap
 
 
-from modules.models.sfm_models.vggt.models.vggt import VGGT
-from modules.models.sfm_models.vggt.utils.load_fn import load_and_preprocess_images_square
-from modules.models.sfm_models.vggt.utils.pose_enc import pose_encoding_to_extri_intri
-from modules.models.sfm_models.vggt.utils.geometry import unproject_depth_map_to_point_map
-from modules.models.sfm_models.vggt.utils.helper import create_pixel_coordinate_grid, randomly_limit_trues
-from modules.models.sfm_models.vggt.dependency.track_predict import predict_tracks
-from modules.models.sfm_models.vggt.dependency.np_to_pycolmap import batch_np_matrix_to_pycolmap, batch_np_matrix_to_pycolmap_wo_track, calculate_reproj_error
+from sfmcore.models.sfm_models.vggt.models.vggt import VGGT
+from sfmcore.models.sfm_models.vggt.utils.load_fn import load_and_preprocess_images_square
+from sfmcore.models.sfm_models.vggt.utils.pose_enc import pose_encoding_to_extri_intri
+from sfmcore.models.sfm_models.vggt.utils.geometry import unproject_depth_map_to_point_map
+from sfmcore.models.sfm_models.vggt.utils.helper import create_pixel_coordinate_grid, randomly_limit_trues
+from sfmcore.models.sfm_models.vggt.dependency.track_predict import predict_tracks
+from sfmcore.models.sfm_models.vggt.dependency.np_to_pycolmap import batch_np_matrix_to_pycolmap, batch_np_matrix_to_pycolmap_wo_track, calculate_reproj_error
 
-from modules.visualize import VisualizeScene
+from sfmcore.visualize import VisualizeScene
 
 # TODO: add support for masks
 # TODO: add iterative BA
@@ -118,7 +118,7 @@ def demo_fn():
 
     # Run VGGT for camera and depth estimation
     model = VGGT()
-    WEIGHT_MODULE = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\modules\\models\\sfm_models\\vggt\\weights\\model.pt"
+    WEIGHT_MODULE = "C:\\Users\\Anthony\\Documents\\Projects\\scene_agent\\breadth_agent\\src\\sfmcore\\models\\sfm_models\\vggt\\weights\\model.pt"
     model.load_state_dict(torch.load(WEIGHT_MODULE, weights_only=True))
     model.eval()
     model = model.to(device)

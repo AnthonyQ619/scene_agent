@@ -1,18 +1,22 @@
-# from modules.optimization import BundleAdjustmentOptimizerLocal
-# from modules.utilities.utilities import CalibrationReader
-from modules.features import FeatureDetectionSIFT, FeatureDetectionSP, FeatureDetectionORB
-# from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.featurematching import (FeatureMatchFlannPair, 
-                                     FeatureMatchLoftrPair, 
+from sfmcore.features import FeatureDetectionSIFT, FeatureDetectionSP, FeatureDetectionORB, FeatureDetectionALIKED
+from sfmcore.featurematching import (FeatureMatchFlannTracking, 
+                                     FeatureMatchBFTracking,
+                                     FeatureMatchFlannPair,
                                      FeatureMatchBFPair,
-                                     FeatureMatchLightGluePair,
-                                     FeatureMatchLightGlueTracking,
+                                     FeatureMatchLoftrPair,
+                                     FeatureMatchLightGlueTracking, 
+                                     FeatureMatchSuperGlueTracking, 
+                                     FeatureMatchLightGluePair, 
                                      FeatureMatchSuperGluePair,
-                                     FeatureMatchRoMAPair)
-from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.camerapose import CamPoseEstimatorEssentialToPnP, CamPoseEstimatorVGGTModel
-from modules.visualize import VisualizeScene, VisualizePose
-from modules.cameramanager import CameraDataManager
+                                     FeatureMatchRoMAPair,)
+                                     
+from sfmcore.featuretracking import FeatureTrackFromPairsUnionFind
+from sfmcore.optimization import BundleAdjustmentOptimizerLocal
+from sfmcore.camerapose import CamPoseEstimatorEssentialToPnP
+from sfmcore.scenereconstruction import Sparse3DReconstructionMono
+from sfmcore.visualize import VisualizeScene, visualize_camera_poses_plotly
+from sfmcore.baseclass import SfMScene
+
 import glob
 import cv2
 import matplotlib.pyplot as plt
@@ -27,163 +31,74 @@ import matplotlib.pyplot as plt
 
 
 # Construct Modules with Initialized Arguments
-# image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
-# Construct Modules with Initialized Arguments
-image_path = "/home/anthonyq/datasets/DTU/DTU/scan20/images"
-calibration_path = "/home/anthonyq/datasets/DTU/DTU/calibration_DTU_new.npz"
+image_path = "/home/anthonyq/datasets/DTU/scan15"
+calibration_path = "/home/anthonyq/datasets/DTU/calibration_DTU_new.npz"
 # image_path = "C:\\Users\\Anthony\\Documents\\Projects\datasets\\Structure-from-Motion\\sfm_dataset"
 # calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\Structure-from-Motion\\calibration_new.npz"
 # image_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\images\\dslr_images_undistorted"
 # calibration_path = "C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\ETH\\statue\\dslr_calibration_undistorted\\calibration_new.npz"
 
-# # Read Camera Data
-# CDM = CameraDataManager(image_path=image_path,
-#                         calibration_path=calibration_path)
-#                         # target_resolution=(1024, 1024))
+ID = "1"
+log_dir = "/home/anthonyq/projects/scene_agent/breadth_agent/results/co3d/apple_110_13051_23361_vggt_random_10"
+gpu_num = "5"
 
-# cam_data = CDM.get_camera_data()
-# STEP 1: Read in Camera Data
-from modules.cameramanager import CameraDataManager
+## NEW SFM PIPELINE
+# Step 1: Read in Calibration/Image Data
+reconstructed_scene = SfMScene(ID,
+                                image_path = image_path, 
+                                log_dir=log_dir,
+                                gpu_num=gpu_num,
+                                # max_images = 15,
+                                calibration_path = calibration_path)
 
-CDM = CameraDataManager(image_path=image_path,
-                        calibration_path=calibration_path,
-                        max_images=10)
-                        # target_resolution=(480, 640))
+# Step 2: Detect Features
+# reconstructed_scene.FeatureDetectionSIFT(
+#     max_keypoints=10000,
+#     contrast_threshold=0.009,
+#     edge_threshold=20,
+# )
 
-# Get Camera Data
-camera_data = CDM.get_camera_data()
+## ALIKED
+# reconstructed_scene.FeatureDetectionALIKED(max_keypoints=6000,
+#                                             det_thres=0.2)
+## SuperPoint
+# reconstructed_scene.FeatureDetectionSP(max_keypoints=6000)
 
-# STEP 2: Estimate Features per Image
-from modules.features import FeatureDetectionORB
-# Feature Module Initialization
-# feature_detector = FeatureDetectionORB(cam_data=camera_data, 
-#                                         max_keypoints=20000,
-#                                         set_nms=True,
-#                                         set_nms_allowed_points=8000,
-#                                         set_nms_tolerance = 0.2
-#                                         )
-feature_detector = FeatureDetectionSIFT(cam_data=camera_data, 
-                                        max_keypoints=9000,
-                                        contrast_threshold=0.02,
-                                        edge_threshold=20)
-# feature_detector = FeatureDetectionSP(cam_data=camera_data,
-#                                       max_keypoints=5000)
-# Detect Features for all Images
-features = feature_detector()
+# # Step 3: Detect Feature Pairs
+# reconstructed_scene.FeatureMatchBFPair(detector="sp",
+#                                         k=2,
+#                                         lowes_thresh=0.78,
+#                                         RANSAC_homography=False,
+#                                         RANSAC_threshold=2.0,
+#                                         RANSAC_conf=0.999)
 
-# STEP 3: Match Features Per Image 
-# from modules.featurematching import FeatureMatchFlannPair
-# # Pairwise Feature Matching Module Initialization
-# feature_matcher = FeatureMatchFlannPair(detector='orb', 
-#                                         cam_data=camera_data,
-#                                         RANSAC_threshold=0.07,
-#                                         lowes_thresh=0.75)
+## LOFTR
+# reconstructed_scene.FeatureMatchLoftrPair(setting="indoor",
+#                                          RANSAC_homography=False,
+#                                          RANSAC_threshold=1.5,
+#                                          RANSAC_conf=0.999,
+#                                          coarse_thr = 0.008,
+#                                          border_rm = 0,
+#                                          pseudo_merge_eps_px=1.10
+#                                          )
 
-from modules.featurematching import FeatureMatchBFPair, FeatureMatchLightGluePair
-# Pairwise Feature Matching Module Initialization
-feature_matcher = FeatureMatchLightGluePair(detector='sift', 
-                                     cam_data=camera_data,
-                                     RANSAC_threshold=0.02,
-                                     RANSAC_conf=0.999)
-                                    #  lowes_thresh=0.8)
-# feature_matcher = FeatureMatchFlannPair(detector="sift", 
-#                                      cam_data=camera_data,
-#                                      RANSAC_threshold=0.03)
-# feature_matcher = FeatureMatchLightGluePair(cam_data=camera_data,
-#                                             RANSAC_threshold=0.03)
+## ROMA
+reconstructed_scene.FeatureMatchRoMAPair(setting="indoor",
+                                         RANSAC_homography=False,
+                                         RANSAC_threshold=1.5,
+                                         RANSAC_conf=0.999,
+                                         pseudo_merge_eps_px=1.10,
+                                         max_keypoints=5000
+                                         )
 
-# Detect Image Pair Correspondences for Pose Estimation
-feature_pairs = feature_matcher(features=features)
+# Step 4: Detect/Estimate Camera Poses
+reconstructed_scene.CamPoseEstimatorEssentialToPnP(
+    iteration_count=150,
+    reprojection_error = 3.0,
+    optimizer = ("BundleAdjustmentOptimizerLocal", {
+        "max_num_iterations": 25,
+        "robust_loss": True
+    }),
+)
 
-# STEP 4: Estimate Camera Poses of Scene with Feature Pairs
-from modules.optimization import BundleAdjustmentOptimizerLocal
-
-# Build Optimizer
-optimizer_local = BundleAdjustmentOptimizerLocal(max_num_iterations=20,
-                                                 window_size=5,
-                                                 cam_data=camera_data,
-                                                 use_gpu=False)
-
-# Run Optimizer
-# optimal_scene, _ = optimizer.optimize(sparse_scene, 
-#                                       cam_data=camera_data)
-
-from modules.camerapose import CamPoseEstimatorEssentialToPnP
-# Camera Pose Module Initialization
-pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=camera_data,
-                                                reprojection_error=3.0,
-                                                iteration_count=300,
-                                                confidence=0.995,
-                                                optimizer=optimizer_local)
-
-# From estimated features, estimate the camera poses for all image frames
-cam_poses = pose_estimator(feature_pairs=feature_pairs)
-
-# visualize = VisualizePose()
-# visualize(pose_data = cam_poses, 
-#           server = True, 
-#           file_name = os.path.dirname(os.path.abspath(__file__)) + '/feature_images/cam_poses.png')
-# # Feature Module Initialization
-# feature_detector = FeatureDetectionSIFT(cam_data=cam_data,
-#                                       max_keypoints=3000,
-#                                       ) #FeatureDetectionORB(image_path=image_path, max_keypoints=3000)
-# # feature_matcher = FeatureMatchBFPair(detector="sift", 
-# #                                      cam_data=cam_data,
-# #                                      cross_check=False,
-# #                                      RANSAC_threshold=0.005)
-
-# # feature_matcher = FeatureMatchRoMAPair(img_path=image_path, setting="indoor")
-# pose_estimator = CamPoseEstimatorVGGTModel(cam_data=cam_data,
-#                                            image_path=image_path) #CamPoseEstimatorEssentialToPnP(calibration=calibration_data, image_path=image_path, detector="sift")
-# # pose_estimator = CamPoseEstimatorEssentialToPnP(cam_data=cam_data,
-# #                                                 reprojection_error=4.0,
-# #                                                 iteration_count=200,
-# #                                                 confidence=0.995)
-
-# # Solution Pipeline
-
-# detected_features = feature_detector()
-# # matched_features = feature_matcher(detected_features)
-# # matched_features = feature_matcher()
-
-# # print(matched_features.access_matching_pair(0)[0].shape)
-# # print(len(detected_features))
-
-# # Include Pairwise feature matching here
-
-# cam_poses = pose_estimator() #(matched_features) # (detected_features)
-
-# print(cam_poses.camera_pose)
-# print(calibration_data.K_cams)
-
-new_point_cloud = []
-for i in range(len(cam_poses.camera_pose)):
-    new_point_cloud.append(cam_poses.camera_pose[i][:,3:])
-
-new_point_cloud = np.array(new_point_cloud).squeeze()
-print(new_point_cloud.shape)
-# print(new_point_cloud)
-# pcd = o3d.geometry.PointCloud()
-# pcd.points = o3d.utility.Vector3dVector(new_point_cloud)
-
-# gui.Application.instance.initialize()
-
-# window = gui.Application.instance.create_window("Mesh-Viewer", 1024, 750)
-
-# scene = gui.SceneWidget()
-# scene.scene = rendering.Open3DScene(window.renderer)
-
-# window.add_child(scene)
-
-# matGT = rendering.MaterialRecord()
-# matGT.shader = 'defaultUnlit'
-# matGT.point_size = 7.0
-# matGT.base_color = np.ndarray(shape=(4,1), buffer=np.array([0.0, 0.0, 1.0, 1.0]), dtype=float)
-
-# scene.scene.add_geometry("mesh_name2", pcd, matGT)
-# scene.scene.add_geometry("mesh_name3", o3d.geometry.TriangleMesh.create_coordinate_frame(), rendering.MaterialRecord())
-
-# bounds = pcd.get_axis_aligned_bounding_box()
-# scene.setup_camera(60, bounds, bounds.get_center())
-
-# gui.Application.instance.run()  # Run until user closes window
+visualize_camera_poses_plotly(reconstructed_scene.camera_poses)

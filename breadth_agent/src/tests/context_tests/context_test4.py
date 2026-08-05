@@ -4,11 +4,11 @@ GOAL RECONSTRUCTION: Sparse Reconstruction
 STEP 1: Initialize the scene through the object SfMScene and read in Camera data
 - Initialize the scene as SfMScene(...)
 - Set the image path to the provided directory of images to be read, resize, and pre-process images for reconstruction
-  - image_path = D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\apple\\189_20393_38136\\images
+  - image_path = /work/dataset/CO3Dv2_DATASET/apple/189_20393_38136/images
 - Set max_images=20 (Never above 40), we want to only use the first 20 images when evaluating the feasibility of the workflow.
 - Set the calibration path to the provided calibration file if one is provided. Since it is provided, we have a calibrated camera and 
   activate the parameter
-  - calibration_path = D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\apple\\calibration_new_189_20393_38136.npz
+  - calibration_path = /work/dataset/CO3Dv2_DATASET/apple/calibration_new_189_20393_38136.npz
 
 STEP 2: Detect Features
 - Select the SuperPoint module since the scene featuring the object creates shadows with diffuse lighting, and even though it is in an 
@@ -23,8 +23,8 @@ STEP 3: Detect Feature Matches
 - Select the SuperGlue feature matcher for image pair matching to utilize as a robust matcher for SuperPoint for point correspondence. We opt for SuperGlue 
   instead of lightglue here for more accuracy, as estimating camera pose using the PnP algorithm is not robust to outliers, and there's intrinsic error in superpoint
   keypoints, so we need very accurate correspondences to offset the baseline error of the detector here.
-    - Set RANSAC_threshold to 0.03 (Default 0.3, Points are normalized, so we base reprojection threshold on normalized coordinates)
-      Reasoning: for much more strict outlier rejection since we need to ensure we remove all outlier correspondences possible, since inlier correspondences will 
+    - Set RANSAC_threshold = 1.0 (Default 3.0, Points are in pixel coordinates, so we base reprojection threshold on pixel coordinates)
+      Reasoning: We opt for much more strict outlier rejection since we need to ensure we remove all outlier correspondences possible, since inlier correspondences will 
       inherently contain some errors, we need to have only inliers to reduce the compounding error in pose estimation as much as possible.
 
 STEP 4: Estimate the camera pose using detected matching feature pairs.
@@ -38,8 +38,6 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
         - Set window_size = 12 (Default is 8)
           - Reasoning: Since camera movement is minimal and we want to ensure we have enough data for better pose correction, we opt for a larger window size. 
             We also do not want Bundle adjustment to not over correct, so a larger window size ensures enough data is collected for optimization and limits over correction.
-        - Set GPU = False,
-            - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
     - Set reprojection_error=3.0 (Pixel Coordinates)
       - Reasoning: since we have inherently less accurate key points (SuperPoint), we leave slightly larger error in pose estimation that will be handled in bundle adjustment
         both global and local optimization.
@@ -50,24 +48,24 @@ STEP 4: Estimate the camera pose using detected matching feature pairs.
       - Reasoning: Since we are applying local optimization, the proposed frame we estimate we have higher confidence to be correct.
 
 STEP 5: Track Features across multiple images to create feature tracks for 3D point estimation
-- Track Features across multiple images using the SuperGlue Feature Tracking tool
-    - Set RANSAC_threshold = 0.05
-      - Reasoning: less strict since we are using SuperGlue with SuperPoint features (which are inherently inaccuarate), 
-        which is more accurate than lightglue and we want to build longer feature tracks 
-        for more accurate estimate of 3D points optimization in the scene
-    - Set the detector = "superpoint" as that is the detector we are using.
-    - Set the setting = "Indoor" 
-      - Reasoning: utilize the indoor weights of the model ("Outdoor" is for outdoor scenes)
+- For sparse reconstruction, we want as many 3D points as possible with as long possible track lengths. Since are features are accurate due to high
+  textures along with many pair correspondences, we utilize a direct union find on the feature correspondences. Thus use the module
+  FeatureTrackFromPairsUnionFind.
 
 STEP 6: Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
-- Reconstruct the Scene now that we have the estimated Camera Poses and Tracked features for multi-view estimation
-    - Set min_observe = 4 (Default 3), 
-      - Reasoning: since we are using SuperPoint with SuperGlue, we have accessibility to large tracks as the lighting changes are not extreme enough
+- We are usng the Incremental Sparse Reconstruction module, specifically the classical approach with a monocular camera, so opt for the 
+  Sparse3DReconstructionIncremental module
+  - Set min_observe = 4 (Default 3), 
+      - Reasoning: since we are using SuperPoint with LightGlue, we have accessibility to large tracks as the lighting changes are not extreme enough
         for SuperPoint features to be extremely inaccurate.
     - Set min_angle = 3.0 (Default 1.0)
       - Reasoning: utilize a larger minimum angle to ensure 3D point estimates are more acccurate, and since we have longer tracks, this is very feasible for this scene.
-    - Set multi_view = True (Default True)
-      - Reasoning: we are tracking features, so the estimation method is multi-view (Which is most, if not all, cases for reconstruction)
+    - max_reproj_error = 1.5
+      - Reasoning: The maximum reprojection error allowed for a triangulated 3D point, we set to 1.5 since we have many features and tracks to be aggresive.
+    - reproj_threshold = 1.0
+      - Reasoning: The reprojection error threshold used to determine whether an individual 2D observation is an inlier, slightly more aggresive than default (1.5)
+    - max_filter_iterations = 5
+      - Reasoning: The maximum number of iterations used to remove outlier observations, which we keep to the default 5.
 
 STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 - To ensure scene is geometrically correct, we want to set 
@@ -75,8 +73,6 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
       - Reasoning: Since initial 2D points will not be as accurate due to inherent inaccauracy of detected features from SuperPoint along with the ML feature matchers,
          we have to set interations to 450 to ensure convergence of scene for optimal reconstruction. This is primarily due to the SuperPoint detect for scenes with lighting
          inconsistency and smoother textured surfaces lacking detectable points from classical detectors.
-    - Set GPU = False,
-      - Reasoning: Global Bundle Adjustment does not need GPU to run effeciently.
 """
 
 # ==#$#==
@@ -85,16 +81,19 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 image_path = "/home/anthonyq/datasets/co3d_v2/apple/189_20393_38136/images" #"D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\apple\\189_20393_38136\\images"
 calibration_path = "/home/anthonyq/datasets/co3d_v2/apple/calibration_new_189_20393_38136.npz" #"D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\apple\\calibration_new_189_20393_38136.npz"
 
-from modules.features import FeatureDetectionSP
-from modules.featurematching import FeatureMatchSuperGluePair, FeatureMatchLightGlueTracking
-from modules.camerapose import CamPoseEstimatorEssentialToPnP
-from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.scenereconstruction import Sparse3DReconstructionMono
-from modules.optimization import BundleAdjustmentOptimizerGlobal, BundleAdjustmentOptimizerLocal
-from modules.baseclass import SfMScene
+from sfmcore.features import FeatureDetectionSP
+from sfmcore.featurematching import FeatureMatchSuperGluePair
+from sfmcore.featuretracking import FeatureTrackFromPairsUnionFind
+from sfmcore.camerapose import CamPoseEstimatorEssentialToPnP
+from sfmcore.optimization import BundleAdjustmentOptimizerLocal
+from sfmcore.scenereconstruction import Sparse3DReconstructionIncremental
+from sfmcore.optimization import BundleAdjustmentOptimizerGlobal, BundleAdjustmentOptimizerLocal
+from sfmcore.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(id=4,
+                              gpu_num="5",
+                              log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/DTU/",
                                 image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
@@ -121,16 +120,15 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 )
 
 # Step 5: Detect Feature Tracks
-reconstructed_scene.FeatureMatchLightGlueTracking(
-    detector="superpoint",
-    RANSAC_threshold=2.5
-)
+reconstructed_scene.FeatureTrackFromPairsUnionFind()
 
 # Step 6: Estimate Sparse Reconstruction
-reconstructed_scene.Sparse3DReconstructionMono(
+reconstructed_scene.Sparse3DReconstructionIncremental(
     min_observe=4,
-    min_angle=0.1,
-    multi_view=True
+    min_angle=1.0,
+    max_reproj_error=1.5,
+    reproj_threshold=1.0,
+    max_filter_iterations=5
 )
 
 # Step 7: Run Optimization
