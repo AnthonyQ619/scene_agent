@@ -71,20 +71,22 @@ STEP 4:Estimate the camera pose using detected matching feature pairs.
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path = "/home/anthonyq/datasets/co3d_v2/hydrant/167_18184_34441/images" #"D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\167_18184_34441\\images"
-calibration_path = "/home/anthonyq/datasets/co3d_v2/hydrant/calibration_new_167_18184_34441.npz" #"D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\calibration_new_167_18184_34441.npz"
+image_path = "/home/anthonyq/datasets/context_images/hydrant/167_18184_34441/images" #"D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\167_18184_34441\\images"
+calibration_path = "/home/anthonyq/datasets/context_images/hydrant/calibration_new_167_18184_34441.npz" #"D:\\aquir\\Documents\\Datasets\\CO3Dv2_DATASET\\hydrant\\calibration_new_167_18184_34441.npz"
 
-from modules.features import FeatureDetectionSIFT
-from modules.featurematching import FeatureMatchFlannPair
-from modules.camerapose import CamPoseEstimatorEssentialToPnP
-from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.scenereconstruction import Sparse3DReconstructionMono
-from modules.optimization import BundleAdjustmentOptimizerGlobal
-from modules.baseclass import SfMScene
+from sfmcore.features import FeatureDetectionSIFT
+from sfmcore.featurematching import FeatureMatchFlannPair
+from sfmcore.camerapose import CamPoseEstimatorEssentialToPnP
+from sfmcore.featuretracking import FeatureTrackFromPairsUnionFind
+from sfmcore.optimization import BundleAdjustmentOptimizerLocal
+from sfmcore.scenereconstruction import Sparse3DReconstructionIncremental
+from sfmcore.optimization import BundleAdjustmentOptimizerGlobal
+from sfmcore.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(id=7, 
-                                log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/ETH/eth_living_room",
+                                gpu_num="5",
+                                log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/DTU/",
                                 image_path = image_path, 
                                 max_images = 20,
                                 calibration_path = calibration_path)
@@ -115,17 +117,15 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 )
 
 # Step 5: Detect Feature Tracks
-reconstructed_scene.FeatureMatchBFTracking(
-    detector="sift",
-    RANSAC_threshold=1.0,
-    lowes_thresh=0.75
-)
+reconstructed_scene.FeatureTrackFromPairsUnionFind()
 
 # Step 6: Estimate Sparse Reconstruction
-reconstructed_scene.Sparse3DReconstructionMono(
+reconstructed_scene.Sparse3DReconstructionIncremental(
     min_observe=3,
     min_angle=1.0,
-    multi_view=True
+    max_reproj_error=1.5,
+    reproj_threshold=1.0,
+    max_filter_iterations=5
 )
 
 # Step 7: Run Optimization

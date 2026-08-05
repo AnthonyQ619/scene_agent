@@ -89,20 +89,24 @@ STEP 7: Apply Global Bundle Adjustment to the scene for optimal reconstruction
 # ==#$#==
 
 # Construct Modules with Initialized Arguments
-image_path = "/home/anthonyq/datasets/tanks_and_temples/Family" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\Family"
+image_path = "/home/anthonyq/datasets/context_images/tanks_and_temples/Family" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\Family"
 calibration_path = "/home/anthonyq/datasets/tanks_and_temples/calibration_new_2048.npz" #"C:\\Users\\Anthony\\Documents\\Projects\\datasets\\sfm_dataset\\Tanks_and_Temples\\calibration_new_2048.npz"
 
-from modules.features import FeatureDetectionSIFT
-from modules.featurematching import FeatureMatchBFPair, FeatureMatchBFTracking
-from modules.camerapose import CamPoseEstimatorEssentialToPnP
-from modules.optimization import BundleAdjustmentOptimizerLocal
-from modules.scenereconstruction import Sparse3DReconstructionMono
-from modules.optimization import BundleAdjustmentOptimizerGlobal
-from modules.baseclass import SfMScene
+from sfmcore.features import FeatureDetectionSIFT
+from sfmcore.featurematching import FeatureMatchBFPair
+from sfmcore.featuretracking import FeatureTrackFromPairsUnionFind
+from sfmcore.camerapose import CamPoseEstimatorEssentialToPnP
+from sfmcore.optimization import BundleAdjustmentOptimizerLocal
+from sfmcore.scenereconstruction import Sparse3DReconstructionIncremental
+from sfmcore.optimization import BundleAdjustmentOptimizerGlobal
+from sfmcore.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
-reconstructed_scene = SfMScene(id=6, image_path = image_path, 
-                                max_images = 20,
+reconstructed_scene = SfMScene(id=6, 
+                                gpu_num="6",
+                                log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/DTU/",
+                                image_path = image_path, 
+                                max_images = 15,
                                 calibration_path = calibration_path)
 
 # Step 2: Detect Features
@@ -132,17 +136,15 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
 )
 
 # Step 5: Detect Feature Tracks
-reconstructed_scene.FeatureMatchBFTracking(
-    detector="sift",
-    RANSAC_threshold=1.0,
-    lowes_thresh=0.75
-)
+reconstructed_scene.FeatureTrackFromPairsUnionFind()
 
 # Step 6: Estimate Sparse Reconstruction
-reconstructed_scene.Sparse3DReconstructionMono(
+reconstructed_scene.Sparse3DReconstructionIncremental(
     min_observe=3,
     min_angle=2.0,
-    multi_view=True
+    max_reproj_error=2.5,
+    reproj_threshold=2.0,
+    max_filter_iterations=5
 )
 
 # Step 7: Run Optimization

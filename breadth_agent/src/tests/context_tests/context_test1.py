@@ -103,13 +103,13 @@ from sfmcore.featurematching import FeatureMatchFlannPair
 from sfmcore.featuretracking import FeatureTrackFromPairsUnionFind
 from sfmcore.camerapose import CamPoseEstimatorEssentialToPnP
 from sfmcore.optimization import BundleAdjustmentOptimizerLocal
-from sfmcore.scenereconstruction import Sparse3DReconstructionIncremental, Dense3DReconstructionMono
+from sfmcore.scenereconstruction import Sparse3DReconstructionIncremental, Dense3DReconstructionMVS
 from sfmcore.optimization import BundleAdjustmentOptimizerGlobal
 from sfmcore.baseclass import SfMScene
 
 # Step 1: Read in Calibration/Image Data
 reconstructed_scene = SfMScene(id=2,
-                                gpu_num="2",
+                                gpu_num="5",
                                 log_dir="/home/anthonyq/projects/scene_agent/breadth_agent/results/ETH/test",
                                 image_path = image_path, 
                                 max_images = 10,
@@ -159,7 +159,7 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
 )
 
 # STEP 8: Run Rense Reconstruction Algorithm
-# reconstructed_scene.Dense3DReconstructionMono(
+# reconstructed_scene.Dense3DReconstructionMVS(
 #     reproj_error=3.0,
 #     min_triangulation_angle=1.0,
 #     num_samples=15,
