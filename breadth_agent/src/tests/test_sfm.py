@@ -4,7 +4,7 @@ from sfmcore.featurematching import FeatureMatchSuperGluePair
 from sfmcore.featuretracking import FeatureTrackFromPairsUnionFind
 from sfmcore.optimization import BundleAdjustmentOptimizerLocal
 from sfmcore.scenereconstruction import Sparse3DReconstructionIncremental, SparseSceneEstimationCOLMAPGlobal, Sparse3DReconstructionMapAnything
-from sfmcore.visualize import VisualizeScene, visualize_camera_poses_plotly, visualize_3d_points
+from sfmcore.visualize import VisualizeScene, VisualizePose
 import os
 from sfmcore.baseclass import SfMScene
 
@@ -84,7 +84,8 @@ reconstructed_scene.BundleAdjustmentOptimizerGlobal(
     max_num_iterations=130,
 )
 
-visualize_3d_points(reconstructed_scene.optimized_scene.points3D.points3D)
+visualize = VisualizeScene()
+visualize(reconstructed_scene.optimized_scene.points3D.points3D)
 # Step 7: Run Optimization
 # reconstructed_scene.BundleAdjustmentOptimizerGlobal(
 #     max_num_iterations=200,

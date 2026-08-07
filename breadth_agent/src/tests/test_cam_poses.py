@@ -1,11 +1,7 @@
 from sfmcore.features import FeatureDetectionSIFT, FeatureDetectionSP, FeatureDetectionORB, FeatureDetectionALIKED
-from sfmcore.featurematching import (FeatureMatchFlannTracking, 
-                                     FeatureMatchBFTracking,
-                                     FeatureMatchFlannPair,
+from sfmcore.featurematching import (FeatureMatchFlannPair,
                                      FeatureMatchBFPair,
                                      FeatureMatchLoftrPair,
-                                     FeatureMatchLightGlueTracking, 
-                                     FeatureMatchSuperGlueTracking, 
                                      FeatureMatchLightGluePair, 
                                      FeatureMatchSuperGluePair,
                                      FeatureMatchRoMAPair,)
@@ -13,8 +9,8 @@ from sfmcore.featurematching import (FeatureMatchFlannTracking,
 from sfmcore.featuretracking import FeatureTrackFromPairsUnionFind
 from sfmcore.optimization import BundleAdjustmentOptimizerLocal
 from sfmcore.camerapose import CamPoseEstimatorEssentialToPnP
-from sfmcore.scenereconstruction import Sparse3DReconstructionMono
-from sfmcore.visualize import VisualizeScene, visualize_camera_poses_plotly
+from sfmcore.scenereconstruction import Sparse3DReconstructionIncremental
+from sfmcore.visualize import VisualizeScene, VisualizePose
 from sfmcore.baseclass import SfMScene
 
 import glob
@@ -48,7 +44,7 @@ reconstructed_scene = SfMScene(ID,
                                 image_path = image_path, 
                                 log_dir=log_dir,
                                 gpu_num=gpu_num,
-                                # max_images = 15,
+                                max_images = 15,
                                 calibration_path = calibration_path)
 
 # Step 2: Detect Features
@@ -101,4 +97,5 @@ reconstructed_scene.CamPoseEstimatorEssentialToPnP(
     }),
 )
 
-visualize_camera_poses_plotly(reconstructed_scene.camera_poses)
+visualize = VisualizePose()
+visualize(reconstructed_scene.camera_poses)
